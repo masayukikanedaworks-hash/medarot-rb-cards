@@ -1,0 +1,1957 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#06080c">
+<title>MEDAROT RB // CARDBASE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg-0:#06080c;--bg-1:#0d1219;--bg-2:#141b27;--bg-3:#1d2638;--border-1:#2a3447;--border-2:#3a4660;--border-3:#525f7c;--text-1:#e8ecf2;--text-2:#aab4c6;--text-3:#6b7689;--orange:#ff6b1a;--orange-bright:#ff8a44;--orange-soft:rgba(255,107,26,.13);--orange-glow:rgba(255,107,26,.45);--cyan:#22d3ee;--cyan-soft:rgba(34,211,238,.1);--cyan-glow:rgba(34,211,238,.35);--t-melee:#ef4444;--t-shoot:#f59e0b;--t-assist:#10b981;--t-install:#a855f7;--t-heal:#ec4899;--t-defend:#3b82f6;--sh-2:0 8px 24px rgba(0,0,0,.5);--sh-3:0 16px 48px rgba(0,0,0,.7);--f-display:'Chakra Petch','Zen Kaku Gothic New',sans-serif;--f-body:'Zen Kaku Gothic New',sans-serif;--f-mono:'JetBrains Mono',monospace;--clip-sm:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);--clip-md:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);--clip-lg:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--f-body);background:var(--bg-0);color:var(--text-1);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;background-image:radial-gradient(ellipse 80% 60% at top left,rgba(255,107,26,.07),transparent 60%),radial-gradient(ellipse 60% 60% at bottom right,rgba(34,211,238,.05),transparent 60%),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);background-size:auto,auto,28px 28px,28px 28px;background-attachment:fixed;min-height:100vh;overflow-x:hidden}
+button{font-family:inherit}
+.header{position:sticky;top:0;z-index:50;background:rgba(7,10,16,.85);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--border-1)}
+.header::after{content:"";display:block;height:1px;background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:.4}
+.header-inner{max-width:1400px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+@media(min-width:720px){.header-inner{padding:14px 24px;gap:16px}}
+.brand{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.brand-mark{font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.08em;color:var(--orange);text-shadow:0 0 18px var(--orange-glow);display:flex;align-items:center;gap:8px}
+.brand-mark::before{content:"";display:inline-block;width:10px;height:10px;background:var(--orange);box-shadow:0 0 10px var(--orange);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+@media(min-width:720px){.brand-mark{font-size:20px}}
+.brand-sub{font-family:var(--f-mono);font-size:9px;letter-spacing:.3em;color:var(--text-3);text-transform:uppercase;display:none}
+@media(min-width:540px){.brand-sub{display:inline}}
+.header-tools{margin-left:auto;display:flex;align-items:center;gap:8px}
+.cloud-indicator{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--cyan);position:relative}
+.cloud-indicator svg{width:18px;height:18px}
+.cloud-indicator::after{content:"";position:absolute;bottom:6px;right:4px;width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:0 0 6px var(--cyan);animation:pulse 2s ease-in-out infinite;border:1px solid var(--bg-0)}
+.cloud-indicator.offline{color:var(--text-3)}
+.cloud-indicator.offline::after{background:#ef4444;box-shadow:0 0 6px #ef4444;animation:none}
+.icon-btn{background:var(--bg-1);border:1px solid var(--border-1);color:var(--text-2);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;transition:all .15s;clip-path:var(--clip-sm)}
+.icon-btn:hover{color:var(--orange);border-color:var(--orange);background:var(--bg-2)}
+.icon-btn:active{transform:scale(.95)}
+.icon-btn svg{width:16px;height:16px}
+.stat-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:11px;color:var(--text-2);border:1px solid var(--border-1);padding:6px 12px;background:var(--bg-1);clip-path:var(--clip-sm)}
+.stat-pill b{color:var(--cyan);font-weight:600}
+.stat-pill::before{content:"";width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:0 0 6px var(--cyan);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.app{max-width:1400px;margin:0 auto;padding:18px 14px 120px}
+@media(min-width:720px){.app{padding:24px 24px 140px}}
+.section-label{font-family:var(--f-display);font-size:10px;letter-spacing:.25em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.section-label::before{content:"";width:16px;height:1px;background:var(--orange)}
+.tabs-wrap{margin-bottom:14px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding:2px}
+.tab{font-family:var(--f-display);font-weight:600;font-size:10px;letter-spacing:.03em;padding:8px 4px;background:var(--bg-1);border:1px solid var(--border-1);color:var(--text-2);cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);white-space:nowrap;text-align:center;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tab:hover{color:var(--text-1);background:var(--bg-2)}
+.tab.active{background:var(--orange-soft);border-color:var(--orange);color:var(--orange);box-shadow:0 0 16px rgba(255,107,26,.18)}
+.tab .count{margin-left:4px;font-family:var(--f-mono);font-size:9px;opacity:.75;font-weight:400}
+.tab.active .count{opacity:1}
+@media(min-width:540px){.tabs{grid-template-columns:repeat(8,1fr);gap:6px}.tab{font-size:11px;padding:9px 6px}}
+.search-collapse{margin-bottom:14px;background:var(--bg-1);border:1px solid var(--border-1);clip-path:var(--clip-md);overflow:hidden}
+.search-collapse[open]{background:var(--bg-1)}
+.search-toggle{list-style:none;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-size:11px;letter-spacing:.12em;color:var(--text-2);text-transform:uppercase;font-weight:600;user-select:none;transition:background .15s}
+.search-toggle::-webkit-details-marker{display:none}
+.search-toggle:hover{background:var(--bg-2)}
+.search-collapse[open] .search-toggle{border-bottom:1px solid var(--border-1);color:var(--orange)}
+.search-toggle-icon{font-size:13px;line-height:1}
+.search-toggle-label{flex:0 1 auto}
+.search-toggle-state{margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:2px 8px;letter-spacing:.04em;display:none}
+.search-toggle-state.active{display:inline}
+.search-toggle-arrow{font-size:10px;color:var(--text-3);transition:transform .2s ease;margin-left:6px}
+.search-collapse[open] .search-toggle-arrow{transform:rotate(180deg)}
+.filters{background:transparent;border:none;padding:10px 12px 6px;margin-bottom:0;display:grid;grid-template-columns:1fr;gap:8px;clip-path:none;position:relative}
+.filters::before{display:none}
+@media(min-width:880px){.filters{grid-template-columns:1fr auto;align-items:center;padding:12px 14px 6px}}
+.search-wrap{position:relative;display:flex;align-items:center}
+.search-wrap::before{content:"▸";position:absolute;left:12px;color:var(--orange);font-family:var(--f-mono);font-size:11px;pointer-events:none}
+.search-wrap::after{content:"/";position:absolute;right:12px;color:var(--text-3);font-family:var(--f-mono);font-size:10px;border:1px solid var(--border-1);padding:1px 6px;pointer-events:none;background:var(--bg-2)}
+.search{width:100%;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:10px 38px 10px 28px;font-family:var(--f-mono);font-size:13px;outline:none;transition:border-color .15s}
+.search:focus{border-color:var(--cyan)}
+.search::placeholder{color:var(--text-3);letter-spacing:.05em}
+.filter-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.type-chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--f-display);font-size:11px;letter-spacing:.04em;padding:6px 11px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-2);cursor:pointer;transition:all .12s;display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.chip::before{content:"";width:7px;height:7px;display:inline-block;background:var(--chip-color,var(--text-3));box-shadow:0 0 7px var(--chip-color,transparent)}
+.chip:hover{color:var(--text-1);border-color:var(--border-2)}
+.chip.active{color:var(--text-1);background:var(--bg-3);border-color:var(--chip-color,var(--orange))}
+.adv-filters{background:transparent;border:none;padding:6px 12px 12px;margin-bottom:0;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;clip-path:none}
+.range-group{display:flex;flex-direction:column;gap:4px}
+.range-group-label{font-family:var(--f-display);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;font-weight:600}
+.range-inputs{display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:11px;color:var(--text-3)}
+.range-inputs input{width:54px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:6px 7px;font-family:var(--f-mono);font-size:12px;outline:none;text-align:center;transition:border-color .15s}
+.range-inputs input:focus{border-color:var(--cyan)}
+.range-inputs input[type=text]{width:110px;text-align:left}
+.sort-select{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:8px 11px;font-family:var(--f-mono);font-size:12px;outline:none;cursor:pointer;transition:border-color .15s}
+.sort-select:focus{border-color:var(--cyan)}
+.clear-btn{background:transparent;border:1px solid var(--border-1);color:var(--text-3);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;padding:7px 12px;cursor:pointer;transition:all .15s;text-transform:uppercase}
+.clear-btn:hover{color:var(--orange);border-color:var(--orange)}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+@media(min-width:540px){.grid{grid-template-columns:repeat(6,1fr);gap:8px}}
+@media(min-width:880px){.grid{grid-template-columns:repeat(8,1fr);gap:10px}}
+.card{position:relative;background:var(--bg-1);border:1px solid var(--border-1);cursor:pointer;overflow:hidden;transition:transform .2s cubic-bezier(.2,.8,.2,1),border-color .18s,box-shadow .18s;clip-path:var(--clip-md);animation:cardIn .35s cubic-bezier(.2,.8,.2,1) backwards}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card:hover{transform:translateY(-3px);border-color:var(--orange);box-shadow:0 14px 38px rgba(255,107,26,.2)}
+.card:active{transform:translateY(-1px)}
+.card-image{width:100%;aspect-ratio:5/7;background:#fff;position:relative;overflow:hidden}
+.card-image img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .4s;transform:scale(1.03)}
+.card:hover .card-image img{transform:scale(1.06)}
+.card-image-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);font-family:var(--f-mono);font-size:10px;letter-spacing:.2em;gap:6px;cursor:pointer;transition:background .15s,color .15s;background:#f4f6fa}
+.card-image-empty::before{content:"⬆";font-size:28px;opacity:.55;color:var(--orange)}
+.card-image-empty:hover{background:#fff4ec;color:var(--orange)}
+.card-image-empty:hover::before{opacity:1}
+.card-image-empty span{font-size:9px;letter-spacing:.16em;color:#7a8398}
+.card-tag{position:absolute;top:3px;left:3px;font-family:var(--f-display);font-size:7px;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.82);padding:2px 4px;border-left:2px solid var(--tag-color,var(--orange));font-weight:600;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.card-cost-badge{position:absolute;top:3px;right:3px;font-family:var(--f-mono);font-weight:700;font-size:10px;color:var(--orange);background:rgba(0,0,0,.85);padding:2px 5px;border:1px solid var(--orange);min-width:20px;text-align:center;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.card-info{padding:5px 6px 6px;border-top:1px solid var(--border-1);background:var(--bg-1)}
+.card-name{font-family:var(--f-body);font-weight:700;font-size:10px;color:var(--text-1);line-height:1.25;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
+.card-meta{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--f-mono);font-size:8px;color:var(--text-3)}
+.card-meta span{display:inline-flex;align-items:center;gap:2px}
+.card-meta b{color:var(--cyan);font-weight:600}
+@media(min-width:540px){.card-tag{font-size:9px;padding:3px 7px}.card-cost-badge{font-size:12px;padding:3px 7px}.card-info{padding:8px 10px 10px}.card-name{font-size:12px;margin-bottom:5px}.card-meta{font-size:10px;gap:6px}}
+.empty{padding:80px 24px;text-align:center;border:1px dashed var(--border-1);background:rgba(13,18,25,.4);clip-path:var(--clip-md)}
+.empty-icon{font-family:var(--f-mono);font-size:32px;color:var(--text-3);letter-spacing:.25em;margin-bottom:14px;opacity:.6}
+.empty-title{font-family:var(--f-display);font-size:16px;color:var(--text-2);margin-bottom:8px;letter-spacing:.08em;font-weight:600}
+.empty-sub{font-size:13px;color:var(--text-3);max-width:320px;margin:0 auto;line-height:1.6}
+.empty-sub b{color:var(--orange)}
+.fab{position:fixed;bottom:22px;right:22px;z-index:60;width:58px;height:58px;background:var(--orange);color:#fff;border:none;font-family:var(--f-display);font-size:28px;font-weight:700;cursor:pointer;box-shadow:0 10px 28px var(--orange-glow),0 0 0 1px var(--orange);transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .2s;clip-path:var(--clip-md);display:flex;align-items:center;justify-content:center;line-height:1}
+.fab:hover{transform:scale(1.08) translateY(-2px);box-shadow:0 14px 36px var(--orange-glow),0 0 0 1px var(--orange)}
+.fab:active{transform:scale(.95)}
+@media(min-width:720px){.fab{width:60px;height:60px;bottom:28px;right:28px}}
+.modal-overlay{position:fixed;inset:0;background:rgba(2,4,8,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:flex-start;justify-content:center;z-index:100;overflow-y:auto;padding:12px 8px}
+.modal-overlay.open{display:flex}
+.modal-overlay.open .modal{animation:modalIn .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal{background:var(--bg-1);border:1px solid var(--border-2);width:100%;max-width:720px;position:relative;box-shadow:var(--sh-3);clip-path:var(--clip-lg);margin:auto;max-height:calc(100vh - 24px);display:flex;flex-direction:column}
+.modal-head{padding:10px 14px;border-bottom:1px solid var(--border-1);display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(90deg,var(--bg-2),var(--bg-1));flex-shrink:0}
+.queue-badge{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;margin-left:auto;margin-right:4px;text-transform:uppercase;font-weight:600;display:inline-flex;align-items:center;gap:6px;clip-path:var(--clip-sm)}
+.queue-badge::before{content:"";width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:0 0 6px var(--cyan);animation:pulse 1.4s ease-in-out infinite}
+.modal-title{font-family:var(--f-display);font-size:12px;letter-spacing:.12em;color:var(--orange);text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px}
+.modal-title::before{content:"▰";font-size:9px;opacity:.8}
+.modal-close{background:transparent;border:1px solid var(--border-1);color:var(--text-2);width:28px;height:28px;font-size:12px;cursor:pointer;font-family:var(--f-mono);transition:all .15s;flex-shrink:0}
+.modal-close:hover{color:var(--orange);border-color:var(--orange)}
+.modal-body{padding:12px;display:grid;gap:10px;overflow-y:auto;flex:1 1 auto;min-height:0}
+@media(min-width:540px){.modal-head{padding:14px 18px}.modal-title{font-size:14px;letter-spacing:.14em}.modal-title::before{font-size:10px}.modal-close{width:32px;height:32px;font-size:14px}.modal-body{padding:18px;gap:16px}}
+.dropzone{border:1px dashed var(--border-2);background:var(--bg-0);padding:26px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;display:block}
+.dropzone:hover,.dropzone.dragover{border-color:var(--orange);background:var(--orange-soft)}
+.dropzone-icon{font-family:var(--f-mono);font-size:22px;color:var(--orange);margin-bottom:8px;opacity:.8}
+.dropzone-text{font-family:var(--f-mono);font-size:12px;color:var(--text-2);letter-spacing:.06em}
+.dropzone-hint{font-family:var(--f-mono);font-size:10px;color:var(--text-3);margin-top:6px}
+.dropzone input{display:none}
+.preview-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.preview-block{border:1px solid var(--border-1);background:var(--bg-0);padding:8px}
+.preview-label{font-family:var(--f-mono);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.preview-label small{color:var(--cyan);font-size:9px;font-weight:600}
+.preview-img{width:100%;aspect-ratio:5/7;object-fit:contain;background:var(--bg-0);display:block}
+.crop-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--bg-0);border:1px solid var(--border-1)}
+.rotate-btn{background:var(--bg-1);border:1px solid var(--border-2);color:var(--text-2);width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);padding:0}
+.rotate-btn:hover{color:var(--orange);border-color:var(--orange);background:var(--bg-2)}
+.rotate-btn:active{transform:scale(.9) rotate(-90deg)}
+.rotate-btn:disabled{opacity:.4;cursor:not-allowed}
+.rotate-btn svg{width:14px;height:14px}
+.crop-status{font-family:var(--f-mono);font-size:11px;flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+.crop-status.success{color:#34d399}
+.crop-status.fail{color:#f59e0b}
+.crop-status.original{color:var(--text-3)}
+.crop-status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;flex-shrink:0}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:11px;color:var(--text-2);cursor:pointer;user-select:none}
+.toggle input{display:none}
+.toggle-track{width:30px;height:16px;background:var(--bg-3);border-radius:8px;position:relative;transition:background .15s;border:1px solid var(--border-2)}
+.toggle-track::after{content:"";position:absolute;top:1px;left:1px;width:12px;height:12px;background:var(--text-3);border-radius:50%;transition:transform .18s,background .18s}
+.toggle input:checked + .toggle-track{background:var(--orange-soft);border-color:var(--orange)}
+.toggle input:checked + .toggle-track::after{transform:translateX(14px);background:var(--orange)}
+.btn{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;border:1px solid var(--border-2);background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+@media(min-width:540px){.btn{font-size:12px;padding:10px 16px;letter-spacing:.1em;gap:7px}}
+.btn:hover:not(:disabled){background:var(--bg-3);border-color:var(--border-3)}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--orange);color:#fff;border-color:var(--orange)}
+.btn-primary:hover:not(:disabled){background:var(--orange-bright);box-shadow:0 0 22px var(--orange-glow)}
+.btn-cyan{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
+.btn-cyan:hover:not(:disabled){background:rgba(34,211,238,.2);box-shadow:0 0 18px var(--cyan-glow)}
+.btn-ghost{background:transparent;border-color:var(--border-1);color:var(--text-2)}
+.btn-ghost:hover:not(:disabled){color:var(--text-1);border-color:var(--border-2);background:var(--bg-2)}
+.btn-danger{background:transparent;color:#f87171;border-color:#b91c1c}
+.btn-danger:hover:not(:disabled){background:rgba(239,68,68,.1);color:#ef4444}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:540px){.field-grid{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px}
+.field-full{grid-column:1/-1}
+.field label{font-family:var(--f-display);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;font-weight:600}
+.field input,.field select,.field textarea{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:9px 11px;font-family:var(--f-mono);font-size:13px;outline:none;transition:border-color .15s,background .15s}
+.field textarea{font-family:var(--f-body);resize:vertical;min-height:72px;line-height:1.6}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--cyan);background:var(--bg-1)}
+.status-msg{padding:9px 12px;font-family:var(--f-mono);font-size:12px;border:1px solid var(--border-1);background:var(--bg-0);display:flex;align-items:center;gap:8px}
+.status-msg.info{color:var(--cyan);border-color:var(--cyan);background:var(--cyan-soft)}
+.status-msg.error{color:#f87171;border-color:#b91c1c;background:rgba(239,68,68,.08)}
+.status-msg.success{color:#34d399;border-color:#047857;background:rgba(16,185,129,.08)}
+.detail-grid{display:grid;grid-template-columns:130px 1fr;gap:10px;align-items:start}
+@media(min-width:600px){.detail-grid{grid-template-columns:200px 1fr;gap:16px}}
+.detail-img-wrap{background:#fff;border:1px solid var(--border-1);overflow:hidden;cursor:zoom-in;position:relative;transition:border-color .15s;padding:3px}
+.detail-img-wrap.empty{cursor:pointer;border-style:dashed;background:#f4f6fa;padding:0}
+.detail-img-wrap.empty:hover{border-color:var(--orange);background:#fff4ec}
+.detail-img-wrap:hover{border-color:var(--cyan)}
+.detail-img-wrap::after{content:"⤢";position:absolute;bottom:4px;right:4px;font-family:var(--f-mono);color:var(--text-1);background:rgba(0,0,0,.7);padding:2px 5px;font-size:10px;border:1px solid var(--border-2);opacity:0;transition:opacity .15s}
+.detail-img-wrap:hover::after{opacity:1}
+.detail-img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
+.detail-img-empty{width:100%;aspect-ratio:5/7;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;gap:8px}
+.detail-img-empty::before{content:"⬆";font-size:36px;color:var(--orange);opacity:.7}
+.detail-img-empty span{font-size:10px;letter-spacing:.2em;color:var(--text-2)}
+.detail-header{margin-bottom:8px}
+.detail-category{font-family:var(--f-mono);font-size:9px;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin-bottom:2px}
+.detail-name{font-family:var(--f-body);font-weight:900;font-size:16px;line-height:1.2;color:var(--text-1)}
+@media(min-width:600px){.detail-name{font-size:20px}}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:4px;margin-bottom:8px}
+.stat{background:var(--bg-0);border-left:2px solid var(--cyan);padding:4px 6px;min-width:0;overflow:hidden}
+.stat-label{font-family:var(--f-mono);font-size:8px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase}
+.stat-value{font-family:var(--f-display);font-weight:700;font-size:13px;color:var(--text-1);margin-top:1px;word-break:break-word}
+@media(min-width:600px){.stat{padding:6px 9px}.stat-label{font-size:9px}.stat-value{font-size:16px}}
+.detail-text-block{background:var(--bg-0);border:1px solid var(--border-1);padding:7px 9px;margin-bottom:6px;white-space:pre-wrap;font-size:11px;line-height:1.55;color:var(--text-1)}
+.detail-text-label{font-family:var(--f-display);font-size:9px;letter-spacing:.14em;color:var(--text-3);text-transform:uppercase;margin-bottom:3px;font-weight:600}
+@media(min-width:600px){.detail-text-block{padding:10px 12px;font-size:13px;line-height:1.7}.detail-text-label{font-size:10px}}
+.trait-tactical{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 9px;background:var(--bg-0);border-left:2px solid var(--cyan);margin-bottom:6px}
+.trait-tactical-label{font-family:var(--f-display);font-size:9px;color:var(--text-3);letter-spacing:.14em;font-weight:700;text-transform:uppercase}
+.trait-type-chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--f-display);font-size:10px;padding:2px 7px;background:var(--bg-2);border:1px solid var(--type-c,var(--text-3));color:var(--type-c,var(--text-3));font-weight:600}
+.trait-type-chip::before{content:"";width:5px;height:5px;background:var(--type-c,currentColor);box-shadow:0 0 4px var(--type-c,currentColor)}
+.trait-action{background:var(--bg-0);border:1px solid var(--border-1);margin-bottom:5px;clip-path:var(--clip-sm)}
+.trait-action-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid var(--border-1);background:var(--bg-2)}
+.trait-cost{font-family:var(--f-mono);font-weight:700;font-size:11px;color:var(--orange);background:var(--bg-0);border:1px solid var(--orange);padding:1px 6px;min-width:22px;text-align:center;line-height:1}
+.trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1)}
+.trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em}
+.trait-effect{padding:6px 9px;font-size:11px;line-height:1.55;color:var(--text-1);white-space:pre-wrap}
+@media(min-width:540px){.trait-tactical{padding:8px 12px;gap:8px}.trait-tactical-label{font-size:10px}.trait-type-chip{font-size:11px;padding:3px 9px}.trait-action-head{padding:8px 12px;gap:10px}.trait-cost{font-size:13px;padding:3px 9px;min-width:28px}.trait-name{font-size:14px}.trait-effect{padding:10px 12px;font-size:13px;line-height:1.7}}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+.lightbox.open{display:flex}
+.lightbox-img{max-width:95vw;max-height:92vh;object-fit:contain;box-shadow:0 24px 64px rgba(0,0,0,.8);border:1px solid var(--border-2)}
+.lightbox-close{position:absolute;top:16px;right:16px;background:var(--bg-1);border:1px solid var(--border-2);color:var(--text-1);width:40px;height:40px;font-size:16px;cursor:pointer;font-family:var(--f-mono)}
+.lightbox-close:hover{color:var(--orange);border-color:var(--orange)}
+.import-options{display:flex;gap:8px;flex-wrap:wrap}
+.import-radio{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;border:1px solid var(--border-1);background:var(--bg-0);cursor:pointer;flex:1;min-width:160px;transition:border-color .15s,background .15s}
+.import-radio:hover{border-color:var(--border-2)}
+.import-radio input{accent-color:var(--orange);margin-top:2px}
+.import-radio.selected{border-color:var(--orange);background:var(--orange-soft)}
+.import-radio-label{font-family:var(--f-display);font-size:12px;font-weight:600;letter-spacing:.04em}
+.import-radio-desc{display:block;font-family:var(--f-mono);font-size:10px;color:var(--text-3);margin-top:2px;font-weight:400}
+#toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:250;pointer-events:none;align-items:center;width:calc(100% - 20px);max-width:500px}
+.toast{background:var(--bg-2);border:1px solid var(--border-2);padding:10px 16px;font-family:var(--f-mono);font-size:12px;color:var(--text-1);box-shadow:var(--sh-2);transform:translateY(20px);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;pointer-events:auto;clip-path:var(--clip-sm);max-width:100%}
+.toast.show{transform:translateY(0);opacity:1}
+.toast-success{border-left:3px solid #10b981}
+.toast-error{border-left:3px solid #ef4444}
+.toast-info{border-left:3px solid var(--cyan)}
+@media(min-width:720px){#toasts{bottom:28px}.toast{font-size:13px}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-bottom-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg-1)}
+::-webkit-scrollbar-thumb{background:var(--border-2)}
+::-webkit-scrollbar-thumb:hover{background:var(--orange)}
+.skeleton{background:linear-gradient(90deg,var(--bg-1) 0%,var(--bg-2) 50%,var(--bg-1) 100%);background-size:200% 100%;animation:skel 1.4s ease-in-out infinite}
+@keyframes skel{to{background-position:-200% 0}}
+@media(max-width:540px){.modal-body{padding:14px}.preview-row{gap:8px}.stat-row{grid-template-columns:repeat(auto-fit,minmax(70px,1fr))}.adv-filters{gap:10px;padding:10px}.range-inputs input{width:48px}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">MEDAROT RB</div>
+      <div class="brand-sub">CARD DATABASE</div>
+    </div>
+    <div class="header-tools">
+      <div class="cloud-indicator" id="cloudIndicator" title="Supabase 接続中">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+      </div>
+      <button class="icon-btn" id="importBtn" title="JSONインポート" aria-label="インポート">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="icon-btn" id="exportBtn" title="JSONエクスポート" aria-label="エクスポート">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <div class="stat-pill">TOTAL <b id="totalCount">0</b></div>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+  <div class="tabs-wrap">
+    <div class="tabs" id="tabs"></div>
+  </div>
+
+  <details class="search-collapse" id="searchCollapse">
+    <summary class="search-toggle">
+      <span class="search-toggle-icon">🔍</span>
+      <span class="search-toggle-label">検索 / フィルタ</span>
+      <span class="search-toggle-state" id="searchFilterCount"></span>
+      <span class="search-toggle-arrow">▾</span>
+    </summary>
+
+    <div class="filters">
+      <div class="search-wrap">
+        <input id="search" class="search" type="text" placeholder="CARD NAME / EFFECT TEXT" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="filter-controls">
+        <div class="type-chips" id="typeChips"></div>
+      </div>
+    </div>
+
+    <div class="adv-filters">
+      <div class="range-group">
+        <div class="range-group-label">行動コスト</div>
+        <div class="range-inputs">
+          <input type="number" id="costMin" placeholder="min" min="0">
+          <span>–</span>
+          <input type="number" id="costMax" placeholder="max" min="0">
+        </div>
+      </div>
+      <div class="range-group">
+        <div class="range-group-label">BP</div>
+        <div class="range-inputs">
+          <input type="number" id="bpMin" placeholder="min" min="0">
+          <span>–</span>
+          <input type="number" id="bpMax" placeholder="max" min="0">
+        </div>
+      </div>
+      <div class="range-group" id="legGroup" style="display:none;">
+        <div class="range-group-label">脚部タイプ</div>
+        <div class="range-inputs">
+          <input type="text" id="legFilter" placeholder="二脚 / 多脚 / 飛行...">
+        </div>
+      </div>
+      <div class="range-group" id="partsArmGroup" style="display:none;">
+        <div class="range-group-label">パーツ腕</div>
+        <select id="partsArmFilter" class="sort-select">
+          <option value="">指定なし</option>
+          <option value="L">L腕</option>
+          <option value="R">R腕</option>
+        </select>
+      </div>
+      <div class="range-group" id="partsModeGroup" style="display:none;">
+        <div class="range-group-label">パーツモード</div>
+        <select id="partsModeFilter" class="sort-select">
+          <option value="">指定なし</option>
+          <option value="行動">行動</option>
+          <option value="戦術">戦術</option>
+        </select>
+      </div>
+      <div class="range-group">
+        <div class="range-group-label">並び替え</div>
+        <select id="sortSelect" class="sort-select">
+          <option value="updated-desc">追加日(新しい順)</option>
+          <option value="updated-asc">追加日(古い順)</option>
+          <option value="name-asc">名前(A→Z)</option>
+          <option value="name-desc">名前(Z→A)</option>
+          <option value="cost-asc">コスト(低→高)</option>
+          <option value="cost-desc">コスト(高→低)</option>
+          <option value="bp-asc">BP(低→高)</option>
+          <option value="bp-desc">BP(高→低)</option>
+        </select>
+      </div>
+      <div class="spacer"></div>
+      <button class="clear-btn" id="clearFilters">CLEAR ALL</button>
+    </div>
+  </details>
+
+  <div id="grid" class="grid"></div>
+  <div id="emptyState" class="empty" style="display:none;">
+    <div class="empty-icon">◇ ◇ ◇</div>
+    <div class="empty-title">NO CARDS FOUND</div>
+    <div class="empty-sub">右下の <b>＋</b> から最初のカードを追加するか、検索条件を変更してください</div>
+  </div>
+</main>
+
+<button class="fab" id="fabAdd" title="新規カード追加" aria-label="新規カード">＋</button>
+
+<div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="uploadTitle">NEW CARD</div>
+      <div class="queue-badge" id="queueBadge" style="display:none;"></div>
+      <button class="modal-close" id="uploadClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div class="dropzone-icon">⬆</div>
+        <div class="dropzone-text">画像をドロップ / クリックで選択</div>
+        <div class="dropzone-hint">枠を自動検出してトリミング(複数選択可)</div>
+      </label>
+
+      <div class="preview-row" id="previewRow" style="display:none;">
+        <div class="preview-block">
+          <div class="preview-label">ORIGINAL <small id="origSize"></small></div>
+          <img id="origPreview" class="preview-img" alt="">
+        </div>
+        <div class="preview-block">
+          <div class="preview-label">CROPPED <small id="trimSize"></small></div>
+          <img id="trimPreview" class="preview-img" alt="">
+        </div>
+      </div>
+
+      <div id="cropControlsWrap" class="crop-controls" style="display:none;">
+        <div class="crop-status" id="cropStatus">
+          <span class="crop-status-dot"></span>
+          <span id="cropStatusText">処理中...</span>
+        </div>
+        <button type="button" class="rotate-btn" id="rotateBtn" title="90°回転(時計回り)" aria-label="回転">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <label class="toggle">
+          <input type="checkbox" id="useOriginalToggle">
+          <span class="toggle-track"></span>
+          <span>クロップなし</span>
+        </label>
+      </div>
+
+      <div class="row-actions" id="imageActions" style="display:none;">
+        <div class="spacer"></div>
+        <button class="btn btn-ghost" id="removeImageBtn">画像を削除</button>
+      </div>
+
+      <div id="statusMsg" class="status-msg info" style="display:none;"></div>
+
+      <div class="field-grid">
+        <div class="field field-full">
+          <label>カード種別</label>
+          <select id="f_cardType">
+            <option value="leader_medarot">リーダーメダロット</option>
+            <option value="support_medarot">サポートメダロット</option>
+            <option value="parts_card">パーツカード</option>
+            <option value="medaforce_card">メダフォースカード</option>
+            <option value="support_card">サポートカード</option>
+            <option value="tactical_card">戦術カード</option>
+            <option value="cheer_card">応援カード</option>
+          </select>
+        </div>
+        <div class="field field-full">
+          <label>カード名</label>
+          <input type="text" id="f_name" placeholder="メダロット名 / カード名">
+        </div>
+        <div class="field" id="wrap_elementType">
+          <label>タイプ</label>
+          <select id="f_elementType">
+            <option value="">—</option>
+            <option value="格闘">格闘</option>
+            <option value="射撃">射撃</option>
+            <option value="支援">支援</option>
+            <option value="設置">設置</option>
+            <option value="回復">回復</option>
+            <option value="防御">防御</option>
+          </select>
+        </div>
+        <div class="field" id="wrap_actionCost">
+          <label>行動コスト / 放熱コスト</label>
+          <input type="number" id="f_actionCost" min="0">
+        </div>
+        <div class="field" id="wrap_bp">
+          <label>BP</label>
+          <input type="number" id="f_bp" min="0">
+        </div>
+        <div class="field" id="wrap_coolingCost">
+          <label>冷却コスト</label>
+          <input type="number" id="f_coolingCost" min="0">
+        </div>
+        <div class="field field-full" id="wrap_legType" style="display:none;">
+          <label>脚部タイプ</label>
+          <input type="text" id="f_legType" placeholder="二脚 / 多脚 / 車両 / 飛行 / 浮遊...">
+        </div>
+
+        <div class="field" id="wrap_partsArm" style="display:none;">
+          <label>パーツ種別</label>
+          <select id="f_partsArm">
+            <option value="">—</option>
+            <option value="L">L腕(左腕)</option>
+            <option value="R">R腕(右腕)</option>
+          </select>
+        </div>
+
+        <div class="field" id="wrap_partsMode" style="display:none;">
+          <label>モード</label>
+          <select id="f_partsMode">
+            <option value="">—</option>
+            <option value="行動">行動</option>
+            <option value="戦術">戦術</option>
+          </select>
+        </div>
+
+        <div class="field field-full" id="wrap_bonusValue" style="display:none;">
+          <label>ボーナス値(戦術モード時 +N)</label>
+          <input type="number" id="f_bonusValue" min="0" placeholder="例: 1000">
+        </div>
+        <div class="field field-full" id="wrap_traits">
+          <label>特性・行動</label>
+          <textarea id="f_traits" placeholder="メダロットの特性や行動テキスト"></textarea>
+        </div>
+        <div class="field field-full" id="wrap_effectText" style="display:none;">
+          <label>効果テキスト</label>
+          <textarea id="f_effectText" placeholder="カードの効果"></textarea>
+        </div>
+        <div class="field field-full">
+          <label>メモ(任意)</label>
+          <textarea id="f_notes" placeholder="自由記述"></textarea>
+        </div>
+      </div>
+
+      <div class="row-actions">
+        <button class="btn btn-danger" id="deleteBtn" style="display:none;">削除</button>
+        <button class="btn btn-ghost" id="duplicateBtn" style="display:none;">複製</button>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost" id="cancelBtn">キャンセル</button>
+        <button class="btn btn-primary" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">CARD DETAIL</div>
+      <button class="modal-close" id="detailClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="importModal" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width: 520px;">
+    <div class="modal-head">
+      <div class="modal-title">JSON IMPORT</div>
+      <button class="modal-close" id="importClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="status-msg info">以前エクスポートしたJSONファイルから読み込みます</div>
+      <div class="import-options">
+        <label class="import-radio selected" data-mode="merge">
+          <input type="radio" name="importMode" value="merge" checked>
+          <span>
+            <span class="import-radio-label">マージ</span>
+            <span class="import-radio-desc">既存カードは保持し、新しいカードのみ追加</span>
+          </span>
+        </label>
+        <label class="import-radio" data-mode="upsert">
+          <input type="radio" name="importMode" value="upsert">
+          <span>
+            <span class="import-radio-label">上書き</span>
+            <span class="import-radio-desc">同じIDのカードは更新、新しいカードは追加</span>
+          </span>
+        </label>
+        <label class="import-radio" data-mode="replace">
+          <input type="radio" name="importMode" value="replace">
+          <span>
+            <span class="import-radio-label">置き換え</span>
+            <span class="import-radio-desc">全カードを削除してから読み込み</span>
+          </span>
+        </label>
+      </div>
+      <label class="dropzone" id="importDrop" style="margin-top: 4px;">
+        <input type="file" id="importFile" accept=".json,application/json">
+        <div class="dropzone-icon">⬇</div>
+        <div class="dropzone-text">JSONファイルをドロップ / 選択</div>
+        <div class="dropzone-hint">.json — エクスポート形式</div>
+      </label>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true">
+  <button class="lightbox-close" id="lightboxClose" aria-label="閉じる">✕</button>
+  <img class="lightbox-img" id="lightboxImg" alt="">
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+const CARD_CATEGORIES = {
+  leader_medarot:  { label: 'リーダーメダロット',  short: 'LEADER' },
+  support_medarot: { label: 'サポートメダロット',  short: 'SUPPORT-M' },
+  parts_card:      { label: 'パーツカード',       short: 'PARTS' },
+  medaforce_card:  { label: 'メダフォース',       short: 'MEDAFORCE' },
+  support_card:    { label: 'サポートカード',     short: 'SUPPORT-C' },
+  tactical_card:   { label: '戦術カード',        short: 'TACTICAL' },
+  cheer_card:      { label: '応援カード',        short: 'CHEER' },
+};
+const CATEGORY_KEYS = Object.keys(CARD_CATEGORIES);
+const ELEMENT_TYPES = ['格闘','射撃','支援','設置','回復','防御'];
+const ELEMENT_COLORS = {
+  '格闘':'var(--t-melee)','射撃':'var(--t-shoot)','支援':'var(--t-assist)',
+  '設置':'var(--t-install)','回復':'var(--t-heal)','防御':'var(--t-defend)',
+};
+const SCHEMA_VERSION = 1;
+
+const state = {
+  cards: [], loading: true,
+  activeTab: 'all', search: '', elementType: '',
+  bpMin: '', bpMax: '', costMin: '', costMax: '',
+  legFilter: '', partsArmFilter: '', partsModeFilter: '',
+  sortBy: 'updated-desc',
+  editingId: null,
+  pendingImage: null, pendingOrigImage: null,
+  pendingDetectedBounds: null, useOriginal: false,
+  uploadQueue: [],
+};
+
+// === Supabase 設定 ===
+const SUPABASE_URL = 'https://ivwlbtqzgkufwepuspfk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d2xidHF6Z2t1ZndlcHVzcGZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NjI1MTYsImV4cCI6MjA5NDQzODUxNn0.pW_PfH26TOevWxx5U32q0uX5r1vjxuw1lzF5j-VTsx4';
+const STORAGE_BUCKET = 'card-images';
+const SUPABASE_ENABLED = !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+
+// REST APIヘッダ
+function supaHeaders(extra) {
+  return Object.assign({
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json',
+  }, extra || {});
+}
+
+// === DB ↔ App 変換 (snake_case ↔ camelCase) ===
+function dbToCard(row) {
+  return {
+    id: row.id,
+    cardType: row.card_type,
+    name: row.name,
+    elementType: row.element_type,
+    actionCost: row.action_cost,
+    bp: row.bp,
+    coolingCost: row.cooling_cost,
+    legType: row.leg_type,
+    partsArm: row.parts_arm,
+    partsMode: row.parts_mode,
+    bonusValue: row.bonus_value,
+    traits: row.traits,
+    effectText: row.effect_text,
+    notes: row.notes,
+    image: row.image_path ? publicImageUrl(row.image_path) : null,
+    imagePath: row.image_path,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+  };
+}
+function cardToDb(card) {
+  return {
+    id: card.id,
+    card_type: card.cardType,
+    name: card.name,
+    element_type: card.elementType || null,
+    action_cost: card.actionCost == null ? null : card.actionCost,
+    bp: card.bp == null ? null : card.bp,
+    cooling_cost: card.coolingCost == null ? null : card.coolingCost,
+    leg_type: card.legType || null,
+    parts_arm: card.partsArm || null,
+    parts_mode: card.partsMode || null,
+    bonus_value: card.bonusValue == null ? null : card.bonusValue,
+    traits: card.traits || null,
+    effect_text: card.effectText || null,
+    notes: card.notes || null,
+    image_path: card.imagePath || null,
+  };
+}
+function publicImageUrl(path) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+}
+
+// === 画像アップロード/削除 (REST API) ===
+async function uploadCardImage(cardId, dataUrl) {
+  if (!SUPABASE_ENABLED || !dataUrl) return null;
+  const m = /^data:(image\/[\w+]+);base64,(.+)$/.exec(dataUrl);
+  if (!m) throw new Error('画像形式が認識できません');
+  const mime = m[1];
+  const ext = mime.split('/')[1].replace('jpeg', 'jpg').replace('+xml', '');
+  const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: mime });
+  const path = 'cards/' + cardId + '-' + Date.now() + '.' + ext;
+  const url = SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      'Content-Type': mime,
+      'x-upsert': 'false',
+      'Cache-Control': '3600',
+    },
+    body: blob,
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('画像アップロード失敗(' + resp.status + '): ' + txt.slice(0, 200));
+  }
+  return path;
+}
+async function deleteCardImage(path) {
+  if (!SUPABASE_ENABLED || !path) return;
+  const url = SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path;
+  try {
+    await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+    });
+  } catch (e) {}
+}
+
+// === DB操作 (REST API) ===
+async function loadAllCards() {
+  if (!SUPABASE_ENABLED) return [];
+  const url = SUPABASE_URL + '/rest/v1/cards?select=*&order=updated_at.desc';
+  const resp = await fetch(url, { headers: supaHeaders() });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('読み込み失敗(' + resp.status + '): ' + txt.slice(0, 200));
+  }
+  const data = await resp.json();
+  return (data || []).map(dbToCard);
+}
+
+async function persistCard(card) {
+  if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
+  const row = cardToDb(card);
+  const url = SUPABASE_URL + '/rest/v1/cards?on_conflict=id';
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: supaHeaders({
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+    }),
+    body: JSON.stringify(row),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('保存失敗(' + resp.status + '): ' + txt.slice(0, 200));
+  }
+}
+
+async function deleteCardFromStorage(id) {
+  if (!SUPABASE_ENABLED) return;
+  const card = state.cards.find(c => c.id === id);
+  if (card && card.imagePath) await deleteCardImage(card.imagePath);
+  const url = SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id);
+  const resp = await fetch(url, {
+    method: 'DELETE',
+    headers: supaHeaders(),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('削除失敗(' + resp.status + '): ' + txt.slice(0, 200));
+  }
+}
+
+function toast(msg, kind = 'info', duration = 3200) {
+  const container = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + kind;
+  el.textContent = msg;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, duration);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+function genId() { return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('ファイル読み込み失敗'));
+    r.readAsDataURL(file);
+  });
+}
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('画像読み込み失敗'));
+    img.src = src;
+  });
+}
+
+/* AUTO CARD-EDGE DETECTION (center-out expansion)
+   1. Sample background color from many edge points (median for robustness)
+   2. Verify center is card-like
+   3. From center, expand outward along each axis until the row/col
+      crosses below the card-content threshold = boundary
+   4. Validate and scale back to original dimensions */
+async function detectCardBounds(originalDataUrl) {
+  const img = await loadImage(originalDataUrl);
+  const w = img.naturalWidth, h = img.naturalHeight;
+
+  // Downsample for analysis speed
+  const ANALYSIS_MAX = 480;
+  const scale = Math.min(1, ANALYSIS_MAX / Math.max(w, h));
+  const aw = Math.max(4, Math.round(w * scale));
+  const ah = Math.max(4, Math.round(h * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = aw; canvas.height = ah;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, aw, ah);
+  const data = ctx.getImageData(0, 0, aw, ah).data;
+
+  function getRGB(x, y) {
+    const i = (y * aw + x) * 4;
+    return [data[i], data[i + 1], data[i + 2]];
+  }
+  const median = (arr) => {
+    const s = arr.slice().sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
+
+  // Background = median of many edge samples (1px inset to skip edge artifacts)
+  const edgeSamples = [];
+  const inset = 1;
+  const step = Math.max(1, Math.floor(Math.min(aw, ah) / 40));
+  for (let x = 0; x < aw; x += step) {
+    edgeSamples.push(getRGB(x, inset));
+    edgeSamples.push(getRGB(x, ah - 1 - inset));
+  }
+  for (let y = 0; y < ah; y += step) {
+    edgeSamples.push(getRGB(inset, y));
+    edgeSamples.push(getRGB(aw - 1 - inset, y));
+  }
+  const bgR = median(edgeSamples.map(c => c[0]));
+  const bgG = median(edgeSamples.map(c => c[1]));
+  const bgB = median(edgeSamples.map(c => c[2]));
+
+  const THRESH = 32;
+  const thresh2 = THRESH * THRESH;
+  function isCard(x, y) {
+    const i = (y * aw + x) * 4;
+    const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
+    return (dr * dr + dg * dg + db * db) > thresh2;
+  }
+
+  const cx = Math.floor(aw / 2);
+  const cy = Math.floor(ah / 2);
+
+  // Sanity check: center area should be predominantly card
+  let centerCard = 0, centerTotal = 0;
+  const ch = Math.max(3, Math.floor(Math.min(aw, ah) * 0.04));
+  for (let y = Math.max(0, cy - ch); y <= Math.min(ah - 1, cy + ch); y++) {
+    for (let x = Math.max(0, cx - ch); x <= Math.min(aw - 1, cx + ch); x++) {
+      if (isCard(x, y)) centerCard++;
+      centerTotal++;
+    }
+  }
+  if (centerCard / centerTotal < 0.5) {
+    // Center isn't reliably card content
+    return { detected: false, almostFull: false, x: 0, y: 0, w, h, ratio: 1 };
+  }
+
+  // Compute "card-ness" for every row/column over the FULL width/height
+  // (full extent — not a narrow center slice — so dark card details
+  // don't appear as gaps when they happen to align with the center axis).
+  const rowRatios = new Array(ah);
+  const colRatios = new Array(aw);
+  for (let y = 0; y < ah; y++) {
+    let c = 0;
+    for (let x = 0; x < aw; x++) if (isCard(x, y)) c++;
+    rowRatios[y] = c / aw;
+  }
+  for (let x = 0; x < aw; x++) {
+    let c = 0;
+    for (let y = 0; y < ah; y++) if (isCard(x, y)) c++;
+    colRatios[x] = c / ah;
+  }
+
+  // Max-window dilation to bridge tiny internal gaps
+  function dilate(arr, win) {
+    const half = (win || 5) >> 1;
+    const out = new Array(arr.length);
+    for (let i = 0; i < arr.length; i++) {
+      let mx = 0;
+      const s = Math.max(0, i - half);
+      const e = Math.min(arr.length, i + half + 1);
+      for (let j = s; j < e; j++) if (arr[j] > mx) mx = arr[j];
+      out[i] = mx;
+    }
+    return out;
+  }
+  const rowSm = dilate(rowRatios, 5);
+  const colSm = dilate(colRatios, 5);
+
+  // Longest contiguous run of rows/cols above CARD_THRESHOLD.
+  // This picks the dominant subject even when stray UI strips
+  // (text bars, icon rows, side arrows) also exceed the threshold,
+  // because they are short while the card is long.
+  const CARD_THRESHOLD = 0.18;
+  function longestRun(arr, thr) {
+    let bs = -1, bl = 0, cs = -1;
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] >= thr) {
+        if (cs < 0) cs = i;
+      } else if (cs >= 0) {
+        const len = i - cs;
+        if (len > bl) { bs = cs; bl = len; }
+        cs = -1;
+      }
+    }
+    if (cs >= 0 && arr.length - cs > bl) { bs = cs; bl = arr.length - cs; }
+    return [bs, bs + bl - 1];
+  }
+  const initial = longestRun(rowSm, CARD_THRESHOLD);
+  const initialH = longestRun(colSm, CARD_THRESHOLD);
+  let top = initial[0], bottom = initial[1];
+  let left = initialH[0], right = initialH[1];
+
+  // Validation: must be reasonably large
+  if (top < 0 || left < 0 ||
+      right - left < aw * 0.2 || bottom - top < ah * 0.2) {
+    return { detected: false, almostFull: false, x: 0, y: 0, w, h, ratio: 1 };
+  }
+
+  // === Stage 2: loose expansion (capture glow / halo around card) ===
+  // Use a much lower color threshold to detect the faded outer edges
+  // of the glow. Restrict the scan range to avoid being pulled into
+  // adjacent UI / faded sibling cards.
+  const LOOSE_THRESH = 18;
+  const loose2 = LOOSE_THRESH * LOOSE_THRESH;
+  const LOOSE_MIN = 0.08;
+  function looseRowRatio(y, x0, x1) {
+    let c = 0;
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * aw + x) * 4;
+      const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
+      if (dr * dr + dg * dg + db * db > loose2) c++;
+    }
+    return c / (x1 - x0 + 1);
+  }
+  function looseColRatio(x, y0, y1) {
+    let c = 0;
+    for (let y = y0; y <= y1; y++) {
+      const i = (y * aw + x) * 4;
+      const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
+      if (dr * dr + dg * dg + db * db > loose2) c++;
+    }
+    return c / (y1 - y0 + 1);
+  }
+
+  const origTop = top, origBottom = bottom;
+  const MAX_EXP_V = Math.max(4, Math.floor((bottom - top + 1) * 0.18));
+  for (let i = 0; i < MAX_EXP_V && top > 0; i++) {
+    if (looseRowRatio(top - 1, left, right) > LOOSE_MIN) top--; else break;
+  }
+  for (let i = 0; i < MAX_EXP_V && bottom < ah - 1; i++) {
+    if (looseRowRatio(bottom + 1, left, right) > LOOSE_MIN) bottom++; else break;
+  }
+  const MAX_EXP_H = Math.max(4, Math.floor((right - left + 1) * 0.08));
+  for (let i = 0; i < MAX_EXP_H && left > 0; i++) {
+    if (looseColRatio(left - 1, origTop, origBottom) > LOOSE_MIN) left--; else break;
+  }
+  for (let i = 0; i < MAX_EXP_H && right < aw - 1; i++) {
+    if (looseColRatio(right + 1, origTop, origBottom) > LOOSE_MIN) right++; else break;
+  }
+
+  const sx = Math.max(0, Math.round(left / scale));
+  const sy = Math.max(0, Math.round(top / scale));
+  const sw = Math.min(w - sx, Math.round((right - left + 1) / scale));
+  const sh = Math.min(h - sy, Math.round((bottom - top + 1) / scale));
+  const areaRatio = (sw * sh) / (w * h);
+
+  return {
+    detected: areaRatio < 0.97,
+    almostFull: areaRatio >= 0.97,
+    x: sx, y: sy, w: sw, h: sh,
+    ratio: areaRatio,
+    bgR: bgR, bgG: bgG, bgB: bgB,
+  };
+}
+
+async function cropAndResize(originalDataUrl, bounds, useOriginal, maxSide = 1200) {
+  const img = await loadImage(originalDataUrl);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  let sx = 0, sy = 0, sw = W, sh = H;
+  if (!useOriginal && bounds && bounds.detected) {
+    sx = bounds.x; sy = bounds.y; sw = bounds.w; sh = bounds.h;
+  }
+  const ratio = Math.min(1, maxSide / Math.max(sw, sh));
+  const dw = Math.max(1, Math.round(sw * ratio));
+  const dh = Math.max(1, Math.round(sh * ratio));
+  const canvas = document.createElement('canvas');
+  canvas.width = dw; canvas.height = dh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+
+  // Replace background with white using detected bg color (flood-fill).
+  if (bounds && typeof bounds.bgR === 'number') {
+    whitenBackground(ctx, dw, dh, bounds.bgR, bounds.bgG, bounds.bgB);
+  }
+
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', 0.9),
+    origDims: { w: W, h: H },
+    outDims: { w: dw, h: dh },
+  };
+}
+
+function whitenBackground(ctx, w, h, bgR, bgG, bgB) {
+  // Flood-fill based: any pixel reachable from the image edges via
+  // "background-like" pixels becomes white. This guarantees that
+  // pixels enclosed by the card body (e.g. blue card icons) are
+  // preserved, even if their color is similar to the background.
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+  const total = w * h;
+  // Mark mask: 0 = unknown, 1 = background (will whiten),
+  //            2 = visited but not background (queued blocker, skip)
+  const mask = new Uint8Array(total);
+
+  // Pixel is "background-like" if RGB distance from detected bg < THRESH.
+  // Use a generous threshold so faded UI / siblings (which sit on the
+  // same dark bg) are captured.
+  const THRESH = 70;
+  const thresh2 = THRESH * THRESH;
+  function isBgLike(idx) {
+    const dr = data[idx] - bgR;
+    const dg = data[idx + 1] - bgG;
+    const db = data[idx + 2] - bgB;
+    return (dr * dr + dg * dg + db * db) < thresh2;
+  }
+
+  // BFS queue (typed array index queue)
+  const queue = new Int32Array(total);
+  let qHead = 0, qTail = 0;
+  function enqueue(x, y) {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const pos = y * w + x;
+    if (mask[pos] !== 0) return;
+    if (isBgLike(pos * 4)) {
+      mask[pos] = 1;
+      queue[qTail++] = pos;
+    } else {
+      mask[pos] = 2; // blocker — leave the pixel as-is
+    }
+  }
+  // Seed from all 4 edges
+  for (let x = 0; x < w; x++) { enqueue(x, 0); enqueue(x, h - 1); }
+  for (let y = 0; y < h; y++) { enqueue(0, y); enqueue(w - 1, y); }
+  // BFS
+  while (qHead < qTail) {
+    const p = queue[qHead++];
+    const x = p % w, y = (p / w) | 0;
+    if (x > 0)     enqueue(x - 1, y);
+    if (x < w - 1) enqueue(x + 1, y);
+    if (y > 0)     enqueue(x, y - 1);
+    if (y < h - 1) enqueue(x, y + 1);
+  }
+  // Whiten all reachable background pixels
+  for (let p = 0; p < total; p++) {
+    if (mask[p] === 1) {
+      const i = p * 4;
+      data[i] = 255; data[i + 1] = 255; data[i + 2] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+
+function applyFilters() {
+  const q = state.search.trim().toLowerCase();
+  return state.cards.filter(c => {
+    if (state.activeTab !== 'all' && c.cardType !== state.activeTab) return false;
+    if (state.elementType && c.elementType !== state.elementType) return false;
+    if (state.bpMin !== '' && (c.bp == null || c.bp < +state.bpMin)) return false;
+    if (state.bpMax !== '' && (c.bp == null || c.bp > +state.bpMax)) return false;
+    if (state.costMin !== '' && (c.actionCost == null || c.actionCost < +state.costMin)) return false;
+    if (state.costMax !== '' && (c.actionCost == null || c.actionCost > +state.costMax)) return false;
+    if (state.legFilter) {
+      const lf = state.legFilter.trim().toLowerCase();
+      if (!c.legType || !c.legType.toLowerCase().includes(lf)) return false;
+    }
+    if (state.partsArmFilter && c.partsArm !== state.partsArmFilter) return false;
+    if (state.partsModeFilter && c.partsMode !== state.partsModeFilter) return false;
+    if (q) {
+      const hay = [c.name, c.traits, c.effectText, c.notes, c.legType].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function sortCards(arr) {
+  const sorted = arr.slice();
+  const cmpN = (a, b) => (a == null ? Infinity : a) - (b == null ? Infinity : b);
+  const cmpNDesc = (a, b) => (b == null ? -Infinity : b) - (a == null ? -Infinity : a);
+  const collator = new Intl.Collator('ja');
+  switch (state.sortBy) {
+    case 'name-asc':  sorted.sort((a, b) => collator.compare(a.name || '', b.name || '')); break;
+    case 'name-desc': sorted.sort((a, b) => collator.compare(b.name || '', a.name || '')); break;
+    case 'bp-asc':    sorted.sort((a, b) => cmpN(a.bp, b.bp)); break;
+    case 'bp-desc':   sorted.sort((a, b) => cmpNDesc(a.bp, b.bp)); break;
+    case 'cost-asc':  sorted.sort((a, b) => cmpN(a.actionCost, b.actionCost)); break;
+    case 'cost-desc': sorted.sort((a, b) => cmpNDesc(a.actionCost, b.actionCost)); break;
+    case 'updated-asc':  sorted.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0)); break;
+    default: sorted.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); break;
+  }
+  return sorted;
+}
+
+function renderTabs() {
+  const counts = { all: state.cards.length };
+  CATEGORY_KEYS.forEach(k => counts[k] = 0);
+  state.cards.forEach(c => { if (counts[c.cardType] != null) counts[c.cardType]++; });
+  const tabs = [{ key: 'all', label: 'ALL' }, ...CATEGORY_KEYS.map(k => ({ key: k, label: CARD_CATEGORIES[k].short }))];
+  const el = document.getElementById('tabs');
+  el.innerHTML = tabs.map(t =>
+    '<button class="tab ' + (state.activeTab === t.key ? 'active' : '') + '" data-tab="' + t.key + '">' +
+    t.label + '<span class="count">' + (counts[t.key] || 0) + '</span></button>'
+  ).join('');
+  el.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => { state.activeTab = btn.dataset.tab; renderAll(); });
+  });
+  document.getElementById('legGroup').style.display = state.activeTab === 'leader_medarot' ? 'flex' : 'none';
+  const partsActive = state.activeTab === 'parts_card';
+  document.getElementById('partsArmGroup').style.display = partsActive ? 'flex' : 'none';
+  document.getElementById('partsModeGroup').style.display = partsActive ? 'flex' : 'none';
+}
+function renderTypeChips() {
+  const el = document.getElementById('typeChips');
+  el.innerHTML = ELEMENT_TYPES.map(t =>
+    '<button class="chip ' + (state.elementType === t ? 'active' : '') + '" ' +
+    'style="--chip-color: ' + ELEMENT_COLORS[t] + '" data-type="' + t + '">' + t + '</button>'
+  ).join('');
+  el.querySelectorAll('[data-type]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.elementType = (state.elementType === b.dataset.type ? '' : b.dataset.type);
+      renderTypeChips(); renderGrid();
+    });
+  });
+}
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const filtered = sortCards(applyFilters());
+  document.getElementById('totalCount').textContent = state.cards.length;
+  updateFilterBadge();
+  if (state.loading) {
+    grid.innerHTML = Array.from({ length: 8 }).map(() =>
+      '<div class="card"><div class="card-image skeleton" style="aspect-ratio:5/7"></div><div class="card-info"><div class="skeleton" style="height:12px;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:60%"></div></div></div>'
+    ).join('');
+    document.getElementById('emptyState').style.display = 'none';
+    return;
+  }
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    document.getElementById('emptyState').style.display = 'block';
+    return;
+  }
+  document.getElementById('emptyState').style.display = 'none';
+  grid.innerHTML = filtered.map((c, i) => cardTileHtml(c, i)).join('');
+  grid.querySelectorAll('[data-card-id]').forEach(el => {
+    el.addEventListener('click', () => openDetail(el.dataset.cardId));
+  });
+}
+function cardTileHtml(c, i) {
+  const cat = CARD_CATEGORIES[c.cardType] || { short: '—' };
+  const tagColor = c.elementType ? ELEMENT_COLORS[c.elementType] : 'var(--orange)';
+  const cost = (c.actionCost != null && c.actionCost !== '')
+    ? '<div class="card-cost-badge">' + escapeHtml(String(c.actionCost)) + '</div>' : '';
+  const img = c.image
+    ? '<img src="' + c.image + '" alt="' + escapeAttr(c.name || '') + '" loading="lazy">'
+    : '<div class="card-image-empty"><span>画像を追加</span></div>';
+  const meta = [
+    c.elementType ? '<span style="color:' + ELEMENT_COLORS[c.elementType] + '">' + c.elementType + '</span>' : '',
+    c.partsArm ? '<span>' + c.partsArm + '腕</span>' : '',
+    c.partsMode ? '<span>' + escapeHtml(c.partsMode) + '</span>' : '',
+    c.bp != null && c.bp !== '' ? '<span>BP:<b>' + c.bp + '</b></span>' : '',
+    c.bonusValue != null && c.bonusValue !== '' ? '<span>+<b>' + c.bonusValue + '</b></span>' : '',
+    c.coolingCost != null && c.coolingCost !== '' ? '<span>冷却:<b>' + c.coolingCost + '</b></span>' : '',
+    c.legType ? '<span>' + escapeHtml(c.legType) + '</span>' : '',
+  ].filter(Boolean).join('');
+  const delay = Math.min(i, 12) * 20;
+  return '<div class="card" data-card-id="' + c.id + '" style="animation-delay:' + delay + 'ms">' +
+    '<div class="card-image">' + img +
+    '<div class="card-tag" style="--tag-color: ' + tagColor + '">' + cat.short + '</div>' +
+    cost + '</div>' +
+    '<div class="card-info"><div class="card-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
+    '<div class="card-meta">' + (meta || '<span>—</span>') + '</div></div></div>';
+}
+function renderAll() { renderTabs(); renderTypeChips(); renderGrid(); }
+
+function updateFilterBadge() {
+  let count = 0;
+  if (state.search) count++;
+  if (state.elementType) count++;
+  if (state.bpMin !== '' || state.bpMax !== '') count++;
+  if (state.costMin !== '' || state.costMax !== '') count++;
+  if (state.legFilter) count++;
+  if (state.partsArmFilter) count++;
+  if (state.partsModeFilter) count++;
+  const el = document.getElementById('searchFilterCount');
+  if (!el) return;
+  if (count > 0) {
+    el.textContent = count + ' ACTIVE';
+    el.classList.add('active');
+  } else {
+    el.textContent = '';
+    el.classList.remove('active');
+  }
+}
+
+/* Parse + render a structured traits text block.
+   Recognized lines:
+     "戦術: 射撃, 射撃"           → tactical type chips
+     "[<cost>] <name>(行動|戦術)"  → action header
+     "<text>"                     → action effect body (continuation)
+   Falls back to a single text block if no structured tokens found. */
+function renderTraits(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  let any = false;
+  let buffer = null;
+  const out = [];
+  const flush = () => {
+    if (buffer) {
+      out.push(
+        '<div class="trait-action"><div class="trait-action-head">' +
+          '<span class="trait-cost">' + escapeHtml(String(buffer.cost)) + '</span>' +
+          '<span class="trait-name">' + escapeHtml(buffer.name) + '</span>' +
+          (buffer.mode ? '<span class="trait-mode">' + escapeHtml(buffer.mode) + '</span>' : '') +
+        '</div>' +
+        (buffer.effect.trim() ? '<div class="trait-effect">' + escapeHtml(buffer.effect.trim()) + '</div>' : '') +
+        '</div>'
+      );
+      buffer = null;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { continue; }
+    // Tactical line
+    const tm = /^戦術\s*[:：]\s*(.+)$/.exec(line);
+    if (tm) {
+      flush();
+      any = true;
+      const types = tm[1].split(/[,、\s]+/).map(s => s.trim()).filter(Boolean);
+      out.push(
+        '<div class="trait-tactical">' +
+        '<span class="trait-tactical-label">戦術</span>' +
+        types.map(t => {
+          const c = ELEMENT_COLORS[t] || 'var(--text-3)';
+          return '<span class="trait-type-chip" style="--type-c:' + c + '">' + escapeHtml(t) + '</span>';
+        }).join('') +
+        '</div>'
+      );
+      continue;
+    }
+    // Action header: "[N] name(行動|戦術)"
+    const am = /^\[(\d+)\]\s*(.+?)(?:\s*[（(](行動|戦術)[）)])?\s*$/.exec(line);
+    if (am) {
+      flush();
+      any = true;
+      buffer = { cost: am[1], name: am[2], mode: am[3] || '', effect: '' };
+      continue;
+    }
+    // Continuation / freeform
+    if (buffer) {
+      buffer.effect += (buffer.effect ? '\n' : '') + line;
+    } else {
+      // Unstructured prefix — fall back later
+      out.push('<div class="detail-text-block">' + escapeHtml(line) + '</div>');
+    }
+  }
+  flush();
+  if (!any) {
+    return '<div class="detail-text-block">' + escapeHtml(text) + '</div>';
+  }
+  return out.join('');
+}
+
+function openDetail(id) {
+  const c = state.cards.find(x => x.id === id);
+  if (!c) return;
+  const cat = CARD_CATEGORIES[c.cardType] || { label: '—' };
+  const typeColor = c.elementType ? ELEMENT_COLORS[c.elementType] : 'var(--orange)';
+  const stats = [
+    c.elementType ? { l: 'TYPE', v: c.elementType, color: typeColor } : null,
+    c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null,
+    c.partsMode ? { l: 'モード', v: c.partsMode, color: 'var(--cyan)' } : null,
+    (c.actionCost != null && c.actionCost !== '') ? { l: '行動コスト', v: c.actionCost, color: 'var(--orange)' } : null,
+    (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
+    (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
+    (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
+    c.legType ? { l: '脚部', v: c.legType } : null,
+  ].filter(Boolean);
+
+  const statsHtml = stats.map(s =>
+    '<div class="stat"' + (s.color ? ' style="border-left-color:' + s.color + '"' : '') + '>' +
+    '<div class="stat-label">' + s.l + '</div>' +
+    '<div class="stat-value"' + (s.color ? ' style="color:' + s.color + '"' : '') + '>' +
+    escapeHtml(String(s.v)) + '</div></div>'
+  ).join('');
+
+  document.getElementById('detailBody').innerHTML =
+    '<div class="detail-grid">' +
+    '<div class="detail-img-wrap' + (c.image ? '' : ' empty') + '" id="detailImgWrap">' +
+      (c.image ? '<img class="detail-img" src="' + c.image + '" alt="' + escapeAttr(c.name || '') + '">'
+               : '<div class="detail-img-empty"><span>画像を追加</span></div>') +
+    '</div>' +
+    '<div>' +
+      '<div class="detail-header">' +
+        '<div class="detail-category" style="color: ' + typeColor + '">' + cat.label + '</div>' +
+        '<div class="detail-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
+      '</div>' +
+      '<div class="stat-row">' + statsHtml + '</div>' +
+      (c.traits ? '<div class="detail-text-label">特性・行動</div>' + renderTraits(c.traits) : '') +
+      (c.effectText ? '<div class="detail-text-label">効果</div><div class="detail-text-block">' + escapeHtml(c.effectText) + '</div>' : '') +
+      (c.notes ? '<div class="detail-text-label">メモ</div><div class="detail-text-block">' + escapeHtml(c.notes) + '</div>' : '') +
+      '<div class="row-actions" style="margin-top:14px;">' +
+        '<button class="btn btn-ghost" id="editFromDetail">編集</button>' +
+        '<button class="btn btn-ghost" id="duplicateFromDetail">複製</button>' +
+      '</div>' +
+    '</div></div>';
+
+  document.getElementById('detailModal').classList.add('open');
+  const editBtn = document.getElementById('editFromDetail');
+  if (editBtn) editBtn.addEventListener('click', () => { closeDetail(); openEditor(c); });
+  const dupBtn = document.getElementById('duplicateFromDetail');
+  if (dupBtn) dupBtn.addEventListener('click', () => { closeDetail(); duplicateCard(c); });
+  const imgWrap = document.getElementById('detailImgWrap');
+  if (imgWrap) {
+    if (c.image) {
+      imgWrap.addEventListener('click', () => openLightbox(c.image));
+    } else {
+      imgWrap.addEventListener('click', () => { closeDetail(); openEditor(c); });
+    }
+  }
+}
+function closeDetail() { document.getElementById('detailModal').classList.remove('open'); }
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+function openEditor(card) {
+  state.editingId = card ? card.id : null;
+  state.pendingImage = card ? card.image : null;
+  state.pendingOrigImage = null;
+  state.pendingDetectedBounds = null;
+  state.useOriginal = false;
+
+  document.getElementById('uploadTitle').textContent = card ? 'EDIT CARD' : 'NEW CARD';
+  document.getElementById('deleteBtn').style.display = card ? 'inline-flex' : 'none';
+  document.getElementById('duplicateBtn').style.display = card ? 'inline-flex' : 'none';
+
+  setField('f_cardType', card ? card.cardType : 'leader_medarot');
+  setField('f_name', card ? card.name : '');
+  setField('f_elementType', card ? (card.elementType || '') : '');
+  setField('f_actionCost', card && card.actionCost != null ? card.actionCost : '');
+  setField('f_bp', card && card.bp != null ? card.bp : '');
+  setField('f_coolingCost', card && card.coolingCost != null ? card.coolingCost : '');
+  setField('f_legType', card ? (card.legType || '') : '');
+  setField('f_partsArm', card ? (card.partsArm || '') : '');
+  setField('f_partsMode', card ? (card.partsMode || '') : '');
+  setField('f_bonusValue', card && card.bonusValue != null ? card.bonusValue : '');
+  setField('f_traits', card ? (card.traits || '') : '');
+  setField('f_effectText', card ? (card.effectText || '') : '');
+  setField('f_notes', card ? (card.notes || '') : '');
+  toggleFieldsForCardType(card ? card.cardType : 'leader_medarot');
+
+  if (card && card.image) {
+    document.getElementById('previewRow').style.display = 'grid';
+    document.getElementById('origPreview').src = card.image;
+    document.getElementById('trimPreview').src = card.image;
+    document.getElementById('origSize').textContent = '';
+    document.getElementById('trimSize').textContent = '';
+    document.getElementById('cropControlsWrap').style.display = 'none';
+    document.getElementById('imageActions').style.display = 'flex';
+  } else {
+    document.getElementById('previewRow').style.display = 'none';
+    document.getElementById('cropControlsWrap').style.display = 'none';
+    document.getElementById('imageActions').style.display = 'none';
+  }
+  document.getElementById('fileInput').value = '';
+  document.getElementById('useOriginalToggle').checked = false;
+  hideStatus();
+  document.getElementById('uploadModal').classList.add('open');
+}
+function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; }
+function getField(id) { return document.getElementById(id).value; }
+function getNumField(id) { const v = getField(id); return v === '' ? null : Number(v); }
+function toggleFieldsForCardType(t) {
+  const isMed = (t === 'leader_medarot' || t === 'support_medarot');
+  const isLeader = t === 'leader_medarot';
+  const isParts = t === 'parts_card';
+  const isMedaforce = t === 'medaforce_card';
+  const isTextCard = (t === 'support_card' || t === 'tactical_card' || t === 'cheer_card');
+
+  // タイプは メダロット / パーツ / 戦術 / メダフォース で使う
+  const hasType = isMed || isParts || isMedaforce || t === 'tactical_card';
+  document.getElementById('wrap_elementType').style.display = hasType ? 'flex' : 'none';
+
+  // 行動コストは メダロット / メダフォース で使う(パーツは個別行動側に持つ)
+  document.getElementById('wrap_actionCost').style.display = (isMed || isMedaforce) ? 'flex' : 'none';
+
+  // BP・冷却コストは メダロットのみ
+  document.getElementById('wrap_bp').style.display = isMed ? 'flex' : 'none';
+  document.getElementById('wrap_coolingCost').style.display = isMed ? 'flex' : 'none';
+
+  // 脚部タイプはリーダーメダロットのみ
+  document.getElementById('wrap_legType').style.display = isLeader ? 'flex' : 'none';
+
+  // パーツカード専用
+  document.getElementById('wrap_partsArm').style.display = isParts ? 'flex' : 'none';
+  document.getElementById('wrap_partsMode').style.display = isParts ? 'flex' : 'none';
+  document.getElementById('wrap_bonusValue').style.display = isParts ? 'flex' : 'none';
+
+  // 特性・行動テキストは メダロット / パーツ で使う
+  document.getElementById('wrap_traits').style.display = (isMed || isParts) ? 'flex' : 'none';
+
+  // 効果テキストは メダフォース / サポート / 戦術 / 応援 で使う
+  document.getElementById('wrap_effectText').style.display = (isTextCard || isMedaforce) ? 'flex' : 'none';
+}
+function closeEditor(skipQueueCheck) {
+  if (!skipQueueCheck && state.uploadQueue.length > 0) {
+    if (!confirm('キューに ' + state.uploadQueue.length + ' 件の画像が残っています。\n破棄して閉じますか?')) {
+      return;
+    }
+    state.uploadQueue = [];
+    updateQueueBadge();
+  }
+  document.getElementById('uploadModal').classList.remove('open');
+  state.editingId = null;
+  state.pendingImage = null;
+  state.pendingOrigImage = null;
+  state.pendingDetectedBounds = null;
+}
+function showStatus(msg, kind) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status-msg ' + (kind || 'info');
+  el.textContent = msg;
+  el.style.display = 'flex';
+}
+function hideStatus() { document.getElementById('statusMsg').style.display = 'none'; }
+function setCropStatus(text, kind) {
+  const el = document.getElementById('cropStatus');
+  el.className = 'crop-status ' + (kind || 'success');
+  document.getElementById('cropStatusText').textContent = text;
+}
+
+function updateQueueBadge() {
+  const el = document.getElementById('queueBadge');
+  if (state.uploadQueue.length > 0) {
+    el.style.display = 'inline-flex';
+    el.textContent = 'QUEUE +' + state.uploadQueue.length;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function enqueueFiles(files) {
+  // Filter to images only
+  const imgs = files.filter(function(f) { return f.type.startsWith('image/'); });
+  if (imgs.length === 0) { toast('画像ファイルが含まれていません', 'error'); return; }
+  // First file processes immediately, rest go to queue
+  state.uploadQueue = state.uploadQueue.concat(imgs.slice(1));
+  updateQueueBadge();
+  if (imgs.length > 1) {
+    toast(imgs.length + ' 件をキューに追加(現在 ' + (state.uploadQueue.length + 1) + ' 件)', 'info', 2400);
+  }
+  handleImageFile(imgs[0]);
+}
+
+async function processNextInQueue() {
+  if (state.uploadQueue.length === 0) {
+    updateQueueBadge();
+    return false;
+  }
+  const next = state.uploadQueue.shift();
+  updateQueueBadge();
+  // Open fresh editor and load next image
+  openEditor(null);
+  await new Promise(function(r) { setTimeout(r, 100); });
+  await handleImageFile(next);
+  return true;
+}
+
+async function rotateImage90CW() {
+  if (!state.pendingOrigImage) return;
+  const btn = document.getElementById('rotateBtn');
+  btn.disabled = true;
+  try {
+    const img = await loadImage(state.pendingOrigImage);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalHeight;
+    canvas.height = img.naturalWidth;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    state.pendingOrigImage = canvas.toDataURL('image/jpeg', 0.95);
+    document.getElementById('origPreview').src = state.pendingOrigImage;
+
+    setCropStatus('回転後、再検出中...', 'success');
+    const bounds = await detectCardBounds(state.pendingOrigImage);
+    state.pendingDetectedBounds = bounds;
+    if (bounds.detected) {
+      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
+    } else if (bounds.almostFull) {
+      setCropStatus('画像は既にトリミング済みです', 'original');
+    } else {
+      setCropStatus('枠を検出できませんでした → オリジナルを使用', 'fail');
+    }
+    await refreshCroppedPreview();
+  } catch (e) {
+    toast('回転処理に失敗: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) { toast('画像ファイルを選択してください', 'error'); return; }
+  if (file.size > 12 * 1024 * 1024) toast('画像サイズが大きいです(12MB超)', 'info');
+  try {
+    const dataUrl = await fileToDataURL(file);
+    state.pendingOrigImage = dataUrl;
+    document.getElementById('origPreview').src = dataUrl;
+    document.getElementById('previewRow').style.display = 'grid';
+    document.getElementById('cropControlsWrap').style.display = 'flex';
+    document.getElementById('imageActions').style.display = 'flex';
+    setCropStatus('カード枠を検出中...', 'success');
+    const bounds = await detectCardBounds(dataUrl);
+    state.pendingDetectedBounds = bounds;
+    if (bounds.detected) {
+      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
+    } else if (bounds.almostFull) {
+      setCropStatus('画像は既にトリミング済みです', 'original');
+    } else {
+      setCropStatus('枠を検出できませんでした → オリジナルを使用', 'fail');
+    }
+    await refreshCroppedPreview();
+    hideStatus();
+  } catch (e) {
+    toast('画像読み込み失敗: ' + e.message, 'error');
+  }
+}
+async function refreshCroppedPreview() {
+  if (!state.pendingOrigImage) return;
+  const useOrig = state.useOriginal || !state.pendingDetectedBounds || !state.pendingDetectedBounds.detected;
+  const r = await cropAndResize(state.pendingOrigImage, state.pendingDetectedBounds, useOrig);
+  state.pendingImage = r.dataUrl;
+  document.getElementById('trimPreview').src = r.dataUrl;
+  document.getElementById('origSize').textContent = r.origDims.w + '×' + r.origDims.h;
+  document.getElementById('trimSize').textContent = r.outDims.w + '×' + r.outDims.h;
+}
+function removePendingImage() {
+  state.pendingImage = null; state.pendingOrigImage = null;
+  state.pendingDetectedBounds = null; state.useOriginal = false;
+  document.getElementById('previewRow').style.display = 'none';
+  document.getElementById('cropControlsWrap').style.display = 'none';
+  document.getElementById('imageActions').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('useOriginalToggle').checked = false;
+}
+
+
+async function saveFromForm() {
+  const name = getField('f_name').trim();
+  if (!name) { showStatus('カード名を入力してください', 'error'); return; }
+  const now = Date.now();
+  const existing = state.editingId ? state.cards.find(c => c.id === state.editingId) : null;
+  const cardId = state.editingId || genId();
+
+  // 画像処理: dataURLなら新規アップロード、既にURLなら既存パスを保持
+  let imagePath = existing ? existing.imagePath : null;
+  let imageUrl = state.pendingImage;
+  const isNewImage = state.pendingImage && state.pendingImage.startsWith('data:');
+  if (isNewImage && SUPABASE_ENABLED) {
+    try {
+      showStatus('画像をアップロード中...', 'info');
+      // 既存画像があれば削除
+      if (existing && existing.imagePath) {
+        await deleteCardImage(existing.imagePath);
+      }
+      imagePath = await uploadCardImage(cardId, state.pendingImage);
+      imageUrl = publicImageUrl(imagePath);
+    } catch (e) {
+      showStatus('画像アップロード失敗: ' + e.message, 'error');
+      return;
+    }
+  } else if (!state.pendingImage && existing && existing.imagePath) {
+    // 画像が削除された
+    await deleteCardImage(existing.imagePath);
+    imagePath = null;
+    imageUrl = null;
+  }
+
+  const card = {
+    id: cardId,
+    cardType: getField('f_cardType'),
+    name: name,
+    elementType: getField('f_elementType') || null,
+    actionCost: getNumField('f_actionCost'),
+    bp: getNumField('f_bp'),
+    coolingCost: getNumField('f_coolingCost'),
+    legType: getField('f_legType').trim() || null,
+    partsArm: getField('f_partsArm') || null,
+    partsMode: getField('f_partsMode') || null,
+    bonusValue: getNumField('f_bonusValue'),
+    traits: getField('f_traits').trim() || null,
+    effectText: getField('f_effectText').trim() || null,
+    notes: getField('f_notes').trim() || null,
+    image: imageUrl,
+    imagePath: imagePath,
+    createdAt: existing ? existing.createdAt : now,
+    updatedAt: now,
+  };
+  try {
+    await persistCard(card);
+    const idx = state.cards.findIndex(x => x.id === card.id);
+    if (idx >= 0) state.cards[idx] = card; else state.cards.push(card);
+    const wasUpdate = !!existing;
+    const hasMore = state.uploadQueue.length > 0;
+    closeEditor(true);
+    renderAll();
+    toast(wasUpdate ? 'カードを更新しました' : 'カードを保存しました', 'success');
+    if (hasMore) {
+      setTimeout(processNextInQueue, 250);
+    }
+  } catch (e) {
+    showStatus('保存失敗: ' + e.message, 'error');
+  }
+}
+async function deleteCurrent() {
+  if (!state.editingId) return;
+  if (!confirm('このカードを削除しますか?\n(操作は元に戻せません)')) return;
+  try {
+    await deleteCardFromStorage(state.editingId);
+    state.cards = state.cards.filter(c => c.id !== state.editingId);
+    closeEditor();
+    renderAll();
+    toast('カードを削除しました', 'success');
+  } catch (e) {
+    showStatus('削除失敗: ' + e.message, 'error');
+  }
+}
+function duplicateCard(card) {
+  openEditor(null);
+  setField('f_cardType', card.cardType);
+  setField('f_name', (card.name || '') + ' (コピー)');
+  setField('f_elementType', card.elementType || '');
+  setField('f_actionCost', card.actionCost != null ? card.actionCost : '');
+  setField('f_bp', card.bp != null ? card.bp : '');
+  setField('f_coolingCost', card.coolingCost != null ? card.coolingCost : '');
+  setField('f_legType', card.legType || '');
+  setField('f_partsArm', card.partsArm || '');
+  setField('f_partsMode', card.partsMode || '');
+  setField('f_bonusValue', card.bonusValue != null ? card.bonusValue : '');
+  setField('f_traits', card.traits || '');
+  setField('f_effectText', card.effectText || '');
+  setField('f_notes', card.notes || '');
+  toggleFieldsForCardType(card.cardType);
+  if (card.image) {
+    state.pendingImage = card.image;
+    document.getElementById('previewRow').style.display = 'grid';
+    document.getElementById('origPreview').src = card.image;
+    document.getElementById('trimPreview').src = card.image;
+    document.getElementById('imageActions').style.display = 'flex';
+  }
+  document.getElementById('uploadTitle').textContent = 'NEW CARD (DUPLICATE)';
+}
+
+function exportJson() {
+  if (state.cards.length === 0) { toast('エクスポートするカードがありません', 'error'); return; }
+  const payload = {
+    app: 'medarot-rb-cardbase',
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    count: state.cards.length,
+    cards: state.cards,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  a.download = 'medarot-rb-cards-' + ymd + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(state.cards.length + ' 件をエクスポートしました', 'success');
+}
+function openImportModal() {
+  document.getElementById('importModal').classList.add('open');
+  document.getElementById('importFile').value = '';
+}
+function closeImportModal() { document.getElementById('importModal').classList.remove('open'); }
+
+async function importJsonFile(file) {
+  if (!file) return;
+  const modeRadio = document.querySelector('input[name="importMode"]:checked');
+  const mode = modeRadio ? modeRadio.value : 'merge';
+  try {
+    const text = await file.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { toast('JSON 解析失敗: ' + e.message, 'error'); return; }
+    const cards = Array.isArray(data && data.cards) ? data.cards
+                : Array.isArray(data) ? data : null;
+    if (!cards) { toast('不正な形式: cards 配列が見つかりません', 'error'); return; }
+
+    if (mode === 'replace') {
+      if (!confirm('現在の ' + state.cards.length + ' 件のカードをすべて削除して、\n' + cards.length + ' 件で置き換えますか?')) return;
+      for (const c of state.cards) await deleteCardFromStorage(c.id);
+      state.cards = [];
+    }
+    let added = 0, updated = 0, skipped = 0, failed = 0;
+    const failedNames = [];
+    let firstError = null;
+    const existingIds = new Set(state.cards.map(c => c.id));
+    for (const raw of cards) {
+      if (!raw || typeof raw !== 'object' || !raw.name) { skipped++; continue; }
+      const id = raw.id || genId();
+      const exists = existingIds.has(id);
+      if (exists && mode === 'merge') { skipped++; continue; }
+      const existing = exists ? state.cards.find(c => c.id === id) : null;
+      // For upsert mode: preserve existing image if new card lacks one,
+      // and preserve original createdAt.
+      const card = {
+        id: id,
+        cardType: CARD_CATEGORIES[raw.cardType] ? raw.cardType : 'leader_medarot',
+        name: String(raw.name),
+        elementType: ELEMENT_TYPES.indexOf(raw.elementType) >= 0 ? raw.elementType : null,
+        actionCost: typeof raw.actionCost === 'number' ? raw.actionCost : null,
+        bp: typeof raw.bp === 'number' ? raw.bp : null,
+        coolingCost: typeof raw.coolingCost === 'number' ? raw.coolingCost : null,
+        legType: raw.legType || null,
+        partsArm: (raw.partsArm === 'L' || raw.partsArm === 'R') ? raw.partsArm : null,
+        partsMode: (raw.partsMode === '行動' || raw.partsMode === '戦術') ? raw.partsMode : null,
+        bonusValue: typeof raw.bonusValue === 'number' ? raw.bonusValue : null,
+        traits: raw.traits || null,
+        effectText: raw.effectText || null,
+        notes: raw.notes || null,
+        // Preserve existing image when upserting if the new payload has none
+        image: raw.image || (existing ? existing.image : null) || null,
+        createdAt: (existing && existing.createdAt) || raw.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      };
+      try {
+        await persistCard(card);
+        const idx = state.cards.findIndex(c => c.id === card.id);
+        if (idx >= 0) { state.cards[idx] = card; updated++; }
+        else { state.cards.push(card); added++; existingIds.add(card.id); }
+      } catch (err) {
+        failed++;
+        failedNames.push(card.name);
+        if (!firstError) firstError = err && err.message ? err.message : String(err);
+        console.error('Import failed:', card.name, err);
+      }
+    }
+    renderAll();
+    closeImportModal();
+    if (failed > 0) {
+      const detail = firstError ? '\n[エラー: ' + firstError.slice(0, 300) + ']' : '';
+      toast('追加 ' + added + ' / 更新 ' + updated + ' / スキップ ' + skipped + ' / 失敗 ' + failed + detail, 'error', 10000);
+    } else {
+      toast('追加 ' + added + ' / 更新 ' + updated + ' / スキップ ' + skipped, 'success');
+    }
+  } catch (e) {
+    toast('インポート失敗: ' + e.message, 'error');
+  }
+}
+
+function wire() {
+  document.getElementById('fabAdd').addEventListener('click', function() { openEditor(null); });
+  document.getElementById('exportBtn').addEventListener('click', exportJson);
+  document.getElementById('importBtn').addEventListener('click', openImportModal);
+
+  document.getElementById('search').addEventListener('input', function(e) { state.search = e.target.value; renderGrid(); });
+  document.getElementById('bpMin').addEventListener('input', function(e) { state.bpMin = e.target.value; renderGrid(); });
+  document.getElementById('bpMax').addEventListener('input', function(e) { state.bpMax = e.target.value; renderGrid(); });
+  document.getElementById('costMin').addEventListener('input', function(e) { state.costMin = e.target.value; renderGrid(); });
+  document.getElementById('costMax').addEventListener('input', function(e) { state.costMax = e.target.value; renderGrid(); });
+  document.getElementById('legFilter').addEventListener('input', function(e) { state.legFilter = e.target.value; renderGrid(); });
+  document.getElementById('partsArmFilter').addEventListener('change', function(e) { state.partsArmFilter = e.target.value; renderGrid(); });
+  document.getElementById('partsModeFilter').addEventListener('change', function(e) { state.partsModeFilter = e.target.value; renderGrid(); });
+  document.getElementById('sortSelect').addEventListener('change', function(e) { state.sortBy = e.target.value; renderGrid(); });
+  document.getElementById('clearFilters').addEventListener('click', function() {
+    state.search = ''; state.elementType = '';
+    state.bpMin = ''; state.bpMax = ''; state.costMin = ''; state.costMax = '';
+    state.legFilter = ''; state.partsArmFilter = ''; state.partsModeFilter = '';
+    state.sortBy = 'updated-desc';
+    document.getElementById('search').value = '';
+    ['bpMin','bpMax','costMin','costMax','legFilter'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('partsArmFilter').value = '';
+    document.getElementById('partsModeFilter').value = '';
+    document.getElementById('sortSelect').value = 'updated-desc';
+    renderAll();
+    toast('フィルタをリセットしました', 'info', 1800);
+  });
+
+  document.getElementById('uploadClose').addEventListener('click', closeEditor);
+  document.getElementById('cancelBtn').addEventListener('click', closeEditor);
+  document.getElementById('saveBtn').addEventListener('click', saveFromForm);
+  document.getElementById('deleteBtn').addEventListener('click', deleteCurrent);
+  document.getElementById('duplicateBtn').addEventListener('click', function() {
+    const c = state.cards.find(function(x) { return x.id === state.editingId; });
+    if (c) { closeEditor(); duplicateCard(c); }
+  });
+  document.getElementById('f_cardType').addEventListener('change', function(e) { toggleFieldsForCardType(e.target.value); });
+  document.getElementById('removeImageBtn').addEventListener('click', removePendingImage);
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', function(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    enqueueFiles(files);
+    e.target.value = '';
+  });
+  ['dragenter','dragover'].forEach(function(ev) {
+    dropzone.addEventListener(ev, function(e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+  });
+  ['dragleave','dragend','drop'].forEach(function(ev) {
+    dropzone.addEventListener(ev, function(e) { e.preventDefault(); dropzone.classList.remove('dragover'); });
+  });
+  dropzone.addEventListener('drop', function(e) {
+    const files = Array.from(e.dataTransfer.files || []).filter(function(f) { return f.type.startsWith('image/'); });
+    if (files.length === 0) return;
+    enqueueFiles(files);
+  });
+
+  document.getElementById('useOriginalToggle').addEventListener('change', async function(e) {
+    state.useOriginal = e.target.checked;
+    if (state.pendingOrigImage) {
+      if (state.useOriginal) {
+        setCropStatus('オリジナルを使用中', 'original');
+      } else if (state.pendingDetectedBounds && state.pendingDetectedBounds.detected) {
+        const r = state.pendingDetectedBounds.ratio;
+        setCropStatus('枠を検出 — ' + Math.round((1 - r) * 100) + '% トリミング', 'success');
+      } else if (state.pendingDetectedBounds && state.pendingDetectedBounds.almostFull) {
+        setCropStatus('画像は既にトリミング済みです', 'original');
+      } else {
+        setCropStatus('枠を検出できませんでした → オリジナルを使用', 'fail');
+      }
+      await refreshCroppedPreview();
+    }
+  });
+
+  document.getElementById('rotateBtn').addEventListener('click', rotateImage90CW);
+
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+  document.getElementById('lightbox').addEventListener('click', closeLightbox);
+  document.getElementById('lightboxClose').addEventListener('click', function(e) { e.stopPropagation(); closeLightbox(); });
+
+  document.getElementById('importClose').addEventListener('click', closeImportModal);
+  document.querySelectorAll('.import-radio').forEach(function(r) {
+    r.addEventListener('click', function() {
+      document.querySelectorAll('.import-radio').forEach(function(x) { x.classList.remove('selected'); });
+      r.classList.add('selected');
+      const radio = r.querySelector('input[type=radio]');
+      if (radio) radio.checked = true;
+    });
+  });
+  const importDrop = document.getElementById('importDrop');
+  const importFile = document.getElementById('importFile');
+  importFile.addEventListener('change', function(e) {
+    const f = e.target.files && e.target.files[0];
+    if (f) importJsonFile(f);
+  });
+  ['dragenter','dragover'].forEach(function(ev) {
+    importDrop.addEventListener(ev, function(e) { e.preventDefault(); importDrop.classList.add('dragover'); });
+  });
+  ['dragleave','dragend','drop'].forEach(function(ev) {
+    importDrop.addEventListener(ev, function(e) { e.preventDefault(); importDrop.classList.remove('dragover'); });
+  });
+  importDrop.addEventListener('drop', function(e) {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) importJsonFile(f);
+  });
+
+  document.getElementById('uploadModal').addEventListener('click', function(e) {
+    if (e.target.id === 'uploadModal') closeEditor();
+  });
+  document.getElementById('detailModal').addEventListener('click', function(e) {
+    if (e.target.id === 'detailModal') closeDetail();
+  });
+  document.getElementById('importModal').addEventListener('click', function(e) {
+    if (e.target.id === 'importModal') closeImportModal();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      if (document.getElementById('lightbox').classList.contains('open')) return closeLightbox();
+      if (document.getElementById('uploadModal').classList.contains('open')) return closeEditor();
+      if (document.getElementById('detailModal').classList.contains('open')) return closeDetail();
+      if (document.getElementById('importModal').classList.contains('open')) return closeImportModal();
+    }
+    const tag = document.activeElement && document.activeElement.tagName;
+    const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    const inModal = !!document.querySelector('.modal-overlay.open');
+    if (e.key === '/' && !inField && !inModal) {
+      e.preventDefault();
+      document.getElementById('search').focus();
+    }
+    if ((e.key === 'n' || e.key === 'N') && !inField && !inModal) {
+      e.preventDefault();
+      openEditor(null);
+    }
+  });
+}
+
+async function init() {
+  wire();
+  renderAll();
+  // 接続状態インジケータ更新 + 疎通テスト
+  const indicator = document.getElementById('cloudIndicator');
+  if (!SUPABASE_ENABLED) {
+    if (indicator) {
+      indicator.classList.add('offline');
+      indicator.title = 'Supabase 未接続';
+    }
+    state.loading = false;
+    renderAll();
+    return;
+  }
+  // Supabase疎通テスト
+  try {
+    const testUrl = SUPABASE_URL + '/rest/v1/cards?select=id&limit=1';
+    const resp = await fetch(testUrl, { headers: supaHeaders() });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error('HTTP ' + resp.status + ': ' + txt.slice(0, 200));
+    }
+    if (indicator) indicator.title = 'Supabase 接続中';
+  } catch (e) {
+    if (indicator) {
+      indicator.classList.add('offline');
+      indicator.title = '接続失敗: ' + e.message;
+    }
+    toast('Supabase接続失敗: ' + e.message, 'error', 8000);
+    state.loading = false;
+    renderAll();
+    return;
+  }
+  // 既存カードをSupabaseから取得
+  try {
+    const cards = await loadAllCards();
+    state.cards = cards;
+    state.loading = false;
+    renderAll();
+  } catch (e) {
+    state.loading = false;
+    renderAll();
+    toast('カード読み込み失敗: ' + e.message, 'error', 5000);
+  }
+}
+init();
+</script>
+</body>
+</html>
