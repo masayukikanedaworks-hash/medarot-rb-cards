@@ -501,6 +501,22 @@ button{font-family:inherit}
           <label>特性・行動</label>
           <textarea id="f_traits" placeholder="メダロットの特性や行動テキスト"></textarea>
         </div>
+        <div class="field field-full" id="wrap_variant_alpha" style="display:none;">
+          <label>強化α — 特性・行動(空欄なら α なし)</label>
+          <textarea id="f_var_alpha_traits" placeholder="α版の特性・行動テキスト"></textarea>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;">
+            <input type="text" id="f_var_alpha_image" placeholder="α 画像URL(任意 / 空欄=基本画像)" style="flex:2;">
+          </div>
+        </div>
+        <div class="field field-full" id="wrap_variant_beta" style="display:none;">
+          <label>強化β — 特性・行動(空欄なら β なし)</label>
+          <textarea id="f_var_beta_traits" placeholder="β版の特性・行動テキスト"></textarea>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;">
+            <input type="text" id="f_var_beta_image" placeholder="β 画像URL(任意 / 空欄=基本画像)" style="flex:2;">
+          </div>
+        </div>
         <div class="field field-full" id="wrap_effectText" style="display:none;">
           <label>効果テキスト</label>
           <textarea id="f_effectText" placeholder="カードの効果"></textarea>
@@ -1357,7 +1373,7 @@ function openDetail(id) {
         const tierOrder = { base: 0, alpha: 1, beta: 2 };
         const greek = { base: '', alpha: 'α', beta: 'β' };
         const views = [];
-        if (c.traits) views.push({ key: 'base', label: '基本', greek: '', traits: c.traits, actionCost: c.actionCost });
+        if (c.traits) views.push({ key: 'base', label: '基本', greek: '', traits: c.traits, actionCost: c.actionCost, image: c.image || null });
         vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
           .forEach(v => views.push({
             key: v.tier,
@@ -1365,6 +1381,7 @@ function openDetail(id) {
             greek: greek[v.tier] != null ? greek[v.tier] : '',
             traits: v.traits != null ? v.traits : c.traits,
             actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
+            image: v.image || c.image || null,
           }));
         if (views.length === 0) return '';
         let html = '<div class="detail-text-label">特性・行動</div>';
@@ -1408,6 +1425,8 @@ function openDetail(id) {
       btn.classList.add('active');
       const body = document.getElementById('variantBody');
       if (body) body.innerHTML = renderTraits(views[idx].traits);
+      const dImg = document.querySelector('#detailImgWrap .detail-img');
+      if (dImg && views[idx].image) dImg.src = views[idx].image;
     });
   }
   const imgWrap = document.getElementById('detailImgWrap');
@@ -1448,6 +1467,16 @@ function openEditor(card) {
   setField('f_partsMode', card ? (card.partsMode || '') : '');
   setField('f_bonusValue', card && card.bonusValue != null ? card.bonusValue : '');
   setField('f_barrierLimit', card && card.barrierLimit != null ? card.barrierLimit : '');
+  (function() {
+    const vs = (card && Array.isArray(card.variants)) ? card.variants : [];
+    const getV = (t) => vs.find(v => v && v.tier === t) || null;
+    ['alpha', 'beta'].forEach(t => {
+      const v = getV(t);
+      setField('f_var_' + t + '_traits', v && v.traits != null ? v.traits : '');
+      setField('f_var_' + t + '_cost', v && v.actionCost != null ? v.actionCost : '');
+      setField('f_var_' + t + '_image', v && v.image != null ? v.image : '');
+    });
+  })();
   setField('f_traits', card ? (card.traits || '') : '');
   setField('f_effectText', card ? (card.effectText || '') : '');
   setField('f_notes', card ? (card.notes || '') : '');
@@ -1474,6 +1503,38 @@ function openEditor(card) {
 function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; }
 function getField(id) { return document.getElementById(id).value; }
 function getNumField(id) { const v = getField(id); return v === '' ? null : Number(v); }
+// Collect α/β variant data from the editor form.
+// If a variant's traits field is empty, fall back to the existing card's
+// variant data so editing/saving the base card never wipes α/β.
+function collectVariantsFromForm(existing) {
+  const existingVariants = (existing && Array.isArray(existing.variants)) ? existing.variants : [];
+  const findExisting = (tier) => existingVariants.find(v => v && v.tier === tier) || null;
+  const out = [];
+  ['alpha', 'beta'].forEach(tier => {
+    const traitsEl = document.getElementById('f_var_' + tier + '_traits');
+    const costEl = document.getElementById('f_var_' + tier + '_cost');
+    const imgEl = document.getElementById('f_var_' + tier + '_image');
+    const ex = findExisting(tier);
+    // If the form fields don't exist (non-parts card) keep existing as-is
+    if (!traitsEl) { if (ex) out.push(ex); return; }
+    const traits = traitsEl.value.trim();
+    const costRaw = costEl ? costEl.value.trim() : '';
+    const imgRaw = imgEl ? imgEl.value.trim() : '';
+    if (traits) {
+      out.push({
+        tier: tier,
+        label: (ex && ex.label) ? ex.label : '強化',
+        traits: traits,
+        actionCost: costRaw === '' ? (ex ? ex.actionCost : null) : Number(costRaw),
+        image: imgRaw || (ex ? ex.image || null : null),
+      });
+    } else if (ex) {
+      // Field cleared but variant existed → keep it (save-protection)
+      out.push(ex);
+    }
+  });
+  return out;
+}
 function toggleFieldsForCardType(t) {
   const isMed = (t === 'leader_medarot' || t === 'support_medarot');
   const isLeader = t === 'leader_medarot';
@@ -1500,6 +1561,8 @@ function toggleFieldsForCardType(t) {
   document.getElementById('wrap_partsMode').style.display = isParts ? 'flex' : 'none';
   document.getElementById('wrap_bonusValue').style.display = isParts ? 'flex' : 'none';
   document.getElementById('wrap_barrierLimit').style.display = isParts ? 'flex' : 'none';
+  document.getElementById('wrap_variant_alpha').style.display = isParts ? 'flex' : 'none';
+  document.getElementById('wrap_variant_beta').style.display = isParts ? 'flex' : 'none';
 
   // 特性・行動テキストは メダロット / パーツ で使う
   document.getElementById('wrap_traits').style.display = (isMed || isParts) ? 'flex' : 'none';
@@ -1697,6 +1760,7 @@ async function saveFromForm() {
     partsMode: getField('f_partsMode') || null,
     bonusValue: getNumField('f_bonusValue'),
     barrierLimit: getNumField('f_barrierLimit'),
+    variants: collectVariantsFromForm(existing),
     traits: getField('f_traits').trim() || null,
     effectText: getField('f_effectText').trim() || null,
     notes: getField('f_notes').trim() || null,
@@ -1836,6 +1900,7 @@ async function importJsonFile(file) {
           label: v.label != null ? String(v.label) : null,
           traits: v.traits != null ? String(v.traits) : null,
           actionCost: typeof v.actionCost === 'number' ? v.actionCost : null,
+          image: v.image != null ? String(v.image) : null,
         })) : [],
         traits: raw.traits || null,
         effectText: raw.effectText || null,
