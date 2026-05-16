@@ -885,9 +885,46 @@ function loadImage(src) {
    3. From center, expand outward along each axis until the row/col
       crosses below the card-content threshold = boundary
    4. Validate and scale back to original dimensions */
+// MEDAROT RB card-detail screenshots are a fixed in-game layout: the card
+// always sits at the same centered slot. Measured on the reference
+// 1280x720 capture as the fraction of frame width/height below. Using a
+// fixed proportional rect for standard 16:9 game captures gives a
+// pixel-stable, edge-to-edge crop instead of the per-image variance the
+// content-based detector produces (the card art's own dark regions and
+// the surrounding glow shift the detected edges frame to frame).
+// Source rect on 1280x720: x 470..792, y 115..615.
+const RB_FIXED_RECT = {
+  x: 470 / 1280, y: 115 / 720,
+  w: (792 - 470) / 1280, h: (615 - 115) / 720,
+};
+function rbFixedBounds(w, h) {
+  // Only apply to standard ~16:9 game captures (the card-detail layout).
+  // Tolerance covers minor letterboxing / device scaling.
+  const ar = w / h;
+  if (Math.abs(ar - 16 / 9) > 0.04) return null;
+  if (w < 640) return null; // too small to be a real game capture
+  const sx = Math.round(RB_FIXED_RECT.x * w);
+  const sy = Math.round(RB_FIXED_RECT.y * h);
+  const sw = Math.round(RB_FIXED_RECT.w * w);
+  const sh = Math.round(RB_FIXED_RECT.h * h);
+  const cw = Math.min(sw, w - sx);
+  const ch = Math.min(sh, h - sy);
+  return {
+    detected: true, almostFull: false,
+    x: Math.max(0, sx), y: Math.max(0, sy), w: cw, h: ch,
+    ratio: (cw * ch) / (w * h), fixed: true,
+  };
+}
+
 async function detectCardBounds(originalDataUrl) {
   const img = await loadImage(originalDataUrl);
   const w = img.naturalWidth, h = img.naturalHeight;
+
+  // Fast path: standard in-game 16:9 capture → use the fixed card slot
+  // (stable, edge-to-edge). Non-standard images fall through to the
+  // content-based detector below (backward compatible).
+  const fixed = rbFixedBounds(w, h);
+  if (fixed) return fixed;
 
   // Downsample for analysis speed
   const ANALYSIS_MAX = 480;
@@ -1947,7 +1984,7 @@ async function rotateImage90CW() {
     const bounds = await detectCardBounds(state.pendingOrigImage);
     state.pendingDetectedBounds = bounds;
     if (bounds.detected) {
-      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
+      setCropStatus(bounds.fixed ? 'カード枠に合わせてトリミング' : ('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング'), 'success');
     } else if (bounds.almostFull) {
       setCropStatus('画像は既にトリミング済みです', 'original');
     } else {
@@ -1975,7 +2012,7 @@ async function handleImageFile(file) {
     const bounds = await detectCardBounds(dataUrl);
     state.pendingDetectedBounds = bounds;
     if (bounds.detected) {
-      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
+      setCropStatus(bounds.fixed ? 'カード枠に合わせてトリミング' : ('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング'), 'success');
     } else if (bounds.almostFull) {
       setCropStatus('画像は既にトリミング済みです', 'original');
     } else {
