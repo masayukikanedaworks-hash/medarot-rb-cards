@@ -1221,14 +1221,17 @@ function cardTileHtml(c, i) {
   const img = c.image
     ? '<img src="' + c.image + '" alt="' + escapeAttr(c.name || '') + '" loading="lazy">'
     : '<div class="card-image-empty"><span>画像を追加</span></div>';
-  // α/β variant badges (shown at the image's bottom-right)
+  // α/β/ドライブ variant badges (shown at the image's bottom-right)
   const vtiers = Array.isArray(c.variants)
-    ? c.variants.filter(v => v && (v.tier === 'alpha' || v.tier === 'beta'))
+    ? c.variants.filter(v => v && (v.tier === 'alpha' || v.tier === 'beta'
+        || v.tier === 'drive_a' || v.tier === 'drive_b'))
         .map(v => v.tier) : [];
   const vbadges = vtiers.length
     ? '<div class="card-vbadges">' +
       (vtiers.indexOf('alpha') >= 0 ? '<span class="card-vbadge">α</span>' : '') +
       (vtiers.indexOf('beta') >= 0 ? '<span class="card-vbadge">β</span>' : '') +
+      (vtiers.indexOf('drive_a') >= 0 ? '<span class="card-vbadge">A</span>' : '') +
+      (vtiers.indexOf('drive_b') >= 0 ? '<span class="card-vbadge">B</span>' : '') +
       '</div>'
     : '';
   const meta = [
@@ -1371,8 +1374,8 @@ function openDetail(id) {
   const cat = CARD_CATEGORIES[c.cardType] || { label: '—' };
   // Build the ordered list of views (base first, then variants) up front so
   // both the stat row and the variant section can use per-variant overrides.
-  const tierOrder = { base: 0, alpha: 1, beta: 2 };
-  const greek = { base: '', alpha: 'α', beta: 'β' };
+  const tierOrder = { base: 0, alpha: 1, beta: 2, drive_a: 3, drive_b: 4 };
+  const greek = { base: '', alpha: 'α', beta: 'β', drive_a: 'A', drive_b: 'B' };
   const vs = Array.isArray(c.variants) ? c.variants : [];
   const views = [];
   if (c.traits) views.push({
@@ -1383,7 +1386,8 @@ function openDetail(id) {
   vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
     .forEach(v => views.push({
       key: v.tier,
-      label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化' : v.tier),
+      label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化'
+        : v.tier === 'drive_a' ? 'ドライブ' : v.tier === 'drive_b' ? 'ドライブ' : v.tier),
       greek: greek[v.tier] != null ? greek[v.tier] : '',
       traits: v.traits != null ? v.traits : c.traits,
       actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
@@ -1392,6 +1396,7 @@ function openDetail(id) {
       elementType: (v.elementType != null && v.elementType !== '') ? v.elementType : c.elementType,
       partsMode: (v.partsMode != null && v.partsMode !== '') ? v.partsMode : c.partsMode,
       barrierLimit: (v.barrierLimit != null && v.barrierLimit !== '') ? v.barrierLimit : c.barrierLimit,
+      bonusValue: (v.bonusValue != null && v.bonusValue !== '') ? v.bonusValue : c.bonusValue,
     }));
 
   // Compute the stat row for a given view (overrides win, base is fallback).
@@ -1402,6 +1407,7 @@ function openDetail(id) {
     const partsMode = g('partsMode');
     const barrierLimit = g('barrierLimit');
     const actionCost = g('actionCost');
+    const bonusValue = g('bonusValue');
     const tc = elementType ? ELEMENT_COLORS[elementType] : 'var(--orange)';
     const isParts = c.cardType === 'parts_card';
     const armStat = c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null;
@@ -1410,7 +1416,7 @@ function openDetail(id) {
     const stats = lead.concat([
       partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
-      (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
+      (bonusValue != null && bonusValue !== '') ? { l: 'ボーナス', v: '+' + bonusValue, color: 'var(--orange)' } : null,
       (barrierLimit != null && barrierLimit !== '') ? { l: 'バリアリミット', v: barrierLimit, color: 'var(--cyan)' } : null,
       (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
       (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
@@ -1630,6 +1636,13 @@ function collectVariantsFromForm(existing) {
       out.push(Object.assign({}, ex, { image: imageVal }));
     }
   });
+  // Preserve any variants that the editor form does not manage
+  // (e.g. drive_a / drive_b). The form only edits alpha/beta, so without
+  // this, saving a card would silently drop its メダチェンジ variants.
+  const FORM_TIERS = { alpha: 1, beta: 1 };
+  for (const ev of existingVariants) {
+    if (ev && ev.tier && !FORM_TIERS[ev.tier]) out.push(ev);
+  }
   return out;
 }
 function toggleFieldsForCardType(t) {
@@ -2052,6 +2065,7 @@ async function importJsonFile(file) {
           if (ELEMENT_TYPES.indexOf(v.elementType) >= 0) ov.elementType = v.elementType;
           if (typeof v.barrierLimit === 'number') ov.barrierLimit = v.barrierLimit;
           if (typeof v.partsMode === 'string' && v.partsMode) ov.partsMode = v.partsMode;
+          if (typeof v.bonusValue === 'number') ov.bonusValue = v.bonusValue;
           return ov;
         }) : [],
         traits: raw.traits || null,
