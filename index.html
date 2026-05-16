@@ -482,6 +482,10 @@ button{font-family:inherit}
           <label>ボーナス値(戦術モード時 +N)</label>
           <input type="number" id="f_bonusValue" min="0" placeholder="例: 1000">
         </div>
+        <div class="field" id="wrap_barrierLimit" style="display:none;">
+          <label>バリアリミット</label>
+          <input type="number" id="f_barrierLimit" min="0" placeholder="例: 2">
+        </div>
         <div class="field field-full" id="wrap_traits">
           <label>特性・行動</label>
           <textarea id="f_traits" placeholder="メダロットの特性や行動テキスト"></textarea>
@@ -583,7 +587,7 @@ const ELEMENT_COLORS = {
   '格闘':'var(--t-melee)','射撃':'var(--t-shoot)','支援':'var(--t-assist)',
   '設置':'var(--t-install)','回復':'var(--t-heal)','防御':'var(--t-defend)',
 };
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const state = {
   cards: [], loading: true,
@@ -626,6 +630,7 @@ function dbToCard(row) {
     partsArm: row.parts_arm,
     partsMode: row.parts_mode,
     bonusValue: row.bonus_value,
+    barrierLimit: row.barrier_limit,
     traits: row.traits,
     effectText: row.effect_text,
     notes: row.notes,
@@ -648,6 +653,7 @@ function cardToDb(card) {
     parts_arm: card.partsArm || null,
     parts_mode: card.partsMode || null,
     bonus_value: card.bonusValue == null ? null : card.bonusValue,
+    barrier_limit: card.barrierLimit == null ? null : card.barrierLimit,
     traits: card.traits || null,
     effect_text: card.effectText || null,
     notes: card.notes || null,
@@ -1167,6 +1173,7 @@ function cardTileHtml(c, i) {
     c.partsMode ? '<span>' + escapeHtml(c.partsMode) + '</span>' : '',
     c.bp != null && c.bp !== '' ? '<span>BP:<b>' + c.bp + '</b></span>' : '',
     c.bonusValue != null && c.bonusValue !== '' ? '<span>+<b>' + c.bonusValue + '</b></span>' : '',
+    c.barrierLimit != null && c.barrierLimit !== '' ? '<span>BL:<b>' + c.barrierLimit + '</b></span>' : '',
     c.coolingCost != null && c.coolingCost !== '' ? '<span>冷却:<b>' + c.coolingCost + '</b></span>' : '',
     c.legType ? '<span>' + escapeHtml(c.legType) + '</span>' : '',
   ].filter(Boolean).join('');
@@ -1280,6 +1287,7 @@ function openDetail(id) {
     c.partsMode ? { l: 'モード', v: c.partsMode, color: 'var(--cyan)' } : null,
     (c.actionCost != null && c.actionCost !== '') ? { l: '行動コスト', v: c.actionCost, color: 'var(--orange)' } : null,
     (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
+    (c.barrierLimit != null && c.barrierLimit !== '') ? { l: 'バリアリミット', v: c.barrierLimit, color: 'var(--cyan)' } : null,
     (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
     (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
     c.legType ? { l: '脚部', v: c.legType } : null,
@@ -1355,6 +1363,7 @@ function openEditor(card) {
   setField('f_partsArm', card ? (card.partsArm || '') : '');
   setField('f_partsMode', card ? (card.partsMode || '') : '');
   setField('f_bonusValue', card && card.bonusValue != null ? card.bonusValue : '');
+  setField('f_barrierLimit', card && card.barrierLimit != null ? card.barrierLimit : '');
   setField('f_traits', card ? (card.traits || '') : '');
   setField('f_effectText', card ? (card.effectText || '') : '');
   setField('f_notes', card ? (card.notes || '') : '');
@@ -1406,6 +1415,7 @@ function toggleFieldsForCardType(t) {
   document.getElementById('wrap_partsArm').style.display = isParts ? 'flex' : 'none';
   document.getElementById('wrap_partsMode').style.display = isParts ? 'flex' : 'none';
   document.getElementById('wrap_bonusValue').style.display = isParts ? 'flex' : 'none';
+  document.getElementById('wrap_barrierLimit').style.display = isParts ? 'flex' : 'none';
 
   // 特性・行動テキストは メダロット / パーツ で使う
   document.getElementById('wrap_traits').style.display = (isMed || isParts) ? 'flex' : 'none';
@@ -1602,6 +1612,7 @@ async function saveFromForm() {
     partsArm: getField('f_partsArm') || null,
     partsMode: getField('f_partsMode') || null,
     bonusValue: getNumField('f_bonusValue'),
+    barrierLimit: getNumField('f_barrierLimit'),
     traits: getField('f_traits').trim() || null,
     effectText: getField('f_effectText').trim() || null,
     notes: getField('f_notes').trim() || null,
@@ -1651,6 +1662,7 @@ function duplicateCard(card) {
   setField('f_partsArm', card.partsArm || '');
   setField('f_partsMode', card.partsMode || '');
   setField('f_bonusValue', card.bonusValue != null ? card.bonusValue : '');
+  setField('f_barrierLimit', card.barrierLimit != null ? card.barrierLimit : '');
   setField('f_traits', card.traits || '');
   setField('f_effectText', card.effectText || '');
   setField('f_notes', card.notes || '');
@@ -1734,6 +1746,7 @@ async function importJsonFile(file) {
         partsArm: (raw.partsArm === 'L' || raw.partsArm === 'R') ? raw.partsArm : null,
         partsMode: (raw.partsMode === '行動' || raw.partsMode === '戦術') ? raw.partsMode : null,
         bonusValue: typeof raw.bonusValue === 'number' ? raw.bonusValue : null,
+        barrierLimit: typeof raw.barrierLimit === 'number' ? raw.barrierLimit : null,
         traits: raw.traits || null,
         effectText: raw.effectText || null,
         notes: raw.notes || null,
