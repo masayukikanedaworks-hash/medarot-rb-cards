@@ -228,9 +228,9 @@ button{font-family:inherit}
 .trait-type-chip::before{content:"";width:5px;height:5px;background:var(--type-c,currentColor);box-shadow:0 0 4px var(--type-c,currentColor)}
 .trait-action{background:var(--bg-0);border:1px solid var(--border-1);margin-bottom:5px;clip-path:var(--clip-sm)}
 .trait-action.is-passive{border-color:rgba(16,185,129,.5)}
-.trait-action-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid var(--border-1);background:var(--bg-2)}
+.trait-action-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid var(--border-1);background:var(--bg-2);flex-wrap:nowrap;min-width:0}
 .trait-action.is-passive .trait-action-head{border-bottom-color:rgba(16,185,129,.35)}
-.trait-kind{font-family:var(--f-display);font-weight:700;font-size:9px;letter-spacing:.1em;padding:2px 7px;min-width:34px;text-align:center;line-height:1.3;text-transform:uppercase;border:1px solid currentColor}
+.trait-kind{font-family:var(--f-display);font-weight:700;font-size:9px;letter-spacing:.08em;padding:2px 6px;min-width:30px;flex:0 0 auto;text-align:center;line-height:1.3;text-transform:uppercase;border:1px solid currentColor;white-space:nowrap}
 .trait-kind.kind-action{color:var(--orange);background:rgba(255,107,26,.1)}
 .trait-kind.kind-passive{color:#10b981;background:rgba(16,185,129,.12)}
 .variant-tabs{display:flex;gap:5px;margin:4px 0 8px}
@@ -250,8 +250,8 @@ button{font-family:inherit}
 .var-img-clear{font-family:var(--f-mono);font-size:9px;color:var(--text-3);border:1px solid var(--border-1);background:transparent;padding:3px 8px;cursor:pointer;transition:all .15s}
 .var-img-clear:hover{color:#f87171;border-color:#b91c1c}
 .trait-cost{font-family:var(--f-mono);font-weight:700;font-size:11px;color:var(--orange);background:var(--bg-0);border:1px solid var(--orange);padding:1px 6px;min-width:22px;text-align:center;line-height:1}
-.trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1)}
-.trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em}
+.trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1);flex:1 1 auto;min-width:0;line-height:1.35}
+.trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em;flex:0 0 auto;white-space:nowrap}
 .trait-effect{padding:6px 9px;font-size:11px;line-height:1.55;color:var(--text-1);white-space:pre-wrap}
 @media(min-width:540px){.trait-tactical{padding:8px 12px;gap:8px}.trait-tactical-label{font-size:10px}.trait-type-chip{font-size:11px;padding:3px 9px}.trait-action-head{padding:8px 12px;gap:10px}.trait-cost{font-size:13px;padding:3px 9px;min-width:28px}.trait-name{font-size:14px}.trait-effect{padding:10px 12px;font-size:13px;line-height:1.7}.trait-kind{font-size:10px;padding:3px 9px;min-width:40px}}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
@@ -1358,7 +1358,27 @@ function renderTraits(text) {
     if (am) {
       flush();
       any = true;
-      buffer = { kind: 'action', cost: am[1], name: am[2], mode: am[3] || '', effect: '' };
+      // "(行動)" duplicates the kind badge, so don't surface it as a mode.
+      const m = (am[3] && am[3] !== '行動') ? am[3] : '';
+      buffer = { kind: 'action', cost: am[1], name: am[2], mode: m, effect: '' };
+      continue;
+    }
+    // Leader-style header without a cost bracket:
+    //   "<name>(特性)"  → passive
+    //   "<name>(行動)"  → action (no cost)
+    //   "<name>(戦術)"  → action with 戦術 mode
+    const lm = /^(.+?)\s*[（(](特性|行動|戦術)[）)]\s*$/.exec(line);
+    if (lm) {
+      flush();
+      any = true;
+      const isPsv = lm[2] === '特性';
+      buffer = {
+        kind: isPsv ? 'passive' : 'action',
+        cost: null,
+        name: lm[1].trim(),
+        mode: lm[2] === '戦術' ? '戦術' : '',
+        effect: '',
+      };
       continue;
     }
     // Continuation / freeform
@@ -1520,8 +1540,7 @@ function openDetail(id) {
       btn.classList.add('active');
       const body = document.getElementById('variantBody');
       if (body) body.innerHTML = renderTraits(views[idx].traits);
-      const dImg = document.querySelector('#detailImgWrap .detail-img');
-      if (dImg && views[idx].image) dImg.src = views[idx].image;
+      // Base image stays fixed across tabs (per request — no image switching).
       const sf = statsFor(views[idx]);
       const sr = document.getElementById('detailStatRow');
       if (sr) sr.innerHTML = sf.html;
