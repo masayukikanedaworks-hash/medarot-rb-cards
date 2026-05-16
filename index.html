@@ -218,12 +218,17 @@ button{font-family:inherit}
 .trait-type-chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--f-display);font-size:10px;padding:2px 7px;background:var(--bg-2);border:1px solid var(--type-c,var(--text-3));color:var(--type-c,var(--text-3));font-weight:600}
 .trait-type-chip::before{content:"";width:5px;height:5px;background:var(--type-c,currentColor);box-shadow:0 0 4px var(--type-c,currentColor)}
 .trait-action{background:var(--bg-0);border:1px solid var(--border-1);margin-bottom:5px;clip-path:var(--clip-sm)}
+.trait-action.is-passive{border-color:rgba(16,185,129,.5)}
 .trait-action-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid var(--border-1);background:var(--bg-2)}
+.trait-action.is-passive .trait-action-head{border-bottom-color:rgba(16,185,129,.35)}
+.trait-kind{font-family:var(--f-display);font-weight:700;font-size:9px;letter-spacing:.1em;padding:2px 7px;min-width:34px;text-align:center;line-height:1.3;text-transform:uppercase;border:1px solid currentColor}
+.trait-kind.kind-action{color:var(--orange);background:rgba(255,107,26,.1)}
+.trait-kind.kind-passive{color:#10b981;background:rgba(16,185,129,.12)}
 .trait-cost{font-family:var(--f-mono);font-weight:700;font-size:11px;color:var(--orange);background:var(--bg-0);border:1px solid var(--orange);padding:1px 6px;min-width:22px;text-align:center;line-height:1}
 .trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1)}
 .trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em}
 .trait-effect{padding:6px 9px;font-size:11px;line-height:1.55;color:var(--text-1);white-space:pre-wrap}
-@media(min-width:540px){.trait-tactical{padding:8px 12px;gap:8px}.trait-tactical-label{font-size:10px}.trait-type-chip{font-size:11px;padding:3px 9px}.trait-action-head{padding:8px 12px;gap:10px}.trait-cost{font-size:13px;padding:3px 9px;min-width:28px}.trait-name{font-size:14px}.trait-effect{padding:10px 12px;font-size:13px;line-height:1.7}}
+@media(min-width:540px){.trait-tactical{padding:8px 12px;gap:8px}.trait-tactical-label{font-size:10px}.trait-type-chip{font-size:11px;padding:3px 9px}.trait-action-head{padding:8px 12px;gap:10px}.trait-cost{font-size:13px;padding:3px 9px;min-width:28px}.trait-name{font-size:14px}.trait-effect{padding:10px 12px;font-size:13px;line-height:1.7}.trait-kind{font-size:10px;padding:3px 9px;min-width:40px}}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
 .lightbox.open{display:flex}
 .lightbox-img{max-width:95vw;max-height:92vh;object-fit:contain;box-shadow:0 24px 64px rgba(0,0,0,.8);border:1px solid var(--border-2)}
@@ -1220,28 +1225,34 @@ function renderTraits(text) {
   let buffer = null;
   const out = [];
   const flush = () => {
-    if (buffer) {
-      out.push(
-        '<div class="trait-action"><div class="trait-action-head">' +
-          '<span class="trait-cost">' + escapeHtml(String(buffer.cost)) + '</span>' +
+    if (!buffer) return;
+    const isPassive = buffer.kind === 'passive';
+    const kindLabel = isPassive ? '特性' : '行動';
+    const kindClass = isPassive ? 'kind-passive' : 'kind-action';
+    const costHtml = (buffer.cost != null && buffer.cost !== '')
+      ? '<span class="trait-cost">' + escapeHtml(String(buffer.cost)) + '</span>' : '';
+    out.push(
+      '<div class="trait-action' + (isPassive ? ' is-passive' : '') + '">' +
+        '<div class="trait-action-head">' +
+          '<span class="trait-kind ' + kindClass + '">' + kindLabel + '</span>' +
+          costHtml +
           '<span class="trait-name">' + escapeHtml(buffer.name) + '</span>' +
           (buffer.mode ? '<span class="trait-mode">' + escapeHtml(buffer.mode) + '</span>' : '') +
         '</div>' +
         (buffer.effect.trim() ? '<div class="trait-effect">' + escapeHtml(buffer.effect.trim()) + '</div>' : '') +
-        '</div>'
-      );
-      buffer = null;
-    }
+      '</div>'
+    );
+    buffer = null;
   };
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) { continue; }
-    // Tactical line
+    // Tactical line: "戦術:[設置][設置]" or "戦術: 射撃, 射撃"
     const tm = /^戦術\s*[:：]\s*(.+)$/.exec(line);
     if (tm) {
       flush();
       any = true;
-      const types = tm[1].split(/[,、\s]+/).map(s => s.trim()).filter(Boolean);
+      const types = tm[1].split(/[,、\s]+|\]\s*\[|[\[\]]/).map(s => s.trim()).filter(Boolean);
       out.push(
         '<div class="trait-tactical">' +
         '<span class="trait-tactical-label">戦術</span>' +
@@ -1253,19 +1264,38 @@ function renderTraits(text) {
       );
       continue;
     }
-    // Action header: "[N] name(行動|戦術)"
+    // New structured form: "【行動】<name>(<cost>)：<effect>" or "【特性】<name>：<effect>"
+    const km = /^【\s*(行動|特性)\s*】\s*(.+)$/.exec(line);
+    if (km) {
+      flush();
+      any = true;
+      const kind = km[1] === '特性' ? 'passive' : 'action';
+      let rest = km[2].trim();
+      let cost = null, name = rest, effect = '';
+      // Split name vs effect on the first fullwidth/halfwidth colon
+      const colonIdx = rest.search(/[:：]/);
+      if (colonIdx >= 0) {
+        name = rest.slice(0, colonIdx).trim();
+        effect = rest.slice(colonIdx + 1).trim();
+      }
+      // Extract trailing "(N)" cost from the name part (actions only)
+      const cm = /^(.*?)\s*[（(]\s*(\d+)\s*[）)]\s*$/.exec(name);
+      if (cm) { name = cm[1].trim(); cost = cm[2]; }
+      buffer = { kind: kind, cost: cost, name: name, mode: '', effect: effect };
+      continue;
+    }
+    // Legacy action header: "[N] name(行動|戦術)"
     const am = /^\[(\d+)\]\s*(.+?)(?:\s*[（(](行動|戦術)[）)])?\s*$/.exec(line);
     if (am) {
       flush();
       any = true;
-      buffer = { cost: am[1], name: am[2], mode: am[3] || '', effect: '' };
+      buffer = { kind: 'action', cost: am[1], name: am[2], mode: am[3] || '', effect: '' };
       continue;
     }
     // Continuation / freeform
     if (buffer) {
       buffer.effect += (buffer.effect ? '\n' : '') + line;
     } else {
-      // Unstructured prefix — fall back later
       out.push('<div class="detail-text-block">' + escapeHtml(line) + '</div>');
     }
   }
