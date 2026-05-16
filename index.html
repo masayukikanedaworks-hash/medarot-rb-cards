@@ -462,16 +462,27 @@ button{font-family:inherit}
           <input type="text" id="f_name" placeholder="メダロット名 / カード名">
         </div>
         <div class="field" id="wrap_elementType">
-          <label>タイプ</label>
-          <select id="f_elementType">
-            <option value="">—</option>
-            <option value="格闘">格闘</option>
-            <option value="射撃">射撃</option>
-            <option value="支援">支援</option>
-            <option value="設置">設置</option>
-            <option value="回復">回復</option>
-            <option value="防御">防御</option>
-          </select>
+          <label>タイプ（2つ目は複数タイプ用・任意）</label>
+          <div style="display:flex;gap:8px">
+            <select id="f_elementType1" style="flex:1" title="TYPE 1（代表タイプ）">
+              <option value="">—</option>
+              <option value="格闘">格闘</option>
+              <option value="射撃">射撃</option>
+              <option value="支援">支援</option>
+              <option value="設置">設置</option>
+              <option value="回復">回復</option>
+              <option value="防御">防御</option>
+            </select>
+            <select id="f_elementType2" style="flex:1" title="TYPE 2（任意・複数タイプのみ）">
+              <option value="">— (2つ目なし)</option>
+              <option value="格闘">格闘</option>
+              <option value="射撃">射撃</option>
+              <option value="支援">支援</option>
+              <option value="設置">設置</option>
+              <option value="回復">回復</option>
+              <option value="防御">防御</option>
+            </select>
+          </div>
         </div>
         <div class="field" id="wrap_actionCost">
           <label>行動コスト / 放熱コスト</label>
@@ -1681,7 +1692,7 @@ function openEditor(card) {
 
   setField('f_cardType', card ? card.cardType : 'leader_medarot');
   setField('f_name', card ? card.name : '');
-  setField('f_elementType', card ? (card.elementType || '') : '');
+  setElementTypeFields(card ? card.elementType : '');
   setField('f_actionCost', card && card.actionCost != null ? card.actionCost : '');
   setField('f_bp', card && card.bp != null ? card.bp : '');
   setField('f_coolingCost', card && card.coolingCost != null ? card.coolingCost : '');
@@ -1737,6 +1748,16 @@ function openEditor(card) {
 function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val == null ? '' : val; }
 function getField(id) { return document.getElementById(id).value; }
 function getNumField(id) { const v = getField(id); return v === '' ? null : Number(v); }
+// Multi-type editor helpers: split an elementType value across TYPE 1 / TYPE 2
+// selects, and recombine them back to the canonical comma-separated store form.
+function setElementTypeFields(val) {
+  const l = elemList(val);
+  setField('f_elementType1', l[0] || '');
+  setField('f_elementType2', l[1] || '');
+}
+function getElementTypeStore() {
+  return elemToStore([getField('f_elementType1'), getField('f_elementType2')]);
+}
 // Collect α/β variant data from the editor form.
 // If a variant's traits field is empty, fall back to the existing card's
 // variant data so editing/saving the base card never wipes α/β.
@@ -2043,7 +2064,7 @@ async function saveFromForm() {
     id: cardId,
     cardType: getField('f_cardType'),
     name: name,
-    elementType: getField('f_elementType') || null,
+    elementType: getElementTypeStore(),
     actionCost: getNumField('f_actionCost'),
     bp: getNumField('f_bp'),
     coolingCost: getNumField('f_coolingCost'),
@@ -2107,7 +2128,7 @@ function duplicateCard(card) {
   openEditor(null);
   setField('f_cardType', card.cardType);
   setField('f_name', (card.name || '') + ' (コピー)');
-  setField('f_elementType', card.elementType || '');
+  setElementTypeFields(card.elementType);
   setField('f_actionCost', card.actionCost != null ? card.actionCost : '');
   setField('f_bp', card.bp != null ? card.bp : '');
   setField('f_coolingCost', card.coolingCost != null ? card.coolingCost : '');
