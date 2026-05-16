@@ -1445,6 +1445,7 @@ function openDetail(id) {
     key: 'base', label: '基本', greek: '', traits: c.traits,
     actionCost: c.actionCost, image: c.image || null,
     elementType: c.elementType, partsMode: c.partsMode, barrierLimit: c.barrierLimit,
+    bp: c.bp, coolingCost: c.coolingCost,
   });
   vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
     .forEach(v => views.push({
@@ -1460,6 +1461,8 @@ function openDetail(id) {
       partsMode: (v.partsMode != null && v.partsMode !== '') ? v.partsMode : c.partsMode,
       barrierLimit: (v.barrierLimit != null && v.barrierLimit !== '') ? v.barrierLimit : c.barrierLimit,
       bonusValue: (v.bonusValue != null && v.bonusValue !== '') ? v.bonusValue : c.bonusValue,
+      bp: (v.bp != null && v.bp !== '') ? v.bp : c.bp,
+      coolingCost: (v.coolingCost != null && v.coolingCost !== '') ? v.coolingCost : c.coolingCost,
     }));
 
   // Compute the stat row for a given view (overrides win, base is fallback).
@@ -1471,6 +1474,8 @@ function openDetail(id) {
     const barrierLimit = g('barrierLimit');
     const actionCost = g('actionCost');
     const bonusValue = g('bonusValue');
+    const bp = g('bp');
+    const coolingCost = g('coolingCost');
     const types = elemList(elementType);
     const tc = types.length ? ELEMENT_COLORS[types[0]] : 'var(--orange)';
     const isParts = c.cardType === 'parts_card';
@@ -1486,8 +1491,8 @@ function openDetail(id) {
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
       (bonusValue != null && bonusValue !== '') ? { l: 'ボーナス', v: '+' + bonusValue, color: 'var(--orange)' } : null,
       (barrierLimit != null && barrierLimit !== '') ? { l: 'バリアリミット', v: barrierLimit, color: 'var(--cyan)' } : null,
-      (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
-      (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
+      (bp != null && bp !== '') ? { l: 'BP', v: bp } : null,
+      (coolingCost != null && coolingCost !== '') ? { l: '冷却コスト', v: coolingCost } : null,
       c.legType ? { l: '脚部', v: c.legType } : null,
     ]).filter(Boolean);
     const html = stats.map(s =>
