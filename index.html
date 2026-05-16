@@ -1357,25 +1357,61 @@ function openDetail(id) {
   const c = state.cards.find(x => x.id === id);
   if (!c) return;
   const cat = CARD_CATEGORIES[c.cardType] || { label: '—' };
-  const typeColor = c.elementType ? ELEMENT_COLORS[c.elementType] : 'var(--orange)';
-  const stats = [
-    c.elementType ? { l: 'TYPE', v: c.elementType, color: typeColor } : null,
-    c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null,
-    c.partsMode ? { l: 'モード', v: c.partsMode, color: 'var(--cyan)' } : null,
-    (c.actionCost != null && c.actionCost !== '') ? { l: '行動コスト', v: c.actionCost, color: 'var(--orange)' } : null,
-    (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
-    (c.barrierLimit != null && c.barrierLimit !== '') ? { l: 'バリアリミット', v: c.barrierLimit, color: 'var(--cyan)' } : null,
-    (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
-    (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
-    c.legType ? { l: '脚部', v: c.legType } : null,
-  ].filter(Boolean);
+  // Build the ordered list of views (base first, then variants) up front so
+  // both the stat row and the variant section can use per-variant overrides.
+  const tierOrder = { base: 0, alpha: 1, beta: 2 };
+  const greek = { base: '', alpha: 'α', beta: 'β' };
+  const vs = Array.isArray(c.variants) ? c.variants : [];
+  const views = [];
+  if (c.traits) views.push({
+    key: 'base', label: '基本', greek: '', traits: c.traits,
+    actionCost: c.actionCost, image: c.image || null,
+    elementType: c.elementType, partsMode: c.partsMode, barrierLimit: c.barrierLimit,
+  });
+  vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
+    .forEach(v => views.push({
+      key: v.tier,
+      label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化' : v.tier),
+      greek: greek[v.tier] != null ? greek[v.tier] : '',
+      traits: v.traits != null ? v.traits : c.traits,
+      actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
+      image: v.image || c.image || null,
+      // Per-variant overrides; fall back to the base card when absent.
+      elementType: (v.elementType != null && v.elementType !== '') ? v.elementType : c.elementType,
+      partsMode: (v.partsMode != null && v.partsMode !== '') ? v.partsMode : c.partsMode,
+      barrierLimit: (v.barrierLimit != null && v.barrierLimit !== '') ? v.barrierLimit : c.barrierLimit,
+    }));
 
-  const statsHtml = stats.map(s =>
-    '<div class="stat"' + (s.color ? ' style="border-left-color:' + s.color + '"' : '') + '>' +
-    '<div class="stat-label">' + s.l + '</div>' +
-    '<div class="stat-value"' + (s.color ? ' style="color:' + s.color + '"' : '') + '>' +
-    escapeHtml(String(s.v)) + '</div></div>'
-  ).join('');
+  // Compute the stat row for a given view (overrides win, base is fallback).
+  function statsFor(view) {
+    const g = (k) => (view && view[k] != null && view[k] !== '') ? view[k] : c[k];
+    const elementType = g('elementType');
+    const partsMode = g('partsMode');
+    const barrierLimit = g('barrierLimit');
+    const actionCost = g('actionCost');
+    const tc = elementType ? ELEMENT_COLORS[elementType] : 'var(--orange)';
+    const stats = [
+      elementType ? { l: 'TYPE', v: elementType, color: tc } : null,
+      c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null,
+      partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
+      (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
+      (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
+      (barrierLimit != null && barrierLimit !== '') ? { l: 'バリアリミット', v: barrierLimit, color: 'var(--cyan)' } : null,
+      (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
+      (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
+      c.legType ? { l: '脚部', v: c.legType } : null,
+    ].filter(Boolean);
+    const html = stats.map(s =>
+      '<div class="stat"' + (s.color ? ' style="border-left-color:' + s.color + '"' : '') + '>' +
+      '<div class="stat-label">' + s.l + '</div>' +
+      '<div class="stat-value"' + (s.color ? ' style="color:' + s.color + '"' : '') + '>' +
+      escapeHtml(String(s.v)) + '</div></div>'
+    ).join('');
+    return { tc: tc, html: html };
+  }
+  const __initialStats = statsFor(views.length ? views[0] : null);
+  const typeColor = __initialStats.tc;
+  const statsHtml = __initialStats.html;
 
   document.getElementById('detailBody').innerHTML =
     '<div class="detail-grid">' +
@@ -1385,27 +1421,11 @@ function openDetail(id) {
     '</div>' +
     '<div>' +
       '<div class="detail-header">' +
-        '<div class="detail-category" style="color: ' + typeColor + '">' + cat.label + '</div>' +
+        '<div class="detail-category" id="detailCategory" style="color: ' + typeColor + '">' + cat.label + '</div>' +
         '<div class="detail-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
       '</div>' +
-      '<div class="stat-row">' + statsHtml + '</div>' +
+      '<div class="stat-row" id="detailStatRow">' + statsHtml + '</div>' +
       (function() {
-        const vs = Array.isArray(c.variants) ? c.variants : [];
-        if (!c.traits && vs.length === 0) return '';
-        // Build the ordered list of views: base first, then variants in given order
-        const tierOrder = { base: 0, alpha: 1, beta: 2 };
-        const greek = { base: '', alpha: 'α', beta: 'β' };
-        const views = [];
-        if (c.traits) views.push({ key: 'base', label: '基本', greek: '', traits: c.traits, actionCost: c.actionCost, image: c.image || null });
-        vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
-          .forEach(v => views.push({
-            key: v.tier,
-            label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化' : v.tier),
-            greek: greek[v.tier] != null ? greek[v.tier] : '',
-            traits: v.traits != null ? v.traits : c.traits,
-            actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
-            image: v.image || c.image || null,
-          }));
         if (views.length === 0) return '';
         let html = '<div class="detail-text-label">特性・行動</div>';
         if (views.length > 1) {
@@ -1450,6 +1470,11 @@ function openDetail(id) {
       if (body) body.innerHTML = renderTraits(views[idx].traits);
       const dImg = document.querySelector('#detailImgWrap .detail-img');
       if (dImg && views[idx].image) dImg.src = views[idx].image;
+      const sf = statsFor(views[idx]);
+      const sr = document.getElementById('detailStatRow');
+      if (sr) sr.innerHTML = sf.html;
+      const dc = document.getElementById('detailCategory');
+      if (dc) dc.style.color = sf.tc;
     });
   }
   const imgWrap = document.getElementById('detailImgWrap');
@@ -1562,13 +1587,16 @@ function collectVariantsFromForm(existing) {
     else if (pend) imageVal = pend; // dataURL, uploaded later
     else imageVal = ex ? (ex.image || null) : null;
     if (traits) {
-      out.push({
+      // Spread the existing variant first so per-variant overrides
+      // (elementType / barrierLimit / partsMode, etc.) survive a base-card
+      // edit, then apply the form-editable fields on top.
+      out.push(Object.assign({}, ex || {}, {
         tier: tier,
         label: (ex && ex.label) ? ex.label : '強化',
         traits: traits,
         actionCost: costRaw === '' ? (ex ? ex.actionCost : null) : Number(costRaw),
         image: imageVal,
-      });
+      }));
     } else if (ex) {
       // Traits cleared but variant existed → keep it (save-protection),
       // but still honor an explicit image change/clear.
@@ -1978,18 +2006,28 @@ async function importJsonFile(file) {
         partsMode: (raw.partsMode === '行動' || raw.partsMode === '戦術') ? raw.partsMode : null,
         bonusValue: typeof raw.bonusValue === 'number' ? raw.bonusValue : null,
         barrierLimit: typeof raw.barrierLimit === 'number' ? raw.barrierLimit : null,
-        variants: Array.isArray(raw.variants) ? raw.variants.filter(v => v && typeof v === 'object' && v.tier).map(v => ({
-          tier: String(v.tier),
-          label: v.label != null ? String(v.label) : null,
-          traits: v.traits != null ? String(v.traits) : null,
-          actionCost: typeof v.actionCost === 'number' ? v.actionCost : null,
-          image: v.image != null ? String(v.image) : null,
-        })) : [],
+        variants: Array.isArray(raw.variants) ? raw.variants.filter(v => v && typeof v === 'object' && v.tier).map(v => {
+          const ov = {
+            tier: String(v.tier),
+            label: v.label != null ? String(v.label) : null,
+            traits: v.traits != null ? String(v.traits) : null,
+            actionCost: typeof v.actionCost === 'number' ? v.actionCost : null,
+            image: v.image != null ? String(v.image) : null,
+          };
+          // Optional per-variant overrides (only attach when valid; absent = inherit base)
+          if (ELEMENT_TYPES.indexOf(v.elementType) >= 0) ov.elementType = v.elementType;
+          if (typeof v.barrierLimit === 'number') ov.barrierLimit = v.barrierLimit;
+          if (typeof v.partsMode === 'string' && v.partsMode) ov.partsMode = v.partsMode;
+          return ov;
+        }) : [],
         traits: raw.traits || null,
         effectText: raw.effectText || null,
         notes: raw.notes || null,
         // Preserve existing image when upserting if the new payload has none
         image: raw.image || (existing ? existing.image : null) || null,
+        // Preserve image_path on upsert. cardToDb writes image_path from
+        // card.imagePath, so omitting it here would blank the stored image.
+        imagePath: raw.imagePath || (existing ? existing.imagePath : null) || null,
         createdAt: (existing && existing.createdAt) || raw.createdAt || Date.now(),
         updatedAt: Date.now(),
       };
