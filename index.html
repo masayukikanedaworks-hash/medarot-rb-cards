@@ -230,6 +230,16 @@ button{font-family:inherit}
 .variant-tab.active{background:var(--orange-soft);border-color:var(--orange);color:var(--orange);box-shadow:0 0 12px rgba(255,107,26,.18)}
 .variant-tab .vt-greek{font-family:var(--f-mono);font-size:13px;margin-left:3px;opacity:.85}
 @media(min-width:540px){.variant-tab{font-size:12px;padding:7px 18px}}
+.var-img-row{display:flex;gap:10px;align-items:flex-start;margin-top:8px}
+.var-dropzone{flex:0 0 90px;border:1px dashed var(--border-2);background:var(--bg-0);padding:8px 4px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;clip-path:var(--clip-sm)}
+.var-dropzone:hover,.var-dropzone.dragover{border-color:var(--orange);background:var(--orange-soft)}
+.var-dropzone-icon{font-family:var(--f-mono);font-size:16px;color:var(--orange);opacity:.8}
+.var-dropzone-text{font-family:var(--f-mono);font-size:8px;color:var(--text-3);margin-top:3px;letter-spacing:.04em}
+.var-dropzone input{display:none}
+.var-img-preview{flex:0 0 64px;height:90px;background:#fff;border:1px solid var(--border-1);object-fit:contain;display:none}
+.var-img-preview.show{display:block}
+.var-img-clear{font-family:var(--f-mono);font-size:9px;color:var(--text-3);border:1px solid var(--border-1);background:transparent;padding:3px 8px;cursor:pointer;transition:all .15s}
+.var-img-clear:hover{color:#f87171;border-color:#b91c1c}
 .trait-cost{font-family:var(--f-mono);font-weight:700;font-size:11px;color:var(--orange);background:var(--bg-0);border:1px solid var(--orange);padding:1px 6px;min-width:22px;text-align:center;line-height:1}
 .trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1)}
 .trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em}
@@ -504,17 +514,29 @@ button{font-family:inherit}
         <div class="field field-full" id="wrap_variant_alpha" style="display:none;">
           <label>強化α — 特性・行動(空欄なら α なし)</label>
           <textarea id="f_var_alpha_traits" placeholder="α版の特性・行動テキスト"></textarea>
-          <div style="display:flex;gap:8px;margin-top:6px;">
-            <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;">
-            <input type="text" id="f_var_alpha_image" placeholder="α 画像URL(任意 / 空欄=基本画像)" style="flex:2;">
+          <div class="var-img-row">
+            <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;align-self:center;">
+            <label class="var-dropzone" id="var_alpha_dropzone">
+              <input type="file" id="f_var_alpha_imgfile" accept="image/*">
+              <div class="var-dropzone-icon">⬆</div>
+              <div class="var-dropzone-text">α画像</div>
+            </label>
+            <img id="var_alpha_preview" class="var-img-preview" alt="">
+            <button type="button" class="var-img-clear" id="var_alpha_clear" style="display:none;">削除</button>
           </div>
         </div>
         <div class="field field-full" id="wrap_variant_beta" style="display:none;">
           <label>強化β — 特性・行動(空欄なら β なし)</label>
           <textarea id="f_var_beta_traits" placeholder="β版の特性・行動テキスト"></textarea>
-          <div style="display:flex;gap:8px;margin-top:6px;">
-            <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;">
-            <input type="text" id="f_var_beta_image" placeholder="β 画像URL(任意 / 空欄=基本画像)" style="flex:2;">
+          <div class="var-img-row">
+            <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;align-self:center;">
+            <label class="var-dropzone" id="var_beta_dropzone">
+              <input type="file" id="f_var_beta_imgfile" accept="image/*">
+              <div class="var-dropzone-icon">⬆</div>
+              <div class="var-dropzone-text">β画像</div>
+            </label>
+            <img id="var_beta_preview" class="var-img-preview" alt="">
+            <button type="button" class="var-img-clear" id="var_beta_clear" style="display:none;">削除</button>
           </div>
         </div>
         <div class="field field-full" id="wrap_effectText" style="display:none;">
@@ -625,6 +647,7 @@ const state = {
   editingId: null,
   pendingImage: null, pendingOrigImage: null,
   pendingDetectedBounds: null, useOriginal: false,
+  pendingVariantImages: { alpha: null, beta: null },
   uploadQueue: [],
 };
 
@@ -1470,11 +1493,22 @@ function openEditor(card) {
   (function() {
     const vs = (card && Array.isArray(card.variants)) ? card.variants : [];
     const getV = (t) => vs.find(v => v && v.tier === t) || null;
+    state.pendingVariantImages = { alpha: null, beta: null };
     ['alpha', 'beta'].forEach(t => {
       const v = getV(t);
       setField('f_var_' + t + '_traits', v && v.traits != null ? v.traits : '');
       setField('f_var_' + t + '_cost', v && v.actionCost != null ? v.actionCost : '');
-      setField('f_var_' + t + '_image', v && v.image != null ? v.image : '');
+      const prev = document.getElementById('var_' + t + '_preview');
+      const clr = document.getElementById('var_' + t + '_clear');
+      const fileEl = document.getElementById('f_var_' + t + '_imgfile');
+      if (fileEl) fileEl.value = '';
+      if (v && v.image) {
+        if (prev) { prev.src = v.image; prev.classList.add('show'); }
+        if (clr) clr.style.display = 'inline-block';
+      } else {
+        if (prev) { prev.src = ''; prev.classList.remove('show'); }
+        if (clr) clr.style.display = 'none';
+      }
     });
   })();
   setField('f_traits', card ? (card.traits || '') : '');
@@ -1513,24 +1547,32 @@ function collectVariantsFromForm(existing) {
   ['alpha', 'beta'].forEach(tier => {
     const traitsEl = document.getElementById('f_var_' + tier + '_traits');
     const costEl = document.getElementById('f_var_' + tier + '_cost');
-    const imgEl = document.getElementById('f_var_' + tier + '_image');
     const ex = findExisting(tier);
     // If the form fields don't exist (non-parts card) keep existing as-is
     if (!traitsEl) { if (ex) out.push(ex); return; }
     const traits = traitsEl.value.trim();
     const costRaw = costEl ? costEl.value.trim() : '';
-    const imgRaw = imgEl ? imgEl.value.trim() : '';
+    // Resolve the variant image:
+    //   pending dataURL  → new upload (handled in saveFromForm)
+    //   '__CLEARED__'    → explicitly removed → null
+    //   null (untouched) → keep existing image
+    const pend = state.pendingVariantImages ? state.pendingVariantImages[tier] : null;
+    let imageVal;
+    if (pend === '__CLEARED__') imageVal = null;
+    else if (pend) imageVal = pend; // dataURL, uploaded later
+    else imageVal = ex ? (ex.image || null) : null;
     if (traits) {
       out.push({
         tier: tier,
         label: (ex && ex.label) ? ex.label : '強化',
         traits: traits,
         actionCost: costRaw === '' ? (ex ? ex.actionCost : null) : Number(costRaw),
-        image: imgRaw || (ex ? ex.image || null : null),
+        image: imageVal,
       });
     } else if (ex) {
-      // Field cleared but variant existed → keep it (save-protection)
-      out.push(ex);
+      // Traits cleared but variant existed → keep it (save-protection),
+      // but still honor an explicit image change/clear.
+      out.push(Object.assign({}, ex, { image: imageVal }));
     }
   });
   return out;
@@ -1583,6 +1625,7 @@ function closeEditor(skipQueueCheck) {
   state.pendingImage = null;
   state.pendingOrigImage = null;
   state.pendingDetectedBounds = null;
+  state.pendingVariantImages = { alpha: null, beta: null };
 }
 function showStatus(msg, kind) {
   const el = document.getElementById('statusMsg');
@@ -1714,6 +1757,33 @@ function removePendingImage() {
   document.getElementById('fileInput').value = '';
   document.getElementById('useOriginalToggle').checked = false;
 }
+// Process an α/β variant image: same auto-crop pipeline as the base image.
+async function handleVariantImageFile(tier, file) {
+  if (!file || !file.type.startsWith('image/')) { toast('画像ファイルを選択してください', 'error'); return; }
+  try {
+    const dataUrl = await fileToDataURL(file);
+    const bounds = await detectCardBounds(dataUrl);
+    const useOrig = !bounds || !bounds.detected;
+    const r = await cropAndResize(dataUrl, bounds, useOrig);
+    state.pendingVariantImages[tier] = r.dataUrl;
+    const prev = document.getElementById('var_' + tier + '_preview');
+    const clr = document.getElementById('var_' + tier + '_clear');
+    if (prev) { prev.src = r.dataUrl; prev.classList.add('show'); }
+    if (clr) clr.style.display = 'inline-block';
+    toast((tier === 'alpha' ? 'α' : 'β') + '画像を読み込みました', 'success');
+  } catch (e) {
+    toast('画像読み込み失敗: ' + e.message, 'error');
+  }
+}
+function clearVariantImage(tier) {
+  state.pendingVariantImages[tier] = '__CLEARED__';
+  const prev = document.getElementById('var_' + tier + '_preview');
+  const clr = document.getElementById('var_' + tier + '_clear');
+  const fileEl = document.getElementById('f_var_' + tier + '_imgfile');
+  if (prev) { prev.src = ''; prev.classList.remove('show'); }
+  if (clr) clr.style.display = 'none';
+  if (fileEl) fileEl.value = '';
+}
 
 
 async function saveFromForm() {
@@ -1770,6 +1840,19 @@ async function saveFromForm() {
     updatedAt: now,
   };
   try {
+    // Upload any α/β variant images that are still raw dataURLs
+    if (Array.isArray(card.variants) && card.variants.length && SUPABASE_ENABLED) {
+      for (const v of card.variants) {
+        if (v && typeof v.image === 'string' && v.image.startsWith('data:')) {
+          try {
+            const vp = await uploadCardImage(cardId + '-' + v.tier, v.image);
+            if (vp) v.image = publicImageUrl(vp);
+          } catch (ve) {
+            toast((v.tier === 'alpha' ? 'α' : 'β') + '画像アップロード失敗: ' + ve.message, 'error');
+          }
+        }
+      }
+    }
     await persistCard(card);
     const idx = state.cards.findIndex(x => x.id === card.id);
     if (idx >= 0) state.cards[idx] = card; else state.cards.push(card);
@@ -1992,6 +2075,32 @@ function wire() {
     const files = Array.from(e.dataTransfer.files || []).filter(function(f) { return f.type.startsWith('image/'); });
     if (files.length === 0) return;
     enqueueFiles(files);
+  });
+
+  ['alpha', 'beta'].forEach(function(tier) {
+    const dz = document.getElementById('var_' + tier + '_dropzone');
+    const fi = document.getElementById('f_var_' + tier + '_imgfile');
+    const clr = document.getElementById('var_' + tier + '_clear');
+    if (fi) {
+      fi.addEventListener('change', function(e) {
+        const f = (e.target.files || [])[0];
+        if (f) handleVariantImageFile(tier, f);
+        e.target.value = '';
+      });
+    }
+    if (dz) {
+      ['dragenter','dragover'].forEach(function(ev) {
+        dz.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.add('dragover'); });
+      });
+      ['dragleave','dragend','drop'].forEach(function(ev) {
+        dz.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.remove('dragover'); });
+      });
+      dz.addEventListener('drop', function(e) {
+        const f = Array.from(e.dataTransfer.files || []).filter(function(x) { return x.type.startsWith('image/'); })[0];
+        if (f) handleVariantImageFile(tier, f);
+      });
+    }
+    if (clr) clr.addEventListener('click', function() { clearVariantImage(tier); });
   });
 
   document.getElementById('useOriginalToggle').addEventListener('change', async function(e) {
