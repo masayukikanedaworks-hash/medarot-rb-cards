@@ -646,6 +646,28 @@ const ELEMENT_COLORS = {
   '設置':'var(--t-install)','回復':'var(--t-heal)','防御':'var(--t-defend)',
 };
 const SCHEMA_VERSION = 3;
+// Normalize an elementType value to an array of valid type names.
+// Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
+// or an array. Invalid/empty entries are dropped. Existing single-type
+// cards keep working unchanged (returns a 1-element array).
+function elemList(v) {
+  if (v == null) return [];
+  const arr = Array.isArray(v) ? v : String(v).split(/[,、]/);
+  const seen = {};
+  const out = [];
+  for (let s of arr) {
+    s = String(s).trim();
+    if (s && ELEMENT_TYPES.indexOf(s) >= 0 && !seen[s]) { seen[s] = 1; out.push(s); }
+  }
+  return out;
+}
+// Canonical storage form: comma-separated string (or null when empty).
+function elemToStore(v) {
+  const l = elemList(v);
+  return l.length ? l.join(',') : null;
+}
+// Primary type (first) — used where a single representative is needed.
+function elemPrimary(v) { const l = elemList(v); return l.length ? l[0] : null; }
 
 const state = {
   cards: [], loading: true,
@@ -1130,7 +1152,7 @@ function applyFilters() {
   const q = state.search.trim().toLowerCase();
   return state.cards.filter(c => {
     if (state.activeTab !== 'all' && c.cardType !== state.activeTab) return false;
-    if (state.elementType && c.elementType !== state.elementType) return false;
+    if (state.elementType && elemList(c.elementType).indexOf(state.elementType) < 0) return false;
     if (state.bpMin !== '' && (c.bp == null || c.bp < +state.bpMin)) return false;
     if (state.bpMax !== '' && (c.bp == null || c.bp > +state.bpMax)) return false;
     if (state.costMin !== '' && (c.actionCost == null || c.actionCost < +state.costMin)) return false;
@@ -1222,7 +1244,8 @@ function renderGrid() {
 }
 function cardTileHtml(c, i) {
   const cat = CARD_CATEGORIES[c.cardType] || { short: '—' };
-  const tagColor = c.elementType ? ELEMENT_COLORS[c.elementType] : 'var(--orange)';
+  const __ptype = elemPrimary(c.elementType);
+  const tagColor = __ptype ? ELEMENT_COLORS[__ptype] : 'var(--orange)';
   const cost = (c.actionCost != null && c.actionCost !== '')
     ? '<div class="card-cost-badge">' + escapeHtml(String(c.actionCost)) + '</div>' : '';
   const img = c.image
@@ -1242,7 +1265,9 @@ function cardTileHtml(c, i) {
       '</div>'
     : '';
   const meta = [
-    c.elementType ? '<span style="color:' + ELEMENT_COLORS[c.elementType] + '">' + c.elementType + '</span>' : '',
+    elemList(c.elementType).map(t =>
+      '<span style="color:' + ELEMENT_COLORS[t] + '">' + escapeHtml(t) + '</span>'
+    ).join('') || '',
     c.partsArm ? '<span>' + c.partsArm + '腕</span>' : '',
     c.partsMode ? '<span>' + escapeHtml(c.partsMode) + '</span>' : '',
     c.bp != null && c.bp !== '' ? '<span>BP:<b>' + c.bp + '</b></span>' : '',
@@ -1435,11 +1460,16 @@ function openDetail(id) {
     const barrierLimit = g('barrierLimit');
     const actionCost = g('actionCost');
     const bonusValue = g('bonusValue');
-    const tc = elementType ? ELEMENT_COLORS[elementType] : 'var(--orange)';
+    const types = elemList(elementType);
+    const tc = types.length ? ELEMENT_COLORS[types[0]] : 'var(--orange)';
     const isParts = c.cardType === 'parts_card';
     const armStat = c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null;
-    const typeStat = elementType ? { l: 'TYPE', v: elementType, color: tc } : null;
-    const lead = isParts ? [armStat, typeStat] : [typeStat, armStat];
+    // One TYPE cell per element so 2-type units show both, color-coded.
+    const typeStats = types.map((t, i) => ({
+      l: types.length > 1 ? 'TYPE ' + (i + 1) : 'TYPE',
+      v: t, color: ELEMENT_COLORS[t],
+    }));
+    const lead = isParts ? [armStat].concat(typeStats) : typeStats.concat([armStat]);
     const stats = lead.concat([
       partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
@@ -1461,9 +1491,10 @@ function openDetail(id) {
   const typeColor = __initialStats.tc;
   const statsHtml = __initialStats.html;
 
-  // メダチェンジ後画像: リーダーメダロット かつ drive_a/drive_b 保有時のみ。
+  // メダチェンジ後画像: リーダー/サポートメダロット かつ drive_a/drive_b 保有時のみ。
   // drive_a/drive_b 両 variant の image を共通1枚として扱う。
-  const isMedaChangeLeader = (c.cardType === 'leader_medarot') &&
+  const isMedaChangeLeader =
+    (c.cardType === 'leader_medarot' || c.cardType === 'support_medarot') &&
     Array.isArray(c.variants) &&
     c.variants.some(v => v && (v.tier === 'drive_a' || v.tier === 'drive_b'));
   const mcImg = isMedaChangeLeader ? (function() {
@@ -2160,7 +2191,7 @@ async function importJsonFile(file) {
         id: id,
         cardType: CARD_CATEGORIES[raw.cardType] ? raw.cardType : 'leader_medarot',
         name: String(raw.name),
-        elementType: ELEMENT_TYPES.indexOf(raw.elementType) >= 0 ? raw.elementType : null,
+        elementType: elemToStore(raw.elementType),
         actionCost: typeof raw.actionCost === 'number' ? raw.actionCost : null,
         bp: typeof raw.bp === 'number' ? raw.bp : null,
         coolingCost: typeof raw.coolingCost === 'number' ? raw.coolingCost : null,
@@ -2185,7 +2216,7 @@ async function importJsonFile(file) {
                   : (exVar && exVar.image) ? exVar.image : null,
           };
           // Optional per-variant overrides (only attach when valid; absent = inherit base)
-          if (ELEMENT_TYPES.indexOf(v.elementType) >= 0) ov.elementType = v.elementType;
+          { const et = elemToStore(v.elementType); if (et) ov.elementType = et; }
           if (typeof v.barrierLimit === 'number') ov.barrierLimit = v.barrierLimit;
           if (typeof v.partsMode === 'string' && v.partsMode) ov.partsMode = v.partsMode;
           if (typeof v.bonusValue === 'number') ov.bonusValue = v.bonusValue;
