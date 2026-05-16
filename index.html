@@ -224,6 +224,12 @@ button{font-family:inherit}
 .trait-kind{font-family:var(--f-display);font-weight:700;font-size:9px;letter-spacing:.1em;padding:2px 7px;min-width:34px;text-align:center;line-height:1.3;text-transform:uppercase;border:1px solid currentColor}
 .trait-kind.kind-action{color:var(--orange);background:rgba(255,107,26,.1)}
 .trait-kind.kind-passive{color:#10b981;background:rgba(16,185,129,.12)}
+.variant-tabs{display:flex;gap:5px;margin:4px 0 8px}
+.variant-tab{font-family:var(--f-display);font-weight:700;font-size:11px;letter-spacing:.06em;padding:6px 14px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-2);cursor:pointer;transition:all .15s;clip-path:var(--clip-sm)}
+.variant-tab:hover{color:var(--text-1);background:var(--bg-2)}
+.variant-tab.active{background:var(--orange-soft);border-color:var(--orange);color:var(--orange);box-shadow:0 0 12px rgba(255,107,26,.18)}
+.variant-tab .vt-greek{font-family:var(--f-mono);font-size:13px;margin-left:3px;opacity:.85}
+@media(min-width:540px){.variant-tab{font-size:12px;padding:7px 18px}}
 .trait-cost{font-family:var(--f-mono);font-weight:700;font-size:11px;color:var(--orange);background:var(--bg-0);border:1px solid var(--orange);padding:1px 6px;min-width:22px;text-align:center;line-height:1}
 .trait-name{font-family:var(--f-body);font-weight:700;font-size:12px;color:var(--text-1)}
 .trait-mode{font-family:var(--f-mono);font-size:9px;color:var(--text-3);margin-left:auto;padding:1px 5px;border:1px solid var(--border-1);letter-spacing:.04em}
@@ -592,7 +598,7 @@ const ELEMENT_COLORS = {
   '格闘':'var(--t-melee)','射撃':'var(--t-shoot)','支援':'var(--t-assist)',
   '設置':'var(--t-install)','回復':'var(--t-heal)','防御':'var(--t-defend)',
 };
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const state = {
   cards: [], loading: true,
@@ -636,6 +642,7 @@ function dbToCard(row) {
     partsMode: row.parts_mode,
     bonusValue: row.bonus_value,
     barrierLimit: row.barrier_limit,
+    variants: Array.isArray(row.variants) ? row.variants : (row.variants ? row.variants : []),
     traits: row.traits,
     effectText: row.effect_text,
     notes: row.notes,
@@ -659,6 +666,7 @@ function cardToDb(card) {
     parts_mode: card.partsMode || null,
     bonus_value: card.bonusValue == null ? null : card.bonusValue,
     barrier_limit: card.barrierLimit == null ? null : card.barrierLimit,
+    variants: (Array.isArray(card.variants) && card.variants.length) ? card.variants : null,
     traits: card.traits || null,
     effect_text: card.effectText || null,
     notes: card.notes || null,
@@ -1342,7 +1350,39 @@ function openDetail(id) {
         '<div class="detail-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
       '</div>' +
       '<div class="stat-row">' + statsHtml + '</div>' +
-      (c.traits ? '<div class="detail-text-label">特性・行動</div>' + renderTraits(c.traits) : '') +
+      (function() {
+        const vs = Array.isArray(c.variants) ? c.variants : [];
+        if (!c.traits && vs.length === 0) return '';
+        // Build the ordered list of views: base first, then variants in given order
+        const tierOrder = { base: 0, alpha: 1, beta: 2 };
+        const greek = { base: '', alpha: 'α', beta: 'β' };
+        const views = [];
+        if (c.traits) views.push({ key: 'base', label: '基本', greek: '', traits: c.traits, actionCost: c.actionCost });
+        vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
+          .forEach(v => views.push({
+            key: v.tier,
+            label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化' : v.tier),
+            greek: greek[v.tier] != null ? greek[v.tier] : '',
+            traits: v.traits != null ? v.traits : c.traits,
+            actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
+          }));
+        if (views.length === 0) return '';
+        let html = '<div class="detail-text-label">特性・行動</div>';
+        if (views.length > 1) {
+          html += '<div class="variant-tabs" id="variantTabs">' +
+            views.map((v, i) =>
+              '<button class="variant-tab' + (i === 0 ? ' active' : '') + '" data-vidx="' + i + '">' +
+              escapeHtml(v.label) +
+              (v.greek ? '<span class="vt-greek">' + v.greek + '</span>' : '') +
+              '</button>'
+            ).join('') +
+            '</div>';
+        }
+        html += '<div id="variantBody">' + renderTraits(views[0].traits) + '</div>';
+        // Stash views on a global for the click handler
+        window.__detailVariantViews = views;
+        return html;
+      })() +
       (c.effectText ? '<div class="detail-text-label">効果</div><div class="detail-text-block">' + escapeHtml(c.effectText) + '</div>' : '') +
       (c.notes ? '<div class="detail-text-label">メモ</div><div class="detail-text-block">' + escapeHtml(c.notes) + '</div>' : '') +
       '<div class="row-actions" style="margin-top:14px;">' +
@@ -1356,6 +1396,20 @@ function openDetail(id) {
   if (editBtn) editBtn.addEventListener('click', () => { closeDetail(); openEditor(c); });
   const dupBtn = document.getElementById('duplicateFromDetail');
   if (dupBtn) dupBtn.addEventListener('click', () => { closeDetail(); duplicateCard(c); });
+  const variantTabs = document.getElementById('variantTabs');
+  if (variantTabs) {
+    variantTabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('.variant-tab');
+      if (!btn) return;
+      const idx = parseInt(btn.getAttribute('data-vidx'), 10);
+      const views = window.__detailVariantViews || [];
+      if (!views[idx]) return;
+      variantTabs.querySelectorAll('.variant-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const body = document.getElementById('variantBody');
+      if (body) body.innerHTML = renderTraits(views[idx].traits);
+    });
+  }
   const imgWrap = document.getElementById('detailImgWrap');
   if (imgWrap) {
     if (c.image) {
@@ -1777,6 +1831,12 @@ async function importJsonFile(file) {
         partsMode: (raw.partsMode === '行動' || raw.partsMode === '戦術') ? raw.partsMode : null,
         bonusValue: typeof raw.bonusValue === 'number' ? raw.bonusValue : null,
         barrierLimit: typeof raw.barrierLimit === 'number' ? raw.barrierLimit : null,
+        variants: Array.isArray(raw.variants) ? raw.variants.filter(v => v && typeof v === 'object' && v.tier).map(v => ({
+          tier: String(v.tier),
+          label: v.label != null ? String(v.label) : null,
+          traits: v.traits != null ? String(v.traits) : null,
+          actionCost: typeof v.actionCost === 'number' ? v.actionCost : null,
+        })) : [],
         traits: raw.traits || null,
         effectText: raw.effectText || null,
         notes: raw.notes || null,
