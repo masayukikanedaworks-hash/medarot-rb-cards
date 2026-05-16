@@ -105,12 +105,14 @@ button{font-family:inherit}
 .card-image-empty span{font-size:9px;letter-spacing:.16em;color:#7a8398}
 .card-tag{position:absolute;top:3px;left:3px;font-family:var(--f-display);font-size:7px;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.82);padding:2px 4px;border-left:2px solid var(--tag-color,var(--orange));font-weight:600;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 .card-cost-badge{position:absolute;top:3px;right:3px;font-family:var(--f-mono);font-weight:700;font-size:10px;color:var(--orange);background:rgba(0,0,0,.85);padding:2px 5px;border:1px solid var(--orange);min-width:20px;text-align:center;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.card-vbadges{position:absolute;bottom:3px;right:3px;display:flex;gap:3px;z-index:2}
+.card-vbadge{font-family:var(--f-mono);font-weight:700;font-size:10px;line-height:1;color:var(--orange);background:rgba(0,0,0,.85);padding:3px 5px;border:1px solid var(--orange);border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .card-info{padding:5px 6px 6px;border-top:1px solid var(--border-1);background:var(--bg-1)}
 .card-name{font-family:var(--f-body);font-weight:700;font-size:10px;color:var(--text-1);line-height:1.25;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
 .card-meta{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--f-mono);font-size:8px;color:var(--text-3)}
 .card-meta span{display:inline-flex;align-items:center;gap:2px}
 .card-meta b{color:var(--cyan);font-weight:600}
-@media(min-width:540px){.card-tag{font-size:9px;padding:3px 7px}.card-cost-badge{font-size:12px;padding:3px 7px}.card-info{padding:8px 10px 10px}.card-name{font-size:12px;margin-bottom:5px}.card-meta{font-size:10px;gap:6px}}
+@media(min-width:540px){.card-tag{font-size:9px;padding:3px 7px}.card-cost-badge{font-size:12px;padding:3px 7px}.card-vbadge{font-size:12px;padding:4px 6px}.card-info{padding:8px 10px 10px}.card-name{font-size:12px;margin-bottom:5px}.card-meta{font-size:10px;gap:6px}}
 .empty{padding:80px 24px;text-align:center;border:1px dashed var(--border-1);background:rgba(13,18,25,.4);clip-path:var(--clip-md)}
 .empty-icon{font-family:var(--f-mono);font-size:32px;color:var(--text-3);letter-spacing:.25em;margin-bottom:14px;opacity:.6}
 .empty-title{font-family:var(--f-display);font-size:16px;color:var(--text-2);margin-bottom:8px;letter-spacing:.08em;font-weight:600}
@@ -1219,6 +1221,16 @@ function cardTileHtml(c, i) {
   const img = c.image
     ? '<img src="' + c.image + '" alt="' + escapeAttr(c.name || '') + '" loading="lazy">'
     : '<div class="card-image-empty"><span>画像を追加</span></div>';
+  // α/β variant badges (shown at the image's bottom-right)
+  const vtiers = Array.isArray(c.variants)
+    ? c.variants.filter(v => v && (v.tier === 'alpha' || v.tier === 'beta'))
+        .map(v => v.tier) : [];
+  const vbadges = vtiers.length
+    ? '<div class="card-vbadges">' +
+      (vtiers.indexOf('alpha') >= 0 ? '<span class="card-vbadge">α</span>' : '') +
+      (vtiers.indexOf('beta') >= 0 ? '<span class="card-vbadge">β</span>' : '') +
+      '</div>'
+    : '';
   const meta = [
     c.elementType ? '<span style="color:' + ELEMENT_COLORS[c.elementType] + '">' + c.elementType + '</span>' : '',
     c.partsArm ? '<span>' + c.partsArm + '腕</span>' : '',
@@ -1233,7 +1245,7 @@ function cardTileHtml(c, i) {
   return '<div class="card" data-card-id="' + c.id + '" style="animation-delay:' + delay + 'ms">' +
     '<div class="card-image">' + img +
     '<div class="card-tag" style="--tag-color: ' + tagColor + '">' + cat.short + '</div>' +
-    cost + '</div>' +
+    cost + vbadges + '</div>' +
     '<div class="card-info"><div class="card-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
     '<div class="card-meta">' + (meta || '<span>—</span>') + '</div></div></div>';
 }
@@ -1383,6 +1395,7 @@ function openDetail(id) {
     }));
 
   // Compute the stat row for a given view (overrides win, base is fallback).
+  // For parts cards the 腕 column is shown before TYPE (per UI request).
   function statsFor(view) {
     const g = (k) => (view && view[k] != null && view[k] !== '') ? view[k] : c[k];
     const elementType = g('elementType');
@@ -1390,9 +1403,11 @@ function openDetail(id) {
     const barrierLimit = g('barrierLimit');
     const actionCost = g('actionCost');
     const tc = elementType ? ELEMENT_COLORS[elementType] : 'var(--orange)';
-    const stats = [
-      elementType ? { l: 'TYPE', v: elementType, color: tc } : null,
-      c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null,
+    const isParts = c.cardType === 'parts_card';
+    const armStat = c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null;
+    const typeStat = elementType ? { l: 'TYPE', v: elementType, color: tc } : null;
+    const lead = isParts ? [armStat, typeStat] : [typeStat, armStat];
+    const stats = lead.concat([
       partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
       (c.bonusValue != null && c.bonusValue !== '') ? { l: 'ボーナス', v: '+' + c.bonusValue, color: 'var(--orange)' } : null,
@@ -1400,7 +1415,7 @@ function openDetail(id) {
       (c.bp != null && c.bp !== '') ? { l: 'BP', v: c.bp } : null,
       (c.coolingCost != null && c.coolingCost !== '') ? { l: '冷却コスト', v: c.coolingCost } : null,
       c.legType ? { l: '脚部', v: c.legType } : null,
-    ].filter(Boolean);
+    ]).filter(Boolean);
     const html = stats.map(s =>
       '<div class="stat"' + (s.color ? ' style="border-left-color:' + s.color + '"' : '') + '>' +
       '<div class="stat-label">' + s.l + '</div>' +
@@ -1587,6 +1602,14 @@ function collectVariantsFromForm(existing) {
     else if (pend) imageVal = pend; // dataURL, uploaded later
     else imageVal = ex ? (ex.image || null) : null;
     if (traits) {
+      // Cost: the form field is authoritative. Empty → null (no cost).
+      // A present value (including 0) is parsed and always applied, so
+      // edits to a variant that already had a cost take effect on save.
+      let nextCost = null;
+      if (costRaw !== '') {
+        const n = Number(costRaw);
+        nextCost = Number.isFinite(n) ? n : null;
+      }
       // Spread the existing variant first so per-variant overrides
       // (elementType / barrierLimit / partsMode, etc.) survive a base-card
       // edit, then apply the form-editable fields on top.
@@ -1594,7 +1617,7 @@ function collectVariantsFromForm(existing) {
         tier: tier,
         label: (ex && ex.label) ? ex.label : '強化',
         traits: traits,
-        actionCost: costRaw === '' ? (ex ? ex.actionCost : null) : Number(costRaw),
+        actionCost: nextCost,
         image: imageVal,
       }));
     } else if (ex) {
