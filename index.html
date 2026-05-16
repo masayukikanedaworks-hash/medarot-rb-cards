@@ -203,6 +203,13 @@ button{font-family:inherit}
 .detail-img-empty{width:100%;aspect-ratio:5/7;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;gap:8px}
 .detail-img-empty::before{content:"⬆";font-size:36px;color:var(--orange);opacity:.7}
 .detail-img-empty span{font-size:10px;letter-spacing:.2em;color:var(--text-2)}
+.mc-img-section{margin-top:4px}
+.mc-img-wrap{background:#fff;border:1px solid var(--border-1);overflow:hidden;cursor:zoom-in;position:relative;padding:3px;transition:border-color .15s}
+.mc-img-wrap:hover{border-color:var(--cyan)}
+.mc-img-clear{position:absolute;top:5px;right:5px;width:24px;height:24px;border:1px solid var(--border-2);background:rgba(0,0,0,.72);color:#fff;font-family:var(--f-mono);font-size:12px;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center;border-radius:2px}
+.mc-img-clear:hover{background:var(--orange);border-color:var(--orange)}
+.mc-img-drop{display:flex;align-items:center;justify-content:center;aspect-ratio:5/7;border:1px dashed var(--border-2);background:#f4f6fa;color:var(--text-2);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;cursor:pointer;transition:all .15s;text-align:center;padding:8px}
+.mc-img-drop:hover,.mc-img-drop.drag{border-color:var(--orange);background:#fff4ec;color:var(--orange)}
 .detail-header{margin-bottom:8px}
 .detail-category{font-family:var(--f-mono);font-size:9px;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin-bottom:2px}
 .detail-name{font-family:var(--f-body);font-weight:900;font-size:16px;line-height:1.2;color:var(--text-1)}
@@ -227,11 +234,11 @@ button{font-family:inherit}
 .trait-kind.kind-action{color:var(--orange);background:rgba(255,107,26,.1)}
 .trait-kind.kind-passive{color:#10b981;background:rgba(16,185,129,.12)}
 .variant-tabs{display:flex;gap:5px;margin:4px 0 8px}
-.variant-tab{font-family:var(--f-display);font-weight:700;font-size:11px;letter-spacing:.06em;padding:6px 14px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-2);cursor:pointer;transition:all .15s;clip-path:var(--clip-sm)}
+.variant-tab{font-family:var(--f-display);font-weight:700;font-size:10px;letter-spacing:.03em;padding:6px 10px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-2);cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);white-space:nowrap}
 .variant-tab:hover{color:var(--text-1);background:var(--bg-2)}
 .variant-tab.active{background:var(--orange-soft);border-color:var(--orange);color:var(--orange);box-shadow:0 0 12px rgba(255,107,26,.18)}
-.variant-tab .vt-greek{font-family:var(--f-mono);font-size:13px;margin-left:3px;opacity:.85}
-@media(min-width:540px){.variant-tab{font-size:12px;padding:7px 18px}}
+.variant-tab .vt-greek{font-family:var(--f-mono);font-size:11px;margin-left:3px;opacity:.85}
+@media(min-width:540px){.variant-tab{font-size:11px;padding:7px 14px}.variant-tab .vt-greek{font-size:12px}}
 .var-img-row{display:flex;gap:10px;align-items:flex-start;margin-top:8px}
 .var-dropzone{flex:0 0 90px;border:1px dashed var(--border-2);background:var(--bg-0);padding:8px 4px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;clip-path:var(--clip-sm)}
 .var-dropzone:hover,.var-dropzone.dragover{border-color:var(--orange);background:var(--orange-soft)}
@@ -1434,11 +1441,35 @@ function openDetail(id) {
   const typeColor = __initialStats.tc;
   const statsHtml = __initialStats.html;
 
+  // メダチェンジ後画像: リーダーメダロット かつ drive_a/drive_b 保有時のみ。
+  // drive_a/drive_b 両 variant の image を共通1枚として扱う。
+  const isMedaChangeLeader = (c.cardType === 'leader_medarot') &&
+    Array.isArray(c.variants) &&
+    c.variants.some(v => v && (v.tier === 'drive_a' || v.tier === 'drive_b'));
+  const mcImg = isMedaChangeLeader ? (function() {
+    const dv = c.variants.find(v => v && (v.tier === 'drive_a' || v.tier === 'drive_b') &&
+      v.image && String(v.image).trim() !== '');
+    return dv ? dv.image : null;
+  })() : null;
+  const medaChangeSection = isMedaChangeLeader ? (
+    '<div class="mc-img-section">' +
+      '<div class="detail-text-label" style="margin-top:10px;">メダチェンジ後画像</div>' +
+      (mcImg
+        ? '<div class="mc-img-wrap" id="mcImgWrap"><img class="detail-img" src="' + mcImg + '" alt="メダチェンジ後">' +
+          '<button class="mc-img-clear" id="mcImgClear" title="削除">✕</button></div>'
+        : '<label class="mc-img-drop" id="mcImgDrop"><input type="file" id="mcImgFile" accept="image/*" hidden>' +
+          '<span>＋ メダチェンジ後画像を追加</span></label>') +
+    '</div>'
+  ) : '';
+
   document.getElementById('detailBody').innerHTML =
     '<div class="detail-grid">' +
+    '<div>' +
     '<div class="detail-img-wrap' + (c.image ? '' : ' empty') + '" id="detailImgWrap">' +
       (c.image ? '<img class="detail-img" src="' + c.image + '" alt="' + escapeAttr(c.name || '') + '">'
                : '<div class="detail-img-empty"><span>画像を追加</span></div>') +
+    '</div>' +
+    medaChangeSection +
     '</div>' +
     '<div>' +
       '<div class="detail-header">' +
@@ -1504,6 +1535,79 @@ function openDetail(id) {
       imgWrap.addEventListener('click', () => openLightbox(c.image));
     } else {
       imgWrap.addEventListener('click', () => { closeDetail(); openEditor(c); });
+    }
+  }
+  // メダチェンジ後画像: アップロード / 削除 / 拡大
+  if (isMedaChangeLeader) {
+    const applyMedaChangeImage = async (newUrlOrNull) => {
+      const card = state.cards.find(x => x.id === c.id);
+      if (!card) return;
+      const vs = (Array.isArray(card.variants) ? card.variants : []).map(v => Object.assign({}, v));
+      let touched = false;
+      for (const v of vs) {
+        if (v && (v.tier === 'drive_a' || v.tier === 'drive_b')) {
+          v.image = newUrlOrNull; touched = true;
+        }
+      }
+      if (!touched) return;
+      const updated = Object.assign({}, card, { variants: vs, updatedAt: Date.now() });
+      try {
+        await persistCard(updated);
+        const idx = state.cards.findIndex(x => x.id === c.id);
+        if (idx >= 0) state.cards[idx] = updated;
+        renderAll();
+        toast(newUrlOrNull ? 'メダチェンジ後画像を保存しました' : 'メダチェンジ後画像を削除しました', 'success');
+        openDetail(c.id); // re-render detail with the new state
+      } catch (e) {
+        toast('保存失敗: ' + (e && e.message ? e.message : e), 'error');
+      }
+    };
+    const mcFile = document.getElementById('mcImgFile');
+    const mcDrop = document.getElementById('mcImgDrop');
+    if (mcFile) {
+      mcFile.addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f || !f.type.startsWith('image/')) { toast('画像ファイルを選択してください', 'error'); return; }
+        if (!SUPABASE_ENABLED) { toast('Supabase未接続', 'error'); return; }
+        try {
+          toast('画像を処理中...', 'info', 1500);
+          const dataUrl = await fileToDataURL(f);
+          const bounds = await detectCardBounds(dataUrl);
+          const useOrig = !bounds || !bounds.detected;
+          const r = await cropAndResize(dataUrl, bounds, useOrig);
+          const path = await uploadCardImage(c.id + '-drive', r.dataUrl);
+          await applyMedaChangeImage(publicImageUrl(path));
+        } catch (err) {
+          toast('画像アップロード失敗: ' + (err && err.message ? err.message : err), 'error');
+        }
+      });
+    }
+    if (mcDrop) {
+      mcDrop.addEventListener('dragover', (e) => { e.preventDefault(); mcDrop.classList.add('drag'); });
+      mcDrop.addEventListener('dragleave', () => mcDrop.classList.remove('drag'));
+      mcDrop.addEventListener('drop', (e) => {
+        e.preventDefault(); mcDrop.classList.remove('drag');
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f && mcFile) {
+          const dt = new DataTransfer(); dt.items.add(f);
+          mcFile.files = dt.files;
+          mcFile.dispatchEvent(new Event('change'));
+        }
+      });
+    }
+    const mcWrap = document.getElementById('mcImgWrap');
+    const mcClear = document.getElementById('mcImgClear');
+    if (mcWrap && mcImg) {
+      mcWrap.addEventListener('click', (e) => {
+        if (e.target.id === 'mcImgClear') return;
+        openLightbox(mcImg);
+      });
+    }
+    if (mcClear) {
+      mcClear.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('メダチェンジ後画像を削除しますか?')) applyMedaChangeImage(null);
+      });
     }
   }
 }
