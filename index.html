@@ -295,6 +295,9 @@ button{font-family:inherit}
       <button class="icon-btn" id="exportBtn" title="JSONエクスポート" aria-label="エクスポート">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </button>
+      <button class="icon-btn" id="recoverBtn" title="α/β画像を復旧" aria-label="画像復旧">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
       <div class="stat-pill">TOTAL <b id="totalCount">0</b></div>
     </div>
   </div>
@@ -609,6 +612,25 @@ button{font-family:inherit}
         <div class="dropzone-text">JSONファイルをドロップ / 選択</div>
         <div class="dropzone-hint">.json — エクスポート形式</div>
       </label>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="recoverModal" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width: 560px;">
+    <div class="modal-head">
+      <div class="modal-title">α/β 画像 復旧</div>
+      <button class="modal-close" id="recoverClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="status-msg info" id="recoverIntro">
+        ストレージに残っている α/β 画像を走査し、画像が外れているカードに自動で再リンクします。既に画像があるものは変更しません(非破壊)。
+      </div>
+      <div id="recoverResult" style="display:none;margin:10px 0;font-family:var(--f-mono);font-size:11px;color:var(--text-2);max-height:46vh;overflow:auto;border:1px solid var(--border-1);padding:10px;background:var(--bg-0)"></div>
+      <div class="row-actions" style="margin-top:14px;gap:8px;display:flex;flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="recoverScanBtn">スキャン(プレビュー)</button>
+        <button class="btn" id="recoverApplyBtn" style="display:none;background:var(--orange);color:#fff;">復旧を実行</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1986,6 +2008,161 @@ function openImportModal() {
 }
 function closeImportModal() { document.getElementById('importModal').classList.remove('open'); }
 
+// ===== α/β 画像 復旧ツール =====
+// インポートで variants[].image が外れても Storage 実体は残っているため、
+// cards/<id>-<tier>-<ts>.<ext> を走査し tier ごと最新ファイルを再リンクする。
+function openRecoverModal() {
+  document.getElementById('recoverModal').classList.add('open');
+  const res = document.getElementById('recoverResult');
+  res.style.display = 'none';
+  res.innerHTML = '';
+  document.getElementById('recoverApplyBtn').style.display = 'none';
+  document.getElementById('recoverScanBtn').disabled = false;
+  window.__recoverPlan = null;
+}
+function closeRecoverModal() { document.getElementById('recoverModal').classList.remove('open'); }
+
+async function listStorageFolder(prefix) {
+  // Supabase Storage list API (paginated; 100/page)
+  const out = [];
+  let offset = 0;
+  for (let guard = 0; guard < 60; guard++) {
+    const resp = await fetch(
+      SUPABASE_URL + '/storage/v1/object/list/' + STORAGE_BUCKET,
+      {
+        method: 'POST',
+        headers: supaHeaders(),
+        body: JSON.stringify({
+          prefix: prefix,
+          limit: 100,
+          offset: offset,
+          sortBy: { column: 'name', order: 'asc' },
+        }),
+      }
+    );
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      throw new Error('一覧取得失敗(' + resp.status + '): ' + t.slice(0, 160));
+    }
+    const batch = await resp.json();
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    for (const it of batch) if (it && it.name) out.push(it.name);
+    if (batch.length < 100) break;
+    offset += batch.length;
+  }
+  return out;
+}
+
+// ファイル名から { cardId, tier, ts, ext } を取り出す。
+// 例: c_parts_magnemissile-alpha-1779999999999.jpg
+// 基本画像 (c_parts_x-1779....jpg) は tier 無しなので無視。
+function parseVariantFile(fname) {
+  const m = /^(.+)-(alpha|beta)-(\d+)\.([a-zA-Z0-9]+)$/.exec(fname);
+  if (!m) return null;
+  return { cardId: m[1], tier: m[2], ts: Number(m[3]), ext: m[4], fname: fname };
+}
+
+async function recoverScan() {
+  if (!SUPABASE_ENABLED) { toast('Supabase未接続', 'error'); return; }
+  const res = document.getElementById('recoverResult');
+  res.style.display = 'block';
+  res.textContent = 'ストレージを走査中...';
+  document.getElementById('recoverScanBtn').disabled = true;
+  try {
+    const names = await listStorageFolder('cards/');
+    // tier別に最新tsのファイルを集約
+    const latest = {}; // key: cardId|tier -> {fname, ts}
+    for (const n of names) {
+      const base = n.indexOf('/') >= 0 ? n.slice(n.lastIndexOf('/') + 1) : n;
+      const p = parseVariantFile(base);
+      if (!p) continue;
+      const key = p.cardId + '|' + p.tier;
+      if (!latest[key] || p.ts > latest[key].ts) {
+        latest[key] = { fname: 'cards/' + base, ts: p.ts };
+      }
+    }
+    // 各カードの画像が外れている variant だけ復旧対象に
+    const plan = []; // {card, tier, path, url}
+    const missingNoFile = []; // 画像も無く復旧不可
+    for (const c of state.cards) {
+      const vs = Array.isArray(c.variants) ? c.variants : [];
+      for (const v of vs) {
+        if (!v || (v.tier !== 'alpha' && v.tier !== 'beta')) continue;
+        const hasImg = v.image && String(v.image).trim() !== '';
+        if (hasImg) continue; // 非破壊: 既存はそのまま
+        const hit = latest[c.id + '|' + v.tier];
+        if (hit) {
+          plan.push({ cardId: c.id, name: c.name, tier: v.tier,
+                      path: hit.fname, url: publicImageUrl(hit.fname) });
+        } else {
+          missingNoFile.push({ name: c.name, tier: v.tier });
+        }
+      }
+    }
+    window.__recoverPlan = plan;
+    let html = '';
+    html += '<div style="color:var(--orange);font-weight:700;margin-bottom:6px;">復旧候補: ' + plan.length + ' 件</div>';
+    if (plan.length) {
+      html += plan.map(p =>
+        '・' + escapeHtml(p.name) + ' [' + (p.tier === 'alpha' ? 'α' : 'β') + '] ← ' +
+        escapeHtml(p.path.replace('cards/', ''))
+      ).join('<br>');
+    } else {
+      html += '<div style="color:var(--text-3)">復旧できる(画像が外れている)カードはありません。</div>';
+    }
+    if (missingNoFile.length) {
+      html += '<div style="color:var(--text-3);margin-top:10px;font-weight:700;">ストレージに実体なし: ' + missingNoFile.length + ' 件(要・再アップロード)</div>';
+      html += missingNoFile.map(p =>
+        '・' + escapeHtml(p.name) + ' [' + (p.tier === 'alpha' ? 'α' : 'β') + ']'
+      ).join('<br>');
+    }
+    res.innerHTML = html;
+    document.getElementById('recoverApplyBtn').style.display = plan.length ? 'inline-flex' : 'none';
+  } catch (e) {
+    res.innerHTML = '<span style="color:#f66">スキャン失敗: ' + escapeHtml(e.message) + '</span>';
+  } finally {
+    document.getElementById('recoverScanBtn').disabled = false;
+  }
+}
+
+async function recoverApply() {
+  const plan = window.__recoverPlan || [];
+  if (!plan.length) return;
+  if (!confirm(plan.length + ' 件の α/β 画像を復旧します。よろしいですか?')) return;
+  const res = document.getElementById('recoverResult');
+  const applyBtn = document.getElementById('recoverApplyBtn');
+  applyBtn.disabled = true;
+  let ok = 0, fail = 0;
+  const failNames = [];
+  // cardId単位でまとめて1回persist
+  const byCard = {};
+  for (const p of plan) (byCard[p.cardId] = byCard[p.cardId] || []).push(p);
+  for (const cardId of Object.keys(byCard)) {
+    const card = state.cards.find(c => c.id === cardId);
+    if (!card) { fail += byCard[cardId].length; continue; }
+    const vs = Array.isArray(card.variants) ? card.variants.map(v => Object.assign({}, v)) : [];
+    for (const p of byCard[cardId]) {
+      const v = vs.find(x => x && x.tier === p.tier);
+      if (v) v.image = p.url;
+    }
+    const updated = Object.assign({}, card, { variants: vs, updatedAt: Date.now() });
+    try {
+      await persistCard(updated);
+      const idx = state.cards.findIndex(c => c.id === cardId);
+      if (idx >= 0) state.cards[idx] = updated;
+      ok += byCard[cardId].length;
+    } catch (e) {
+      fail += byCard[cardId].length;
+      failNames.push(card.name);
+    }
+  }
+  renderAll();
+  res.innerHTML = '<div style="color:var(--orange);font-weight:700;">復旧完了: 成功 ' + ok + ' / 失敗 ' + fail + '</div>' +
+    (failNames.length ? '<div style="color:#f66;margin-top:6px;">失敗: ' + escapeHtml(failNames.join(', ')) + '</div>' : '');
+  applyBtn.style.display = 'none';
+  toast('α/β画像 復旧: 成功 ' + ok + ' / 失敗 ' + fail, fail ? 'error' : 'success', 6000);
+}
+
 async function importJsonFile(file) {
   if (!file) return;
   const modeRadio = document.querySelector('input[name="importMode"]:checked');
@@ -2030,12 +2207,19 @@ async function importJsonFile(file) {
         bonusValue: typeof raw.bonusValue === 'number' ? raw.bonusValue : null,
         barrierLimit: typeof raw.barrierLimit === 'number' ? raw.barrierLimit : null,
         variants: Array.isArray(raw.variants) ? raw.variants.filter(v => v && typeof v === 'object' && v.tier).map(v => {
+          // Preserve a previously-uploaded α/β image when the imported
+          // payload omits it (image:null). Mirrors the base-image guard
+          // below so re-importing a text-only JSON never wipes variant art.
+          const exVar = (existing && Array.isArray(existing.variants))
+            ? existing.variants.find(ev => ev && ev.tier === String(v.tier))
+            : null;
           const ov = {
             tier: String(v.tier),
             label: v.label != null ? String(v.label) : null,
             traits: v.traits != null ? String(v.traits) : null,
             actionCost: typeof v.actionCost === 'number' ? v.actionCost : null,
-            image: v.image != null ? String(v.image) : null,
+            image: (v.image != null && v.image !== '') ? String(v.image)
+                  : (exVar && exVar.image) ? exVar.image : null,
           };
           // Optional per-variant overrides (only attach when valid; absent = inherit base)
           if (ELEMENT_TYPES.indexOf(v.elementType) >= 0) ov.elementType = v.elementType;
@@ -2083,6 +2267,13 @@ function wire() {
   document.getElementById('fabAdd').addEventListener('click', function() { openEditor(null); });
   document.getElementById('exportBtn').addEventListener('click', exportJson);
   document.getElementById('importBtn').addEventListener('click', openImportModal);
+  document.getElementById('recoverBtn').addEventListener('click', openRecoverModal);
+  document.getElementById('recoverClose').addEventListener('click', closeRecoverModal);
+  document.getElementById('recoverScanBtn').addEventListener('click', recoverScan);
+  document.getElementById('recoverApplyBtn').addEventListener('click', recoverApply);
+  document.getElementById('recoverModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRecoverModal();
+  });
 
   document.getElementById('search').addEventListener('input', function(e) { state.search = e.target.value; renderGrid(); });
   document.getElementById('bpMin').addEventListener('input', function(e) { state.bpMin = e.target.value; renderGrid(); });
