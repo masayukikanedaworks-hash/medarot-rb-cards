@@ -183,6 +183,15 @@ button{font-family:inherit}
 @media(max-width:540px){.field-grid{grid-template-columns:1fr}}
 .field{display:flex;flex-direction:column;gap:4px}
 .field-full{grid-column:1/-1}
+.fold{grid-column:1/-1;border:1px solid var(--border-2);background:var(--bg-0);clip-path:var(--clip-sm);margin-top:2px}
+.fold>summary{list-style:none;cursor:pointer;padding:9px 12px;font-family:var(--f-display);font-size:11px;letter-spacing:.1em;color:var(--orange);text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:8px;user-select:none}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::before{content:"◢";font-size:8px;opacity:.8}
+.fold>summary::after{content:"▾";margin-left:auto;color:var(--text-3);font-size:10px;transition:transform .2s}
+.fold[open]>summary{border-bottom:1px solid var(--border-1);background:var(--bg-1)}
+.fold[open]>summary::after{transform:rotate(180deg)}
+.fold-body{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:540px){.fold-body{grid-template-columns:1fr}}
 .field label{font-family:var(--f-display);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;font-weight:600}
 .field input,.field select,.field textarea{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:9px 11px;font-family:var(--f-mono);font-size:13px;outline:none;transition:border-color .15s,background .15s}
 .field textarea{font-family:var(--f-body);resize:vertical;min-height:72px;line-height:1.6}
@@ -458,22 +467,30 @@ button{font-family:inherit}
             <option value="keyword">キーワード</option>
           </select>
         </div>
-        <div class="field field-full">
+        <div class="field" id="wrap_name">
           <label>カード名</label>
           <input type="text" id="f_name" placeholder="メダロット名 / カード名">
         </div>
-        <div class="field" id="wrap_modelNo" style="display:none;">
-          <label>型番</label>
-          <input type="text" id="f_modelNo" placeholder="例: XXX00-Y" autocomplete="off">
+        <div class="field" id="wrap_partsArm" style="display:none;">
+          <label>パーツ種別</label>
+          <select id="f_partsArm">
+            <option value="">—</option>
+            <option value="L">L腕(左腕)</option>
+            <option value="R">R腕(右腕)</option>
+          </select>
         </div>
         <div class="field" id="wrap_medarotName" style="display:none;">
           <label>メダロット名(型番で紐付)</label>
           <input type="text" id="f_medarotName" placeholder="紐付くメダロット名" autocomplete="off">
         </div>
-        <div class="field" id="wrap_elementType">
+        <div class="field" id="wrap_modelNo" style="display:none;">
+          <label>型番</label>
+          <input type="text" id="f_modelNo" placeholder="例: XXX00-Y" autocomplete="off">
+        </div>
+        <div class="field field-full" id="wrap_elementType">
           <label>タイプ（2つ目は複数タイプ用・任意）</label>
           <div style="display:flex;gap:8px">
-            <select id="f_elementType1" style="flex:1" title="TYPE 1（代表タイプ）">
+            <select id="f_elementType1" style="flex:1;min-width:0;" title="タイプ①（代表）">
               <option value="">—</option>
               <option value="格闘">格闘</option>
               <option value="射撃">射撃</option>
@@ -482,8 +499,8 @@ button{font-family:inherit}
               <option value="回復">回復</option>
               <option value="防御">防御</option>
             </select>
-            <select id="f_elementType2" style="flex:1" title="TYPE 2（任意・複数タイプのみ）">
-              <option value="">— (2つ目なし)</option>
+            <select id="f_elementType2" style="flex:1;min-width:0;" title="タイプ②（任意）">
+              <option value="">— (なし)</option>
               <option value="格闘">格闘</option>
               <option value="射撃">射撃</option>
               <option value="支援">支援</option>
@@ -497,6 +514,14 @@ button{font-family:inherit}
           <label>行動コスト / 放熱コスト</label>
           <input type="number" id="f_actionCost" min="0">
         </div>
+        <div class="field" id="wrap_bonusValue" style="display:none;">
+          <label>ボーナス値</label>
+          <input type="number" id="f_bonusValue" min="0" placeholder="例: 1000">
+        </div>
+        <div class="field" id="wrap_barrierLimit" style="display:none;">
+          <label>バリアリミット</label>
+          <input type="number" id="f_barrierLimit" min="0" placeholder="例: 2">
+        </div>
         <div class="field" id="wrap_bp">
           <label>BP</label>
           <input type="number" id="f_bp" min="0">
@@ -507,39 +532,21 @@ button{font-family:inherit}
         </div>
         <div class="field field-full" id="wrap_legType" style="display:none;">
           <label>脚部タイプ</label>
-          <input type="text" id="f_legType" placeholder="二脚 / 多脚 / 車両 / 飛行 / 浮遊...">
-        </div>
-
-        <div class="field" id="wrap_partsArm" style="display:none;">
-          <label>パーツ種別</label>
-          <select id="f_partsArm">
+          <select id="f_legType">
             <option value="">—</option>
-            <option value="L">L腕(左腕)</option>
-            <option value="R">R腕(右腕)</option>
+            <option value="二脚">二脚</option>
+            <option value="多脚">多脚</option>
+            <option value="車両">車両</option>
+            <option value="飛行">飛行</option>
+            <option value="潜水">潜水</option>
+            <option value="戦車">戦車</option>
+            <option value="浮遊">浮遊</option>
           </select>
-        </div>
-
-        <div class="field" id="wrap_partsMode" style="display:none;">
-          <label>モード</label>
-          <select id="f_partsMode">
-            <option value="">—</option>
-            <option value="行動">行動</option>
-            <option value="戦術">戦術</option>
-          </select>
-        </div>
-
-        <div class="field field-full" id="wrap_bonusValue" style="display:none;">
-          <label>ボーナス値(戦術モード時 +N)</label>
-          <input type="number" id="f_bonusValue" min="0" placeholder="例: 1000">
-        </div>
-        <div class="field" id="wrap_barrierLimit" style="display:none;">
-          <label>バリアリミット</label>
-          <input type="number" id="f_barrierLimit" min="0" placeholder="例: 2">
         </div>
         <div class="field field-full" id="wrap_tactical" style="display:none;">
           <label>戦術（最大3つ・タイプと同じ選択肢）</label>
           <div style="display:flex;gap:8px">
-            <select id="f_tactical1" style="flex:1" title="戦術 1">
+            <select id="f_tactical1" style="flex:1;min-width:0;" title="戦術①">
               <option value="">—</option>
               <option value="格闘">格闘</option>
               <option value="射撃">射撃</option>
@@ -548,7 +555,7 @@ button{font-family:inherit}
               <option value="回復">回復</option>
               <option value="防御">防御</option>
             </select>
-            <select id="f_tactical2" style="flex:1" title="戦術 2">
+            <select id="f_tactical2" style="flex:1;min-width:0;" title="戦術②">
               <option value="">—</option>
               <option value="格闘">格闘</option>
               <option value="射撃">射撃</option>
@@ -557,7 +564,7 @@ button{font-family:inherit}
               <option value="回復">回復</option>
               <option value="防御">防御</option>
             </select>
-            <select id="f_tactical3" style="flex:1" title="戦術 3">
+            <select id="f_tactical3" style="flex:1;min-width:0;" title="戦術③">
               <option value="">—</option>
               <option value="格闘">格闘</option>
               <option value="射撃">射撃</option>
@@ -572,69 +579,14 @@ button{font-family:inherit}
           <label>特性・行動</label>
           <textarea id="f_traits" placeholder="メダロットの特性や行動テキスト"></textarea>
         </div>
-        <div class="field field-full" id="wrap_variant_alpha" style="display:none;">
-          <label>強化α（R腕）— 特性・行動(空欄なら α なし)</label>
-          <textarea id="f_var_alpha_traits" placeholder="α版の特性・行動テキスト"></textarea>
-          <div class="var-img-row">
-            <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;align-self:center;">
-            <label class="var-dropzone" id="var_alpha_dropzone">
-              <input type="file" id="f_var_alpha_imgfile" accept="image/*">
-              <div class="var-dropzone-icon">⬆</div>
-              <div class="var-dropzone-text">α画像</div>
-            </label>
-            <img id="var_alpha_preview" class="var-img-preview" alt="">
-            <button type="button" class="var-img-clear" id="var_alpha_clear" style="display:none;">削除</button>
-          </div>
-        </div>
-        <div class="field field-full" id="wrap_variant_beta" style="display:none;">
-          <label>強化β（R腕）— 特性・行動(空欄なら β なし)</label>
-          <textarea id="f_var_beta_traits" placeholder="β版の特性・行動テキスト"></textarea>
-          <div class="var-img-row">
-            <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;align-self:center;">
-            <label class="var-dropzone" id="var_beta_dropzone">
-              <input type="file" id="f_var_beta_imgfile" accept="image/*">
-              <div class="var-dropzone-icon">⬆</div>
-              <div class="var-dropzone-text">β画像</div>
-            </label>
-            <img id="var_beta_preview" class="var-img-preview" alt="">
-            <button type="button" class="var-img-clear" id="var_beta_clear" style="display:none;">削除</button>
-          </div>
-        </div>
-        <div class="field field-full" id="wrap_variant_driveA" style="display:none;">
-          <label>メダチェンジ ドライブA（L腕）— 特性・行動(空欄なら なし)</label>
-          <textarea id="f_var_driveA_traits" placeholder="ドライブA の特性・行動テキスト"></textarea>
-          <div class="var-img-row">
-            <input type="number" id="f_var_driveA_cost" min="0" placeholder="ドライブA 行動コスト(任意)" style="flex:1;align-self:center;">
-            <label class="var-dropzone" id="var_driveA_dropzone">
-              <input type="file" id="f_var_driveA_imgfile" accept="image/*">
-              <div class="var-dropzone-icon">⬆</div>
-              <div class="var-dropzone-text">A画像</div>
-            </label>
-            <img id="var_driveA_preview" class="var-img-preview" alt="">
-            <button type="button" class="var-img-clear" id="var_driveA_clear" style="display:none;">削除</button>
-          </div>
-        </div>
-        <div class="field field-full" id="wrap_variant_driveB" style="display:none;">
-          <label>メダチェンジ ドライブB（L腕）— 特性・行動(空欄なら なし)</label>
-          <textarea id="f_var_driveB_traits" placeholder="ドライブB の特性・行動テキスト"></textarea>
-          <div class="var-img-row">
-            <input type="number" id="f_var_driveB_cost" min="0" placeholder="ドライブB 行動コスト(任意)" style="flex:1;align-self:center;">
-            <label class="var-dropzone" id="var_driveB_dropzone">
-              <input type="file" id="f_var_driveB_imgfile" accept="image/*">
-              <div class="var-dropzone-icon">⬆</div>
-              <div class="var-dropzone-text">B画像</div>
-            </label>
-            <img id="var_driveB_preview" class="var-img-preview" alt="">
-            <button type="button" class="var-img-clear" id="var_driveB_clear" style="display:none;">削除</button>
-          </div>
-        </div>
-        <div class="field field-full" id="wrap_variant_mc" style="display:none;border:1px solid var(--border-2);padding:10px 12px;background:var(--bg-0);">
-          <label style="color:var(--orange);">メダチェンジ後（基本カードと同じ一式・空欄なら なし）</label>
-          <div class="field-grid" style="margin-top:8px;">
-            <div class="field" style="grid-column:1/-1;">
+
+        <details class="fold" id="wrap_mc_collapse" style="display:none;">
+          <summary>メダチェンジ後</summary>
+          <div class="fold-body">
+            <div class="field field-full">
               <label>タイプ（2つ目は任意）</label>
               <div style="display:flex;gap:8px">
-                <select id="f_mc_type1" style="flex:1">
+                <select id="f_mc_type1" style="flex:1;min-width:0;">
                   <option value="">—</option>
                   <option value="格闘">格闘</option>
                   <option value="射撃">射撃</option>
@@ -643,8 +595,8 @@ button{font-family:inherit}
                   <option value="回復">回復</option>
                   <option value="防御">防御</option>
                 </select>
-                <select id="f_mc_type2" style="flex:1">
-                  <option value="">— (2つ目なし)</option>
+                <select id="f_mc_type2" style="flex:1;min-width:0;">
+                  <option value="">— (なし)</option>
                   <option value="格闘">格闘</option>
                   <option value="射撃">射撃</option>
                   <option value="支援">支援</option>
@@ -659,6 +611,10 @@ button{font-family:inherit}
               <input type="number" id="f_mc_actionCost" min="0">
             </div>
             <div class="field">
+              <label>バリアリミット</label>
+              <input type="number" id="f_mc_barrierLimit" min="0">
+            </div>
+            <div class="field">
               <label>BP</label>
               <input type="number" id="f_mc_bp" min="0">
             </div>
@@ -666,14 +622,23 @@ button{font-family:inherit}
               <label>冷却コスト</label>
               <input type="number" id="f_mc_coolingCost" min="0">
             </div>
-            <div class="field">
-              <label>バリアリミット</label>
-              <input type="number" id="f_mc_barrierLimit" min="0">
+            <div class="field field-full" id="wrap_mc_legType" style="display:none;">
+              <label>脚部タイプ</label>
+              <select id="f_mc_legType">
+                <option value="">—</option>
+                <option value="二脚">二脚</option>
+                <option value="多脚">多脚</option>
+                <option value="車両">車両</option>
+                <option value="飛行">飛行</option>
+                <option value="潜水">潜水</option>
+                <option value="戦車">戦車</option>
+                <option value="浮遊">浮遊</option>
+              </select>
             </div>
-            <div class="field" style="grid-column:1/-1;">
+            <div class="field field-full">
               <label>戦術（最大3つ）</label>
               <div style="display:flex;gap:8px">
-                <select id="f_mc_tactical1" style="flex:1">
+                <select id="f_mc_tactical1" style="flex:1;min-width:0;">
                   <option value="">—</option>
                   <option value="格闘">格闘</option>
                   <option value="射撃">射撃</option>
@@ -682,7 +647,7 @@ button{font-family:inherit}
                   <option value="回復">回復</option>
                   <option value="防御">防御</option>
                 </select>
-                <select id="f_mc_tactical2" style="flex:1">
+                <select id="f_mc_tactical2" style="flex:1;min-width:0;">
                   <option value="">—</option>
                   <option value="格闘">格闘</option>
                   <option value="射撃">射撃</option>
@@ -691,7 +656,7 @@ button{font-family:inherit}
                   <option value="回復">回復</option>
                   <option value="防御">防御</option>
                 </select>
-                <select id="f_mc_tactical3" style="flex:1">
+                <select id="f_mc_tactical3" style="flex:1;min-width:0;">
                   <option value="">—</option>
                   <option value="格闘">格闘</option>
                   <option value="射撃">射撃</option>
@@ -702,22 +667,97 @@ button{font-family:inherit}
                 </select>
               </div>
             </div>
-            <div class="field" style="grid-column:1/-1;">
-              <label>特性・行動</label>
-              <textarea id="f_mc_traits" placeholder="メダチェンジ後の特性・行動テキスト"></textarea>
+            <div class="field field-full">
+              <label id="lbl_mc_traitsA">ドライブA — 特性・行動</label>
+              <textarea id="f_mc_traitsA" placeholder="メダチェンジ後の特性・行動テキスト"></textarea>
+            </div>
+            <div class="field field-full" id="wrap_mc_traitsB">
+              <label>ドライブB — 特性・行動</label>
+              <textarea id="f_mc_traitsB" placeholder="ドライブB の特性・行動テキスト"></textarea>
+            </div>
+            <div class="field field-full">
+              <div class="var-img-row" style="margin-top:2px;">
+                <span style="flex:1;font-family:var(--f-mono);font-size:10px;color:var(--text-3);align-self:center;">メダチェンジ後 画像取込</span>
+                <label class="var-dropzone" id="var_mc_dropzone">
+                  <input type="file" id="f_var_mc_imgfile" accept="image/*">
+                  <div class="var-dropzone-icon">⬆</div>
+                  <div class="var-dropzone-text">変身後</div>
+                </label>
+                <img id="var_mc_preview" class="var-img-preview" alt="">
+                <button type="button" class="var-img-clear" id="var_mc_clear" style="display:none;">削除</button>
+              </div>
             </div>
           </div>
-          <div class="var-img-row" style="margin-top:8px;">
-            <span style="flex:1;font-family:var(--f-mono);font-size:10px;color:var(--text-3);align-self:center;">メダチェンジ後 画像</span>
-            <label class="var-dropzone" id="var_mc_dropzone">
-              <input type="file" id="f_var_mc_imgfile" accept="image/*">
-              <div class="var-dropzone-icon">⬆</div>
-              <div class="var-dropzone-text">変身後</div>
-            </label>
-            <img id="var_mc_preview" class="var-img-preview" alt="">
-            <button type="button" class="var-img-clear" id="var_mc_clear" style="display:none;">削除</button>
+        </details>
+
+        <details class="fold" id="wrap_partsL_collapse" style="display:none;">
+          <summary>メダチェンジ（L腕）</summary>
+          <div class="fold-body">
+            <div class="field field-full">
+              <label>ドライブA — 特性・行動(空欄なら なし)</label>
+              <textarea id="f_var_driveA_traits" placeholder="ドライブA の特性・行動テキスト"></textarea>
+              <div class="var-img-row">
+                <input type="number" id="f_var_driveA_cost" min="0" placeholder="ドライブA 行動コスト(任意)" style="flex:1;align-self:center;">
+                <label class="var-dropzone" id="var_driveA_dropzone">
+                  <input type="file" id="f_var_driveA_imgfile" accept="image/*">
+                  <div class="var-dropzone-icon">⬆</div>
+                  <div class="var-dropzone-text">A画像</div>
+                </label>
+                <img id="var_driveA_preview" class="var-img-preview" alt="">
+                <button type="button" class="var-img-clear" id="var_driveA_clear" style="display:none;">削除</button>
+              </div>
+            </div>
+            <div class="field field-full">
+              <label>ドライブB — 特性・行動(空欄なら なし)</label>
+              <textarea id="f_var_driveB_traits" placeholder="ドライブB の特性・行動テキスト"></textarea>
+              <div class="var-img-row">
+                <input type="number" id="f_var_driveB_cost" min="0" placeholder="ドライブB 行動コスト(任意)" style="flex:1;align-self:center;">
+                <label class="var-dropzone" id="var_driveB_dropzone">
+                  <input type="file" id="f_var_driveB_imgfile" accept="image/*">
+                  <div class="var-dropzone-icon">⬆</div>
+                  <div class="var-dropzone-text">B画像</div>
+                </label>
+                <img id="var_driveB_preview" class="var-img-preview" alt="">
+                <button type="button" class="var-img-clear" id="var_driveB_clear" style="display:none;">削除</button>
+              </div>
+            </div>
           </div>
-        </div>
+        </details>
+
+        <details class="fold" id="wrap_partsR_collapse" style="display:none;">
+          <summary>強化（R腕）</summary>
+          <div class="fold-body">
+            <div class="field field-full">
+              <label>強化α — 特性・行動(空欄なら α なし)</label>
+              <textarea id="f_var_alpha_traits" placeholder="α版の特性・行動テキスト"></textarea>
+              <div class="var-img-row">
+                <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;align-self:center;">
+                <label class="var-dropzone" id="var_alpha_dropzone">
+                  <input type="file" id="f_var_alpha_imgfile" accept="image/*">
+                  <div class="var-dropzone-icon">⬆</div>
+                  <div class="var-dropzone-text">α画像</div>
+                </label>
+                <img id="var_alpha_preview" class="var-img-preview" alt="">
+                <button type="button" class="var-img-clear" id="var_alpha_clear" style="display:none;">削除</button>
+              </div>
+            </div>
+            <div class="field field-full">
+              <label>強化β — 特性・行動(空欄なら β なし)</label>
+              <textarea id="f_var_beta_traits" placeholder="β版の特性・行動テキスト"></textarea>
+              <div class="var-img-row">
+                <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;align-self:center;">
+                <label class="var-dropzone" id="var_beta_dropzone">
+                  <input type="file" id="f_var_beta_imgfile" accept="image/*">
+                  <div class="var-dropzone-icon">⬆</div>
+                  <div class="var-dropzone-text">β画像</div>
+                </label>
+                <img id="var_beta_preview" class="var-img-preview" alt="">
+                <button type="button" class="var-img-clear" id="var_beta_clear" style="display:none;">削除</button>
+              </div>
+            </div>
+          </div>
+        </details>
+
         <div class="field field-full" id="wrap_effectText" style="display:none;">
           <label>効果テキスト</label>
           <textarea id="f_effectText" placeholder="カードの効果"></textarea>
@@ -726,7 +766,6 @@ button{font-family:inherit}
 
       <div class="row-actions">
         <button class="btn btn-danger" id="deleteBtn" style="display:none;">削除</button>
-        <button class="btn btn-ghost" id="duplicateBtn" style="display:none;">複製</button>
         <div class="spacer"></div>
         <button class="btn btn-ghost" id="cancelBtn">キャンセル</button>
         <button class="btn btn-primary" id="saveBtn">保存</button>
@@ -918,7 +957,8 @@ function activeVariantTiers(cardType, partsArm) {
     return partsArm === 'L' ? ['drive_a', 'drive_b']
          : partsArm === 'R' ? ['alpha', 'beta'] : [];
   }
-  if (cardType === 'leader_medarot' || cardType === 'support_medarot') return ['drive_a'];
+  if (cardType === 'leader_medarot') return ['drive_a', 'drive_b'];
+  if (cardType === 'support_medarot') return ['drive_a'];
   return [];
 }
 
@@ -1714,23 +1754,24 @@ function openDetail(id) {
     key: 'base', label: '基本', greek: '', traits: c.traits,
     actionCost: c.actionCost, image: c.image || null,
     elementType: c.elementType, partsMode: c.partsMode, barrierLimit: c.barrierLimit,
-    bp: c.bp, coolingCost: c.coolingCost,
+    bp: c.bp, coolingCost: c.coolingCost, legType: c.legType,
   });
   vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
     .forEach(v => views.push({
       key: v.tier,
       label: (function() {
-        const isMed = (c.cardType === 'leader_medarot' || c.cardType === 'support_medarot');
-        if (isMed && (v.tier === 'drive_a' || v.tier === 'drive_b')) return 'メダチェンジ';
+        const isLeader = c.cardType === 'leader_medarot';
+        const isSupport = c.cardType === 'support_medarot';
+        if (isLeader && v.tier === 'drive_a') return 'ドライブA';
+        if (isLeader && v.tier === 'drive_b') return 'ドライブB';
+        if (isSupport && (v.tier === 'drive_a' || v.tier === 'drive_b')) return 'メダチェンジ';
         if (c.cardType === 'parts_card' && v.tier === 'drive_a') return 'ドライブA';
         if (c.cardType === 'parts_card' && v.tier === 'drive_b') return 'ドライブB';
-        return v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化'
-          : v.tier === 'drive_a' ? 'ドライブ' : v.tier === 'drive_b' ? 'ドライブ' : v.tier);
+        if (v.tier === 'alpha') return '強化α';
+        if (v.tier === 'beta') return '強化β';
+        return v.label || v.tier;
       })(),
-      greek: (function() {
-        if ((v.tier === 'drive_a' || v.tier === 'drive_b')) return '';
-        return greek[v.tier] != null ? greek[v.tier] : '';
-      })(),
+      greek: '',
       traits: v.traits != null ? v.traits : c.traits,
       actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
       image: v.image || c.image || null,
@@ -1741,6 +1782,7 @@ function openDetail(id) {
       bonusValue: (v.bonusValue != null && v.bonusValue !== '') ? v.bonusValue : c.bonusValue,
       bp: (v.bp != null && v.bp !== '') ? v.bp : c.bp,
       coolingCost: (v.coolingCost != null && v.coolingCost !== '') ? v.coolingCost : c.coolingCost,
+      legType: (v.legType != null && v.legType !== '') ? v.legType : c.legType,
     }));
 
   // Compute the stat row for a given view (overrides win, base is fallback).
@@ -1754,6 +1796,7 @@ function openDetail(id) {
     const bonusValue = g('bonusValue');
     const bp = g('bp');
     const coolingCost = g('coolingCost');
+    const legType = g('legType');
     const types = elemList(elementType);
     const tc = types.length ? ELEMENT_COLORS[types[0]] : 'var(--orange)';
     const isParts = c.cardType === 'parts_card';
@@ -1783,7 +1826,7 @@ function openDetail(id) {
       (barrierLimit != null && barrierLimit !== '') ? { l: 'バリアリミット', v: barrierLimit, color: 'var(--cyan)' } : null,
       (bp != null && bp !== '') ? { l: 'BP', v: bp } : null,
       (coolingCost != null && coolingCost !== '') ? { l: '冷却コスト', v: coolingCost } : null,
-      c.legType ? { l: '脚部', v: c.legType } : null,
+      legType ? { l: '脚部', v: legType } : null,
       modelNoStat,
       (isParts && meta.medarotName) ? { l: 'メダロット名', v: meta.medarotName, color: 'var(--cyan)' } : null,
     ]).filter(Boolean);
@@ -1858,7 +1901,6 @@ function openDetail(id) {
       '' +
       '<div class="row-actions" style="margin-top:14px;">' +
         '<button class="btn btn-ghost" id="editFromDetail">編集</button>' +
-        '<button class="btn btn-ghost" id="duplicateFromDetail">複製</button>' +
       '</div>' +
     '</div></div>';
 
@@ -1875,8 +1917,6 @@ function openDetail(id) {
   bindModelNoLinks();
   const editBtn = document.getElementById('editFromDetail');
   if (editBtn) editBtn.addEventListener('click', () => { closeDetail(); openEditor(c); });
-  const dupBtn = document.getElementById('duplicateFromDetail');
-  if (dupBtn) dupBtn.addEventListener('click', () => { closeDetail(); duplicateCard(c); });
   const variantTabs = document.getElementById('variantTabs');
   if (variantTabs) {
     variantTabs.addEventListener('click', (e) => {
@@ -1996,7 +2036,6 @@ function openEditor(card) {
 
   document.getElementById('uploadTitle').textContent = card ? 'EDIT CARD' : 'NEW CARD';
   document.getElementById('deleteBtn').style.display = card ? 'inline-flex' : 'none';
-  document.getElementById('duplicateBtn').style.display = card ? 'inline-flex' : 'none';
 
   setField('f_cardType', card ? card.cardType : 'leader_medarot');
   setField('f_name', card ? card.name : '');
@@ -2006,7 +2045,6 @@ function openEditor(card) {
   setField('f_coolingCost', card && card.coolingCost != null ? card.coolingCost : '');
   setField('f_legType', card ? (card.legType || '') : '');
   setField('f_partsArm', card ? (card.partsArm || '') : '');
-  setField('f_partsMode', card ? (card.partsMode || '') : '');
   setField('f_bonusValue', card && card.bonusValue != null ? card.bonusValue : '');
   setField('f_barrierLimit', card && card.barrierLimit != null ? card.barrierLimit : '');
   (function() {
@@ -2031,27 +2069,35 @@ function openEditor(card) {
         if (clr) clr.style.display = 'none';
       }
     });
-    // メダチェンジ後 (drive_a) full block — リーダー/サポートメダロット用
-    const mv = getV('drive_a');
-    const mcSplit = splitTactical(mv ? mv.traits : '');
-    const mcTypes = elemList(mv ? mv.elementType : '');
+    // メダチェンジ後 — リーダー: drive_a(=ドライブA) + drive_b(=ドライブB)、
+    // サポート: drive_a のみ。共通ステータスは drive_a 優先(無ければ drive_b)。
+    const da = getV('drive_a');
+    const db = getV('drive_b');
+    const common = da || db || null;
+    const mcSplitA = splitTactical(da ? da.traits : '');
+    const mcSplitB = splitTactical(db ? db.traits : '');
+    const mcTac = mcSplitA.tactical.length ? mcSplitA.tactical : mcSplitB.tactical;
+    const mcTypes = elemList(common ? common.elementType : '');
     setField('f_mc_type1', mcTypes[0] || '');
     setField('f_mc_type2', mcTypes[1] || '');
-    setField('f_mc_actionCost', mv && mv.actionCost != null ? mv.actionCost : '');
-    setField('f_mc_bp', mv && mv.bp != null ? mv.bp : '');
-    setField('f_mc_coolingCost', mv && mv.coolingCost != null ? mv.coolingCost : '');
-    setField('f_mc_barrierLimit', mv && mv.barrierLimit != null ? mv.barrierLimit : '');
-    setField('f_mc_tactical1', mcSplit.tactical[0] || '');
-    setField('f_mc_tactical2', mcSplit.tactical[1] || '');
-    setField('f_mc_tactical3', mcSplit.tactical[2] || '');
-    setField('f_mc_traits', mcSplit.body || '');
+    setField('f_mc_actionCost', common && common.actionCost != null ? common.actionCost : '');
+    setField('f_mc_bp', common && common.bp != null ? common.bp : '');
+    setField('f_mc_coolingCost', common && common.coolingCost != null ? common.coolingCost : '');
+    setField('f_mc_barrierLimit', common && common.barrierLimit != null ? common.barrierLimit : '');
+    setField('f_mc_legType', common && common.legType != null ? common.legType : '');
+    setField('f_mc_tactical1', mcTac[0] || '');
+    setField('f_mc_tactical2', mcTac[1] || '');
+    setField('f_mc_tactical3', mcTac[2] || '');
+    setField('f_mc_traitsA', mcSplitA.body || '');
+    setField('f_mc_traitsB', mcSplitB.body || '');
     (function() {
+      const img = (da && da.image) || (db && db.image) || null;
       const prev = document.getElementById('var_mc_preview');
       const clr = document.getElementById('var_mc_clear');
       const fileEl = document.getElementById('f_var_mc_imgfile');
       if (fileEl) fileEl.value = '';
-      if (mv && mv.image) {
-        if (prev) { prev.src = mv.image; prev.classList.add('show'); }
+      if (img) {
+        if (prev) { prev.src = img; prev.classList.add('show'); }
         if (clr) clr.style.display = 'inline-block';
       } else {
         if (prev) { prev.src = ''; prev.classList.remove('show'); }
@@ -2148,50 +2194,68 @@ function collectVariantsFromForm(existing) {
     }
   }
 
-  // メダチェンジ後 (drive_a) full block — リーダー/サポートメダロット用.
+  // メダチェンジ後 — リーダー: drive_a(ドライブA)+drive_b(ドライブB)
+  // サポート: drive_a のみ。共通ステータス(タイプ/コスト/BP/冷却/BL/脚部/戦術)を
+  // 両 variant に適用し、特性・行動と画像をそれぞれ設定。
   function collectMedaChange() {
-    const tier = 'drive_a';
-    managedTiers[tier] = 1;
-    const ex = findExisting(tier);
-    const body = (document.getElementById('f_mc_traits') || {}).value || '';
+    const isLeader = cardType === 'leader_medarot';
+    managedTiers['drive_a'] = 1;
+    if (isLeader) managedTiers['drive_b'] = 1;
+    const exA = findExisting('drive_a');
+    const exB = findExisting('drive_b');
     const tac = [getField('f_mc_tactical1'), getField('f_mc_tactical2'), getField('f_mc_tactical3')]
       .filter(Boolean);
-    const traits = joinTactical(tac, body.trim());
+    const bodyA = (document.getElementById('f_mc_traitsA') || {}).value || '';
+    const bodyB = (document.getElementById('f_mc_traitsB') || {}).value || '';
+    const hasBodyA = bodyA.trim() !== '';
+    const hasBodyB = bodyB.trim() !== '';
+    const traitsA = joinTactical(tac, bodyA.trim());
+    const traitsB = joinTactical(tac, bodyB.trim());
     const pend = state.pendingVariantImages ? state.pendingVariantImages.mc : null;
-    const exImg = (ex && ex.image != null && String(ex.image).trim() !== '')
-      ? String(ex.image).trim() : null;
+    const exImg = ((exA && exA.image) || (exB && exB.image)) || null;
     let imageVal;
     if (pend === '__CLEARED__') imageVal = null;
     else if (pend) imageVal = pend;
-    else imageVal = exImg;
-    const hasContent = !!traits || !!imageVal ||
-      getField('f_mc_type1') || getField('f_mc_actionCost') !== '' ||
-      getField('f_mc_bp') !== '' || getField('f_mc_coolingCost') !== '' ||
-      getField('f_mc_barrierLimit') !== '';
-    if (!hasContent) { return; } // no メダチェンジ後 → drop (if previously none) 
-    const v = Object.assign({}, ex || {}, {
-      tier: tier,
-      label: (ex && ex.label) ? ex.label : 'メダチェンジ',
-      traits: traits,
+    else imageVal = (exImg && String(exImg).trim() !== '') ? String(exImg).trim() : null;
+    const et = elemToStore([getField('f_mc_type1'), getField('f_mc_type2')]);
+    const overrides = {
       actionCost: getNumField('f_mc_actionCost'),
       bp: getNumField('f_mc_bp'),
       coolingCost: getNumField('f_mc_coolingCost'),
       barrierLimit: getNumField('f_mc_barrierLimit'),
-      image: imageVal,
-    });
-    const et = elemToStore([getField('f_mc_type1'), getField('f_mc_type2')]);
-    if (et) v.elementType = et; else delete v.elementType;
-    out.push(v);
+    };
+    const legV = getField('f_mc_legType');
+    const anyStats = !!et || overrides.actionCost != null || overrides.bp != null ||
+      overrides.coolingCost != null || overrides.barrierLimit != null ||
+      (isLeader && !!legV);
+    const mk = (tier, traits, ex) => {
+      const v = Object.assign({}, ex || {}, overrides, {
+        tier: tier,
+        label: (ex && ex.label) ? ex.label : 'メダチェンジ',
+        traits: traits,
+        image: imageVal,
+      });
+      if (et) v.elementType = et; else delete v.elementType;
+      if (isLeader && legV) v.legType = legV; else delete v.legType;
+      return v;
+    };
+    // drive_a: ドライブA本文 or 画像 or 何らかのステータス or 既存があれば出力
+    if (hasBodyA || imageVal || anyStats || exA) out.push(mk('drive_a', traitsA, exA));
+    // drive_b: リーダーのみ。ドライブB「本文」or 既存drive_b があれば出力
+    // (共通戦術行のみの traitsB では出力しない＝空ドライブBタブを防止)
+    if (isLeader && (hasBodyB || exB)) out.push(mk('drive_b', traitsB, exB));
   }
 
-  active.forEach(tier => {
-    if (tier === 'alpha') collectSimple('alpha', 'alpha', '強化');
-    else if (tier === 'beta') collectSimple('beta', 'beta', '強化');
-    else if (tier === 'drive_a') {
-      if (cardType === 'parts_card') collectSimple('driveA', 'drive_a', 'ドライブ');
-      else collectMedaChange();
-    } else if (tier === 'drive_b') collectSimple('driveB', 'drive_b', 'ドライブ');
-  });
+  if (cardType === 'parts_card') {
+    active.forEach(tier => {
+      if (tier === 'alpha') collectSimple('alpha', 'alpha', '強化');
+      else if (tier === 'beta') collectSimple('beta', 'beta', '強化');
+      else if (tier === 'drive_a') collectSimple('driveA', 'drive_a', 'ドライブ');
+      else if (tier === 'drive_b') collectSimple('driveB', 'drive_b', 'ドライブ');
+    });
+  } else if (cardType === 'leader_medarot' || cardType === 'support_medarot') {
+    collectMedaChange();
+  }
 
   // Preserve any variants whose tier the active editor does not manage,
   // so saving never silently drops unrelated variant data.
@@ -2203,17 +2267,15 @@ function collectVariantsFromForm(existing) {
 function toggleFieldsForCardType(t) {
   const isMed = (t === 'leader_medarot' || t === 'support_medarot');
   const isLeader = t === 'leader_medarot';
+  const isSupport = t === 'support_medarot';
   const isParts = t === 'parts_card';
   const isMedaforce = t === 'medaforce_card';
-  // テキスト効果カード: 戦術 / メダロッター / メダル / メダフォース / キーワード
   const isTextCard = (t === 'tactical_card' || t === 'medarotter'
     || t === 'medal' || t === 'keyword');
-  // バリアリミット・戦術 を持つ6種
   const has6 = (t === 'leader_medarot' || t === 'parts_card' || t === 'support_medarot'
     || t === 'tactical_card' || t === 'medarotter' || t === 'medaforce_card');
-  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'flex' : 'none'; };
+  const show = (id, on, disp) => { const el = document.getElementById(id); if (el) el.style.display = on ? (disp || 'flex') : 'none'; };
 
-  // タイプ: リーダー/サポート/パーツ/戦術/メダロッター/メダフォース
   const hasType = isMed || isParts || t === 'tactical_card' || t === 'medarotter' || isMedaforce;
   show('wrap_elementType', hasType);
 
@@ -2221,40 +2283,35 @@ function toggleFieldsForCardType(t) {
   show('wrap_modelNo', isMed || isParts);
   show('wrap_medarotName', isParts);
 
-  // 行動コスト: メダロット / メダフォース (パーツは行動側に持つ)
+  // 行動コスト: メダロット / メダフォース
   show('wrap_actionCost', isMed || isMedaforce);
-
   // BP・冷却コスト: メダロットのみ
   show('wrap_bp', isMed);
   show('wrap_coolingCost', isMed);
-
   // 脚部タイプ: リーダーメダロットのみ
   show('wrap_legType', isLeader);
-
-  // パーツカード専用
+  // パーツ専用 (モードは廃止)
   show('wrap_partsArm', isParts);
-  show('wrap_partsMode', isParts);
   show('wrap_bonusValue', isParts);
-
   // バリアリミット・戦術: 6種
   show('wrap_barrierLimit', has6);
   show('wrap_tactical', has6);
-
-  // 特性・行動テキスト: メダロット / パーツ
+  // 特性・行動: メダロット / パーツ
   show('wrap_traits', isMed || isParts);
-
   // 効果テキスト: メダフォース / 戦術 / メダロッター / メダル / キーワード
   show('wrap_effectText', isTextCard || isMedaforce);
 
-  // === Variant editors ===
+  // === Collapsibles (display:block on <details>) ===
   const arm = (document.getElementById('f_partsArm') || {}).value || '';
-  // パーツ R腕 → 強化α/β   パーツ L腕 → メダチェンジ ドライブA/B
-  show('wrap_variant_alpha', isParts && arm === 'R');
-  show('wrap_variant_beta',  isParts && arm === 'R');
-  show('wrap_variant_driveA', isParts && arm === 'L');
-  show('wrap_variant_driveB', isParts && arm === 'L');
-  // リーダー/サポートメダロット → メダチェンジ後 (フル一式)
-  show('wrap_variant_mc', isMed);
+  show('wrap_mc_collapse', isMed, 'block');         // メダチェンジ後 (リーダー/サポート)
+  show('wrap_partsL_collapse', isParts && arm === 'L', 'block'); // メダチェンジ(L腕)
+  show('wrap_partsR_collapse', isParts && arm === 'R', 'block'); // 強化(R腕)
+
+  // メダチェンジ後 内: 脚部はリーダーのみ / ドライブB はリーダーのみ
+  show('wrap_mc_legType', isLeader);
+  show('wrap_mc_traitsB', isLeader);
+  const lblA = document.getElementById('lbl_mc_traitsA');
+  if (lblA) lblA.textContent = isSupport ? '特性・行動（メダチェンジ後）' : 'ドライブA — 特性・行動';
 }
 function closeEditor(skipQueueCheck) {
   if (!skipQueueCheck && state.uploadQueue.length > 0) {
@@ -2474,7 +2531,7 @@ async function saveFromForm() {
     coolingCost: getNumField('f_coolingCost'),
     legType: getField('f_legType').trim() || null,
     partsArm: getField('f_partsArm') || null,
-    partsMode: getField('f_partsMode') || null,
+    partsMode: existing ? (existing.partsMode || null) : null,
     bonusValue: getNumField('f_bonusValue'),
     barrierLimit: getNumField('f_barrierLimit'),
     variants: collectVariantsFromForm(existing),
@@ -2531,16 +2588,6 @@ async function deleteCurrent() {
   } catch (e) {
     showStatus('削除失敗: ' + e.message, 'error');
   }
-}
-function duplicateCard(card) {
-  // Reuse openEditor's full population (variants / メダチェンジ後 / 戦術 / 型番),
-  // then detach so saving creates a brand-new card.
-  openEditor(card);
-  state.editingId = null;
-  setField('f_name', (card.name || '') + ' (コピー)');
-  document.getElementById('deleteBtn').style.display = 'none';
-  document.getElementById('duplicateBtn').style.display = 'none';
-  document.getElementById('uploadTitle').textContent = 'NEW CARD (DUPLICATE)';
 }
 
 function exportJson() {
@@ -2635,6 +2682,7 @@ async function importJsonFile(file) {
           if (typeof v.bonusValue === 'number') ov.bonusValue = v.bonusValue;
           if (typeof v.bp === 'number') ov.bp = v.bp;
           if (typeof v.coolingCost === 'number') ov.coolingCost = v.coolingCost;
+          if (typeof v.legType === 'string' && v.legType) ov.legType = v.legType;
           return ov;
         }) : [],
         traits: raw.traits || null,
@@ -2705,10 +2753,6 @@ function wire() {
   document.getElementById('cancelBtn').addEventListener('click', closeEditor);
   document.getElementById('saveBtn').addEventListener('click', saveFromForm);
   document.getElementById('deleteBtn').addEventListener('click', deleteCurrent);
-  document.getElementById('duplicateBtn').addEventListener('click', function() {
-    const c = state.cards.find(function(x) { return x.id === state.editingId; });
-    if (c) { closeEditor(); duplicateCard(c); }
-  });
   document.getElementById('f_cardType').addEventListener('change', function(e) { toggleFieldsForCardType(e.target.value); });
   document.getElementById('f_partsArm').addEventListener('change', function() { toggleFieldsForCardType(getField('f_cardType')); });
   document.getElementById('removeImageBtn').addEventListener('click', removePendingImage);
