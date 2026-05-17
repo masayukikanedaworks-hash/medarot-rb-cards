@@ -127,6 +127,9 @@ button{font-family:inherit}
 .modal-overlay.open .modal{animation:modalIn .25s cubic-bezier(.2,.8,.2,1)}
 @keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 .modal{background:var(--bg-1);border:1px solid var(--border-2);width:100%;max-width:720px;position:relative;box-shadow:var(--sh-3);clip-path:var(--clip-lg);margin:auto;max-height:calc(100vh - 24px);display:flex;flex-direction:column}
+/* CARD DETAIL: fixed (max) size — does not resize with content */
+#detailModal .modal{height:calc(100vh - 24px);max-height:calc(100vh - 24px)}
+#detailModal .modal-body{flex:1 1 auto}
 .modal-head{padding:10px 14px;border-bottom:1px solid var(--border-1);display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(90deg,var(--bg-2),var(--bg-1));flex-shrink:0}
 .queue-badge{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;margin-left:auto;margin-right:4px;text-transform:uppercase;font-weight:600;display:inline-flex;align-items:center;gap:6px;clip-path:var(--clip-sm)}
 .queue-badge::before{content:"";width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:0 0 6px var(--cyan);animation:pulse 1.4s ease-in-out infinite}
@@ -142,11 +145,14 @@ button{font-family:inherit}
 .dropzone-text{font-family:var(--f-mono);font-size:12px;color:var(--text-2);letter-spacing:.06em}
 .dropzone-hint{font-family:var(--f-mono);font-size:10px;color:var(--text-3);margin-top:6px}
 .dropzone input{display:none}
+.dropzone-mini{padding:7px 12px;margin-top:8px;display:flex;align-items:center;justify-content:center}
+.dropzone-mini .dropzone-text{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--orange)}
 .preview-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .preview-block{border:1px solid var(--border-1);background:var(--bg-0);padding:8px}
 .preview-label{font-family:var(--f-mono);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
 .preview-label small{color:var(--cyan);font-size:9px;font-weight:600}
 .preview-img{width:100%;aspect-ratio:5/7;object-fit:contain;background:var(--bg-0);display:block}
+.preview-img:not([src]),.preview-img[src=""],.preview-img[src="#"]{visibility:hidden}
 .crop-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--bg-0);border:1px solid var(--border-1)}
 .rotate-btn{background:var(--bg-1);border:1px solid var(--border-2);color:var(--text-2);width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);padding:0}
 .rotate-btn:hover{color:var(--orange);border-color:var(--orange);background:var(--bg-2)}
@@ -220,6 +226,10 @@ button{font-family:inherit}
 .mc-img-drop{display:flex;align-items:center;justify-content:center;aspect-ratio:5/7;border:1px dashed var(--border-2);background:#f4f6fa;color:var(--text-2);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;cursor:pointer;transition:all .15s;text-align:center;padding:8px}
 .mc-img-drop:hover,.mc-img-drop.drag{border-color:var(--orange);background:#fff4ec;color:var(--orange)}
 .detail-header{margin-bottom:8px}
+.detail-name-row{display:flex;align-items:baseline;gap:10px}
+.detail-name-row .detail-name{flex:1 1 auto;min-width:0}
+.detail-modelno{flex:0 0 auto;margin-left:auto;text-align:right;font-family:var(--f-mono);font-size:10px;color:var(--cyan);white-space:nowrap}
+@media(min-width:600px){.detail-modelno{font-size:11px}}
 .detail-category{font-family:var(--f-mono);font-size:9px;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin-bottom:2px}
 .detail-name{font-family:var(--f-body);font-weight:900;font-size:16px;line-height:1.2;color:var(--text-1)}
 @media(min-width:600px){.detail-name{font-size:20px}}
@@ -413,14 +423,7 @@ button{font-family:inherit}
       <button class="modal-close" id="uploadClose" aria-label="閉じる">✕</button>
     </div>
     <div class="modal-body">
-      <label class="dropzone" id="dropzone">
-        <input type="file" id="fileInput" accept="image/*" multiple>
-        <div class="dropzone-icon">⬆</div>
-        <div class="dropzone-text">画像をドロップ / クリックで選択</div>
-        <div class="dropzone-hint">枠を自動検出してトリミング(複数選択可)</div>
-      </label>
-
-      <div class="preview-row" id="previewRow" style="display:none;">
+      <div class="preview-row" id="previewRow">
         <div class="preview-block">
           <div class="preview-label">ORIGINAL <small id="origSize"></small></div>
           <img id="origPreview" class="preview-img" alt="">
@@ -430,6 +433,11 @@ button{font-family:inherit}
           <img id="trimPreview" class="preview-img" alt="">
         </div>
       </div>
+
+      <label class="dropzone dropzone-mini" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="dropzone-text">↑画像挿入</div>
+      </label>
 
       <div id="cropControlsWrap" class="crop-controls" style="display:none;">
         <div class="crop-status" id="cropStatus">
@@ -444,11 +452,6 @@ button{font-family:inherit}
           <span class="toggle-track"></span>
           <span>クロップなし</span>
         </label>
-      </div>
-
-      <div class="row-actions" id="imageActions" style="display:none;">
-        <div class="spacer"></div>
-        <button class="btn btn-ghost" id="removeImageBtn">画像を削除</button>
       </div>
 
       <div id="statusMsg" class="status-msg info" style="display:none;"></div>
@@ -691,7 +694,7 @@ button{font-family:inherit}
         </details>
 
         <details class="fold" id="wrap_partsL_collapse" style="display:none;">
-          <summary>メダチェンジ（L腕）</summary>
+          <summary>メダチェンジ（R腕）</summary>
           <div class="fold-body">
             <div class="field field-full">
               <label>ドライブA — 特性・行動(空欄なら なし)</label>
@@ -725,7 +728,7 @@ button{font-family:inherit}
         </details>
 
         <details class="fold" id="wrap_partsR_collapse" style="display:none;">
-          <summary>強化（R腕）</summary>
+          <summary>強化（L腕）</summary>
           <div class="fold-body">
             <div class="field field-full">
               <label>強化α — 特性・行動(空欄なら α なし)</label>
@@ -954,8 +957,8 @@ function findMedarotByModelNo(modelNo, excludeId) {
 //   leader / support       → メダチェンジ後 (drive_a)
 function activeVariantTiers(cardType, partsArm) {
   if (cardType === 'parts_card') {
-    return partsArm === 'L' ? ['drive_a', 'drive_b']
-         : partsArm === 'R' ? ['alpha', 'beta'] : [];
+    return partsArm === 'R' ? ['drive_a', 'drive_b']
+         : partsArm === 'L' ? ['alpha', 'beta'] : [];
   }
   if (cardType === 'leader_medarot') return ['drive_a', 'drive_b'];
   if (cardType === 'support_medarot') return ['drive_a'];
@@ -1801,24 +1804,19 @@ function openDetail(id) {
     const tc = types.length ? ELEMENT_COLORS[types[0]] : 'var(--orange)';
     const isParts = c.cardType === 'parts_card';
     const armStat = c.partsArm ? { l: '腕', v: c.partsArm + '腕', color: 'var(--cyan)' } : null;
-    // One TYPE cell per element so 2-type units show both, color-coded.
-    const typeStats = types.map((t, i) => ({
-      l: types.length > 1 ? 'TYPE ' + (i + 1) : 'TYPE',
-      v: t, color: ELEMENT_COLORS[t],
-    }));
+    // タイプは常に TYPE / TYPE 2 の2セル（タイプを持つカード種別のみ）。無い側は「-」。
+    const typeBearing = ['leader_medarot', 'support_medarot', 'parts_card',
+      'tactical_card', 'medarotter', 'medaforce_card'].indexOf(c.cardType) >= 0;
+    let typeStats = [];
+    if (typeBearing) {
+      const t1 = types[0] || null, t2 = types[1] || null;
+      typeStats = [
+        { l: 'TYPE',   v: t1 || '-', color: t1 ? ELEMENT_COLORS[t1] : null },
+        { l: 'TYPE 2', v: t2 || '-', color: t2 ? ELEMENT_COLORS[t2] : null },
+      ];
+    }
     const lead = isParts ? [armStat].concat(typeStats) : typeStats.concat([armStat]);
     const meta = parseMeta(c.notes);
-    let modelNoStat = null;
-    if (meta.modelNo) {
-      const linkTarget = findMedarotByModelNo(meta.modelNo, c.id);
-      if (linkTarget) {
-        modelNoStat = { l: '型番', html: '<span class="modelno-link" data-target="' +
-          escapeAttr(linkTarget.id) + '" style="color:var(--cyan);cursor:pointer;text-decoration:underline;">' +
-          escapeHtml(meta.modelNo) + '</span>', color: 'var(--cyan)' };
-      } else {
-        modelNoStat = { l: '型番', v: meta.modelNo, color: 'var(--cyan)' };
-      }
-    }
     const stats = lead.concat([
       partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
@@ -1827,7 +1825,6 @@ function openDetail(id) {
       (bp != null && bp !== '') ? { l: 'BP', v: bp } : null,
       (coolingCost != null && coolingCost !== '') ? { l: '冷却コスト', v: coolingCost } : null,
       legType ? { l: '脚部', v: legType } : null,
-      modelNoStat,
       (isParts && meta.medarotName) ? { l: 'メダロット名', v: meta.medarotName, color: 'var(--cyan)' } : null,
     ]).filter(Boolean);
     const html = stats.map(s =>
@@ -1864,6 +1861,18 @@ function openDetail(id) {
     '</div>'
   ) : '';
 
+  // 型番: カード名の横（右寄せ・小さめ）。紐付くメダロットがあればリンク。
+  const __meta = parseMeta(c.notes);
+  let modelNoHeaderHtml = '';
+  if (__meta.modelNo) {
+    const lt = findMedarotByModelNo(__meta.modelNo, c.id);
+    const inner = lt
+      ? '<span class="modelno-link" data-target="' + escapeAttr(lt.id) +
+        '" style="cursor:pointer;text-decoration:underline;">' + escapeHtml(__meta.modelNo) + '</span>'
+      : escapeHtml(__meta.modelNo);
+    modelNoHeaderHtml = '<span class="detail-modelno">' + inner + '</span>';
+  }
+
   document.getElementById('detailBody').innerHTML =
     '<div class="detail-grid">' +
     '<div>' +
@@ -1876,7 +1885,8 @@ function openDetail(id) {
     '<div>' +
       '<div class="detail-header">' +
         '<div class="detail-category" id="detailCategory" style="color: ' + typeColor + '">' + cat.label + '</div>' +
-        '<div class="detail-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
+        '<div class="detail-name-row"><div class="detail-name">' + escapeHtml(c.name || '(無題)') + '</div>' +
+        modelNoHeaderHtml + '</div>' +
       '</div>' +
       '<div class="stat-row" id="detailStatRow">' + statsHtml + '</div>' +
       (function() {
@@ -1906,7 +1916,7 @@ function openDetail(id) {
 
   document.getElementById('detailModal').classList.add('open');
   const bindModelNoLinks = () => {
-    document.querySelectorAll('#detailStatRow .modelno-link').forEach(el => {
+    document.querySelectorAll('#detailBody .modelno-link').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         const tid = el.getAttribute('data-target');
@@ -1933,7 +1943,6 @@ function openDetail(id) {
       const sf = statsFor(views[idx]);
       const sr = document.getElementById('detailStatRow');
       if (sr) sr.innerHTML = sf.html;
-      bindModelNoLinks();
       const dc = document.getElementById('detailCategory');
       if (dc) dc.style.color = sf.tc;
     });
@@ -2120,17 +2129,17 @@ function openEditor(card) {
   toggleFieldsForCardType(card ? card.cardType : 'leader_medarot');
 
   if (card && card.image) {
-    document.getElementById('previewRow').style.display = 'grid';
     document.getElementById('origPreview').src = card.image;
     document.getElementById('trimPreview').src = card.image;
     document.getElementById('origSize').textContent = '';
     document.getElementById('trimSize').textContent = '';
     document.getElementById('cropControlsWrap').style.display = 'none';
-    document.getElementById('imageActions').style.display = 'flex';
   } else {
-    document.getElementById('previewRow').style.display = 'none';
+    document.getElementById('origPreview').src = '';
+    document.getElementById('trimPreview').src = '';
+    document.getElementById('origSize').textContent = '';
+    document.getElementById('trimSize').textContent = '';
     document.getElementById('cropControlsWrap').style.display = 'none';
-    document.getElementById('imageActions').style.display = 'none';
   }
   document.getElementById('fileInput').value = '';
   document.getElementById('useOriginalToggle').checked = false;
@@ -2304,8 +2313,8 @@ function toggleFieldsForCardType(t) {
   // === Collapsibles (display:block on <details>) ===
   const arm = (document.getElementById('f_partsArm') || {}).value || '';
   show('wrap_mc_collapse', isMed, 'block');         // メダチェンジ後 (リーダー/サポート)
-  show('wrap_partsL_collapse', isParts && arm === 'L', 'block'); // メダチェンジ(L腕)
-  show('wrap_partsR_collapse', isParts && arm === 'R', 'block'); // 強化(R腕)
+  show('wrap_partsL_collapse', isParts && arm === 'R', 'block'); // メダチェンジ(R腕): ドライブA/B
+  show('wrap_partsR_collapse', isParts && arm === 'L', 'block'); // 強化(L腕): α/β
 
   // メダチェンジ後 内: 脚部はリーダーのみ / ドライブB はリーダーのみ
   show('wrap_mc_legType', isLeader);
@@ -2353,15 +2362,9 @@ function updateQueueBadge() {
 }
 
 function enqueueFiles(files) {
-  // Filter to images only
+  // 単一選択: 最初の画像のみ処理（複数選択は廃止）
   const imgs = files.filter(function(f) { return f.type.startsWith('image/'); });
   if (imgs.length === 0) { toast('画像ファイルが含まれていません', 'error'); return; }
-  // First file processes immediately, rest go to queue
-  state.uploadQueue = state.uploadQueue.concat(imgs.slice(1));
-  updateQueueBadge();
-  if (imgs.length > 1) {
-    toast(imgs.length + ' 件をキューに追加(現在 ' + (state.uploadQueue.length + 1) + ' 件)', 'info', 2400);
-  }
   handleImageFile(imgs[0]);
 }
 
@@ -2422,9 +2425,7 @@ async function handleImageFile(file) {
     const dataUrl = await fileToDataURL(file);
     state.pendingOrigImage = dataUrl;
     document.getElementById('origPreview').src = dataUrl;
-    document.getElementById('previewRow').style.display = 'grid';
     document.getElementById('cropControlsWrap').style.display = 'flex';
-    document.getElementById('imageActions').style.display = 'flex';
     setCropStatus('カード枠を検出中...', 'success');
     const bounds = await detectCardBounds(dataUrl);
     state.pendingDetectedBounds = bounds;
@@ -2449,15 +2450,6 @@ async function refreshCroppedPreview() {
   document.getElementById('trimPreview').src = r.dataUrl;
   document.getElementById('origSize').textContent = r.origDims.w + '×' + r.origDims.h;
   document.getElementById('trimSize').textContent = r.outDims.w + '×' + r.outDims.h;
-}
-function removePendingImage() {
-  state.pendingImage = null; state.pendingOrigImage = null;
-  state.pendingDetectedBounds = null; state.useOriginal = false;
-  document.getElementById('previewRow').style.display = 'none';
-  document.getElementById('cropControlsWrap').style.display = 'none';
-  document.getElementById('imageActions').style.display = 'none';
-  document.getElementById('fileInput').value = '';
-  document.getElementById('useOriginalToggle').checked = false;
 }
 const VARIANT_PFX_LABEL = { alpha: 'α', beta: 'β', driveA: 'ドライブA', driveB: 'ドライブB', mc: 'メダチェンジ後' };
 // Process a variant image (α/β/ドライブA/ドライブB/メダチェンジ後):
@@ -2755,7 +2747,6 @@ function wire() {
   document.getElementById('deleteBtn').addEventListener('click', deleteCurrent);
   document.getElementById('f_cardType').addEventListener('change', function(e) { toggleFieldsForCardType(e.target.value); });
   document.getElementById('f_partsArm').addEventListener('change', function() { toggleFieldsForCardType(getField('f_cardType')); });
-  document.getElementById('removeImageBtn').addEventListener('click', removePendingImage);
 
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
