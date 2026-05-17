@@ -186,9 +186,11 @@ button{font-family:inherit}
 .row-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .spacer{flex:1}
 .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:540px){.field-grid{grid-template-columns:1fr}}
-.field{display:flex;flex-direction:column;gap:4px}
+@media(max-width:540px){.field-grid{gap:8px}}
+@media(max-width:380px){.field-grid{gap:6px}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field-full{grid-column:1/-1}
+.field input,.field select,.field textarea{min-width:0;width:100%}
 .fold{grid-column:1/-1;border:1px solid var(--border-2);background:var(--bg-0);clip-path:var(--clip-sm);margin-top:2px}
 .fold>summary{list-style:none;cursor:pointer;padding:9px 12px;font-family:var(--f-display);font-size:11px;letter-spacing:.1em;color:var(--orange);text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:8px;user-select:none}
 .fold>summary::-webkit-details-marker{display:none}
@@ -197,7 +199,8 @@ button{font-family:inherit}
 .fold[open]>summary{border-bottom:1px solid var(--border-1);background:var(--bg-1)}
 .fold[open]>summary::after{transform:rotate(180deg)}
 .fold-body{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:540px){.fold-body{grid-template-columns:1fr}}
+@media(max-width:540px){.fold-body{gap:8px}}
+@media(max-width:380px){.fold-body{gap:6px}}
 .field label{font-family:var(--f-display);font-size:9px;letter-spacing:.16em;color:var(--text-3);text-transform:uppercase;font-weight:600}
 .field input,.field select,.field textarea{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:9px 11px;font-family:var(--f-mono);font-size:13px;outline:none;transition:border-color .15s,background .15s}
 .field textarea{font-family:var(--f-body);resize:vertical;min-height:72px;line-height:1.6}
