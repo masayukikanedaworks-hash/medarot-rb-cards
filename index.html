@@ -449,17 +449,26 @@ button{font-family:inherit}
           <label>カード種別</label>
           <select id="f_cardType">
             <option value="leader_medarot">リーダーメダロット</option>
+            <option value="parts_card">パーツ</option>
             <option value="support_medarot">サポートメダロット</option>
-            <option value="parts_card">パーツカード</option>
-            <option value="medaforce_card">メダフォースカード</option>
-            <option value="support_card">サポートカード</option>
             <option value="tactical_card">戦術カード</option>
-            <option value="cheer_card">応援カード</option>
+            <option value="medarotter">メダロッター</option>
+            <option value="medal">メダル</option>
+            <option value="medaforce_card">メダフォース</option>
+            <option value="keyword">キーワード</option>
           </select>
         </div>
         <div class="field field-full">
           <label>カード名</label>
           <input type="text" id="f_name" placeholder="メダロット名 / カード名">
+        </div>
+        <div class="field" id="wrap_modelNo" style="display:none;">
+          <label>型番</label>
+          <input type="text" id="f_modelNo" placeholder="例: XXX00-Y" autocomplete="off">
+        </div>
+        <div class="field" id="wrap_medarotName" style="display:none;">
+          <label>メダロット名(型番で紐付)</label>
+          <input type="text" id="f_medarotName" placeholder="紐付くメダロット名" autocomplete="off">
         </div>
         <div class="field" id="wrap_elementType">
           <label>タイプ（2つ目は複数タイプ用・任意）</label>
@@ -527,12 +536,44 @@ button{font-family:inherit}
           <label>バリアリミット</label>
           <input type="number" id="f_barrierLimit" min="0" placeholder="例: 2">
         </div>
+        <div class="field field-full" id="wrap_tactical" style="display:none;">
+          <label>戦術（最大3つ・タイプと同じ選択肢）</label>
+          <div style="display:flex;gap:8px">
+            <select id="f_tactical1" style="flex:1" title="戦術 1">
+              <option value="">—</option>
+              <option value="格闘">格闘</option>
+              <option value="射撃">射撃</option>
+              <option value="支援">支援</option>
+              <option value="設置">設置</option>
+              <option value="回復">回復</option>
+              <option value="防御">防御</option>
+            </select>
+            <select id="f_tactical2" style="flex:1" title="戦術 2">
+              <option value="">—</option>
+              <option value="格闘">格闘</option>
+              <option value="射撃">射撃</option>
+              <option value="支援">支援</option>
+              <option value="設置">設置</option>
+              <option value="回復">回復</option>
+              <option value="防御">防御</option>
+            </select>
+            <select id="f_tactical3" style="flex:1" title="戦術 3">
+              <option value="">—</option>
+              <option value="格闘">格闘</option>
+              <option value="射撃">射撃</option>
+              <option value="支援">支援</option>
+              <option value="設置">設置</option>
+              <option value="回復">回復</option>
+              <option value="防御">防御</option>
+            </select>
+          </div>
+        </div>
         <div class="field field-full" id="wrap_traits">
           <label>特性・行動</label>
           <textarea id="f_traits" placeholder="メダロットの特性や行動テキスト"></textarea>
         </div>
         <div class="field field-full" id="wrap_variant_alpha" style="display:none;">
-          <label>強化α — 特性・行動(空欄なら α なし)</label>
+          <label>強化α（R腕）— 特性・行動(空欄なら α なし)</label>
           <textarea id="f_var_alpha_traits" placeholder="α版の特性・行動テキスト"></textarea>
           <div class="var-img-row">
             <input type="number" id="f_var_alpha_cost" min="0" placeholder="α 行動コスト(任意)" style="flex:1;align-self:center;">
@@ -546,7 +587,7 @@ button{font-family:inherit}
           </div>
         </div>
         <div class="field field-full" id="wrap_variant_beta" style="display:none;">
-          <label>強化β — 特性・行動(空欄なら β なし)</label>
+          <label>強化β（R腕）— 特性・行動(空欄なら β なし)</label>
           <textarea id="f_var_beta_traits" placeholder="β版の特性・行動テキスト"></textarea>
           <div class="var-img-row">
             <input type="number" id="f_var_beta_cost" min="0" placeholder="β 行動コスト(任意)" style="flex:1;align-self:center;">
@@ -559,13 +600,127 @@ button{font-family:inherit}
             <button type="button" class="var-img-clear" id="var_beta_clear" style="display:none;">削除</button>
           </div>
         </div>
+        <div class="field field-full" id="wrap_variant_driveA" style="display:none;">
+          <label>メダチェンジ ドライブA（L腕）— 特性・行動(空欄なら なし)</label>
+          <textarea id="f_var_driveA_traits" placeholder="ドライブA の特性・行動テキスト"></textarea>
+          <div class="var-img-row">
+            <input type="number" id="f_var_driveA_cost" min="0" placeholder="ドライブA 行動コスト(任意)" style="flex:1;align-self:center;">
+            <label class="var-dropzone" id="var_driveA_dropzone">
+              <input type="file" id="f_var_driveA_imgfile" accept="image/*">
+              <div class="var-dropzone-icon">⬆</div>
+              <div class="var-dropzone-text">A画像</div>
+            </label>
+            <img id="var_driveA_preview" class="var-img-preview" alt="">
+            <button type="button" class="var-img-clear" id="var_driveA_clear" style="display:none;">削除</button>
+          </div>
+        </div>
+        <div class="field field-full" id="wrap_variant_driveB" style="display:none;">
+          <label>メダチェンジ ドライブB（L腕）— 特性・行動(空欄なら なし)</label>
+          <textarea id="f_var_driveB_traits" placeholder="ドライブB の特性・行動テキスト"></textarea>
+          <div class="var-img-row">
+            <input type="number" id="f_var_driveB_cost" min="0" placeholder="ドライブB 行動コスト(任意)" style="flex:1;align-self:center;">
+            <label class="var-dropzone" id="var_driveB_dropzone">
+              <input type="file" id="f_var_driveB_imgfile" accept="image/*">
+              <div class="var-dropzone-icon">⬆</div>
+              <div class="var-dropzone-text">B画像</div>
+            </label>
+            <img id="var_driveB_preview" class="var-img-preview" alt="">
+            <button type="button" class="var-img-clear" id="var_driveB_clear" style="display:none;">削除</button>
+          </div>
+        </div>
+        <div class="field field-full" id="wrap_variant_mc" style="display:none;border:1px solid var(--border-2);padding:10px 12px;background:var(--bg-0);">
+          <label style="color:var(--orange);">メダチェンジ後（基本カードと同じ一式・空欄なら なし）</label>
+          <div class="field-grid" style="margin-top:8px;">
+            <div class="field" style="grid-column:1/-1;">
+              <label>タイプ（2つ目は任意）</label>
+              <div style="display:flex;gap:8px">
+                <select id="f_mc_type1" style="flex:1">
+                  <option value="">—</option>
+                  <option value="格闘">格闘</option>
+                  <option value="射撃">射撃</option>
+                  <option value="支援">支援</option>
+                  <option value="設置">設置</option>
+                  <option value="回復">回復</option>
+                  <option value="防御">防御</option>
+                </select>
+                <select id="f_mc_type2" style="flex:1">
+                  <option value="">— (2つ目なし)</option>
+                  <option value="格闘">格闘</option>
+                  <option value="射撃">射撃</option>
+                  <option value="支援">支援</option>
+                  <option value="設置">設置</option>
+                  <option value="回復">回復</option>
+                  <option value="防御">防御</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>行動コスト</label>
+              <input type="number" id="f_mc_actionCost" min="0">
+            </div>
+            <div class="field">
+              <label>BP</label>
+              <input type="number" id="f_mc_bp" min="0">
+            </div>
+            <div class="field">
+              <label>冷却コスト</label>
+              <input type="number" id="f_mc_coolingCost" min="0">
+            </div>
+            <div class="field">
+              <label>バリアリミット</label>
+              <input type="number" id="f_mc_barrierLimit" min="0">
+            </div>
+            <div class="field" style="grid-column:1/-1;">
+              <label>戦術（最大3つ）</label>
+              <div style="display:flex;gap:8px">
+                <select id="f_mc_tactical1" style="flex:1">
+                  <option value="">—</option>
+                  <option value="格闘">格闘</option>
+                  <option value="射撃">射撃</option>
+                  <option value="支援">支援</option>
+                  <option value="設置">設置</option>
+                  <option value="回復">回復</option>
+                  <option value="防御">防御</option>
+                </select>
+                <select id="f_mc_tactical2" style="flex:1">
+                  <option value="">—</option>
+                  <option value="格闘">格闘</option>
+                  <option value="射撃">射撃</option>
+                  <option value="支援">支援</option>
+                  <option value="設置">設置</option>
+                  <option value="回復">回復</option>
+                  <option value="防御">防御</option>
+                </select>
+                <select id="f_mc_tactical3" style="flex:1">
+                  <option value="">—</option>
+                  <option value="格闘">格闘</option>
+                  <option value="射撃">射撃</option>
+                  <option value="支援">支援</option>
+                  <option value="設置">設置</option>
+                  <option value="回復">回復</option>
+                  <option value="防御">防御</option>
+                </select>
+              </div>
+            </div>
+            <div class="field" style="grid-column:1/-1;">
+              <label>特性・行動</label>
+              <textarea id="f_mc_traits" placeholder="メダチェンジ後の特性・行動テキスト"></textarea>
+            </div>
+          </div>
+          <div class="var-img-row" style="margin-top:8px;">
+            <span style="flex:1;font-family:var(--f-mono);font-size:10px;color:var(--text-3);align-self:center;">メダチェンジ後 画像</span>
+            <label class="var-dropzone" id="var_mc_dropzone">
+              <input type="file" id="f_var_mc_imgfile" accept="image/*">
+              <div class="var-dropzone-icon">⬆</div>
+              <div class="var-dropzone-text">変身後</div>
+            </label>
+            <img id="var_mc_preview" class="var-img-preview" alt="">
+            <button type="button" class="var-img-clear" id="var_mc_clear" style="display:none;">削除</button>
+          </div>
+        </div>
         <div class="field field-full" id="wrap_effectText" style="display:none;">
           <label>効果テキスト</label>
           <textarea id="f_effectText" placeholder="カードの効果"></textarea>
-        </div>
-        <div class="field field-full">
-          <label>メモ(任意)</label>
-          <textarea id="f_notes" placeholder="自由記述"></textarea>
         </div>
       </div>
 
@@ -643,12 +798,13 @@ button{font-family:inherit}
 
 const CARD_CATEGORIES = {
   leader_medarot:  { label: 'リーダーメダロット',  short: 'LEADER' },
+  parts_card:      { label: 'パーツ',            short: 'PARTS' },
   support_medarot: { label: 'サポートメダロット',  short: 'SUPPORT-M' },
-  parts_card:      { label: 'パーツカード',       short: 'PARTS' },
-  medaforce_card:  { label: 'メダフォース',       short: 'MEDAFORCE' },
-  support_card:    { label: 'サポートカード',     short: 'SUPPORT-C' },
   tactical_card:   { label: '戦術カード',        short: 'TACTICAL' },
-  cheer_card:      { label: '応援カード',        short: 'CHEER' },
+  medarotter:      { label: 'メダロッター',       short: 'MEDAROTTER' },
+  medal:           { label: 'メダル',            short: 'MEDAL' },
+  medaforce_card:  { label: 'メダフォース',       short: 'MEDAFORCE' },
+  keyword:         { label: 'キーワード',         short: 'KEYWORD' },
 };
 const CATEGORY_KEYS = Object.keys(CARD_CATEGORIES);
 const ELEMENT_TYPES = ['格闘','射撃','支援','設置','回復','防御'];
@@ -680,6 +836,92 @@ function elemToStore(v) {
 // Primary type (first) — used where a single representative is needed.
 function elemPrimary(v) { const l = elemList(v); return l.length ? l[0] : null; }
 
+// === notes ⇄ 型番 / メダロット名 (structured, stored in the existing
+// `notes` column — no DB/JSON schema change) ===
+// Existing data uses `notes: "型番: XXX00-Y"`; parser is backward
+// compatible and preserves any unrecognized remainder verbatim.
+function parseMeta(notes) {
+  const out = { modelNo: '', medarotName: '', rest: '' };
+  if (notes == null || notes === '') return out;
+  const restLines = [];
+  String(notes).split('\n').forEach(function(raw) {
+    const line = raw.replace(/\s+$/, '');
+    let m = /^\s*型番\s*[:：]\s*(.*)$/.exec(line);
+    if (m) { if (!out.modelNo) out.modelNo = m[1].trim(); return; }
+    m = /^\s*メダロット名\s*[:：]\s*(.*)$/.exec(line);
+    if (m) { if (!out.medarotName) out.medarotName = m[1].trim(); return; }
+    if (line.trim() !== '') restLines.push(line);
+  });
+  out.rest = restLines.join('\n');
+  return out;
+}
+function buildMeta(modelNo, medarotName, rest) {
+  const parts = [];
+  if (modelNo && String(modelNo).trim() !== '') parts.push('型番: ' + String(modelNo).trim());
+  if (medarotName && String(medarotName).trim() !== '') parts.push('メダロット名: ' + String(medarotName).trim());
+  if (rest && String(rest).trim() !== '') parts.push(String(rest).trim());
+  return parts.length ? parts.join('\n') : null;
+}
+
+// === 戦術 ⇄ traits line (stored as a `戦術:[X][Y][Z]` line inside the
+// existing `traits` string — no schema change; renderTraits already
+// renders this line as tactical chips). ===
+function splitTactical(traits) {
+  const res = { tactical: [], body: '' };
+  if (traits == null || traits === '') return res;
+  const bodyLines = [];
+  let took = false;
+  String(traits).split('\n').forEach(function(raw) {
+    const line = raw.trim();
+    const tm = /^戦術\s*[:：]\s*(.+)$/.exec(line);
+    if (tm && !took) {
+      took = true;
+      tm[1].split(/[,、\s]+|\]\s*\[|[\[\]]/).map(function(s){ return s.trim(); })
+        .filter(Boolean).forEach(function(t){
+          if (ELEMENT_TYPES.indexOf(t) >= 0 && res.tactical.length < 3) res.tactical.push(t);
+        });
+      return;
+    }
+    bodyLines.push(raw);
+  });
+  res.body = bodyLines.join('\n').replace(/^\n+|\n+$/g, '');
+  return res;
+}
+function joinTactical(tacticalArr, body) {
+  const tac = (tacticalArr || []).map(function(s){ return String(s).trim(); })
+    .filter(function(t){ return ELEMENT_TYPES.indexOf(t) >= 0; }).slice(0, 3);
+  const b = (body == null ? '' : String(body)).replace(/^\n+|\n+$/g, '');
+  let out = '';
+  if (tac.length) out += '戦術:' + tac.map(function(t){ return '[' + t + ']'; }).join('');
+  if (b) out += (out ? '\n' : '') + b;
+  return out.trim() ? out : null;
+}
+
+// Find a リーダー/サポートメダロット whose 型番 matches (case/space-insensitive).
+function findMedarotByModelNo(modelNo, excludeId) {
+  if (!modelNo) return null;
+  const norm = function(s){ return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); };
+  const target = norm(modelNo);
+  if (!target) return null;
+  return state.cards.find(function(c) {
+    if (!c || (c.cardType !== 'leader_medarot' && c.cardType !== 'support_medarot')) return false;
+    if (excludeId && c.id === excludeId) return false;
+    return norm(parseMeta(c.notes).modelNo) === target;
+  }) || null;
+}
+
+// Active variant tiers for a given card type / parts arm.
+//   parts + R腕 → α / β     parts + L腕 → ドライブA / ドライブB
+//   leader / support       → メダチェンジ後 (drive_a)
+function activeVariantTiers(cardType, partsArm) {
+  if (cardType === 'parts_card') {
+    return partsArm === 'L' ? ['drive_a', 'drive_b']
+         : partsArm === 'R' ? ['alpha', 'beta'] : [];
+  }
+  if (cardType === 'leader_medarot' || cardType === 'support_medarot') return ['drive_a'];
+  return [];
+}
+
 const state = {
   cards: [], loading: true,
   activeTab: 'all', search: '', elementType: '',
@@ -689,7 +931,8 @@ const state = {
   editingId: null,
   pendingImage: null, pendingOrigImage: null,
   pendingDetectedBounds: null, useOriginal: false,
-  pendingVariantImages: { alpha: null, beta: null },
+  pendingVariantImages: { alpha: null, beta: null, driveA: null, driveB: null, mc: null },
+  pendingNotesRest: '',
   uploadQueue: [],
 };
 
@@ -1476,9 +1719,18 @@ function openDetail(id) {
   vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
     .forEach(v => views.push({
       key: v.tier,
-      label: v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化'
-        : v.tier === 'drive_a' ? 'ドライブ' : v.tier === 'drive_b' ? 'ドライブ' : v.tier),
-      greek: greek[v.tier] != null ? greek[v.tier] : '',
+      label: (function() {
+        const isMed = (c.cardType === 'leader_medarot' || c.cardType === 'support_medarot');
+        if (isMed && (v.tier === 'drive_a' || v.tier === 'drive_b')) return 'メダチェンジ';
+        if (c.cardType === 'parts_card' && v.tier === 'drive_a') return 'ドライブA';
+        if (c.cardType === 'parts_card' && v.tier === 'drive_b') return 'ドライブB';
+        return v.label || (v.tier === 'alpha' ? '強化' : v.tier === 'beta' ? '強化'
+          : v.tier === 'drive_a' ? 'ドライブ' : v.tier === 'drive_b' ? 'ドライブ' : v.tier);
+      })(),
+      greek: (function() {
+        if ((v.tier === 'drive_a' || v.tier === 'drive_b')) return '';
+        return greek[v.tier] != null ? greek[v.tier] : '';
+      })(),
       traits: v.traits != null ? v.traits : c.traits,
       actionCost: v.actionCost != null ? v.actionCost : c.actionCost,
       image: v.image || c.image || null,
@@ -1512,6 +1764,18 @@ function openDetail(id) {
       v: t, color: ELEMENT_COLORS[t],
     }));
     const lead = isParts ? [armStat].concat(typeStats) : typeStats.concat([armStat]);
+    const meta = parseMeta(c.notes);
+    let modelNoStat = null;
+    if (meta.modelNo) {
+      const linkTarget = findMedarotByModelNo(meta.modelNo, c.id);
+      if (linkTarget) {
+        modelNoStat = { l: '型番', html: '<span class="modelno-link" data-target="' +
+          escapeAttr(linkTarget.id) + '" style="color:var(--cyan);cursor:pointer;text-decoration:underline;">' +
+          escapeHtml(meta.modelNo) + '</span>', color: 'var(--cyan)' };
+      } else {
+        modelNoStat = { l: '型番', v: meta.modelNo, color: 'var(--cyan)' };
+      }
+    }
     const stats = lead.concat([
       partsMode ? { l: 'モード', v: partsMode, color: 'var(--cyan)' } : null,
       (actionCost != null && actionCost !== '') ? { l: '行動コスト', v: actionCost, color: 'var(--orange)' } : null,
@@ -1520,12 +1784,14 @@ function openDetail(id) {
       (bp != null && bp !== '') ? { l: 'BP', v: bp } : null,
       (coolingCost != null && coolingCost !== '') ? { l: '冷却コスト', v: coolingCost } : null,
       c.legType ? { l: '脚部', v: c.legType } : null,
+      modelNoStat,
+      (isParts && meta.medarotName) ? { l: 'メダロット名', v: meta.medarotName, color: 'var(--cyan)' } : null,
     ]).filter(Boolean);
     const html = stats.map(s =>
       '<div class="stat"' + (s.color ? ' style="border-left-color:' + s.color + '"' : '') + '>' +
       '<div class="stat-label">' + s.l + '</div>' +
       '<div class="stat-value"' + (s.color ? ' style="color:' + s.color + '"' : '') + '>' +
-      escapeHtml(String(s.v)) + '</div></div>'
+      (s.html != null ? s.html : escapeHtml(String(s.v))) + '</div></div>'
     ).join('');
     return { tc: tc, html: html };
   }
@@ -1546,12 +1812,12 @@ function openDetail(id) {
   })() : null;
   const medaChangeSection = isMedaChangeLeader ? (
     '<div class="mc-img-section">' +
-      '<div class="detail-text-label" style="margin-top:10px;">メダチェンジ後画像</div>' +
+      '<div class="detail-text-label" style="margin-top:10px;">メダチェンジ後</div>' +
       (mcImg
         ? '<div class="mc-img-wrap" id="mcImgWrap"><img class="detail-img" src="' + mcImg + '" alt="メダチェンジ後">' +
           '<button class="mc-img-clear" id="mcImgClear" title="削除">✕</button></div>'
         : '<label class="mc-img-drop" id="mcImgDrop"><input type="file" id="mcImgFile" accept="image/*" hidden>' +
-          '<span>＋ メダチェンジ後画像を追加</span></label>') +
+          '<span>＋ メダチェンジ後の画像を追加</span></label>') +
     '</div>'
   ) : '';
 
@@ -1589,7 +1855,7 @@ function openDetail(id) {
         return html;
       })() +
       (c.effectText ? '<div class="detail-text-label">効果</div><div class="detail-text-block">' + escapeHtml(c.effectText) + '</div>' : '') +
-      (c.notes ? '<div class="detail-text-label">メモ</div><div class="detail-text-block">' + escapeHtml(c.notes) + '</div>' : '') +
+      '' +
       '<div class="row-actions" style="margin-top:14px;">' +
         '<button class="btn btn-ghost" id="editFromDetail">編集</button>' +
         '<button class="btn btn-ghost" id="duplicateFromDetail">複製</button>' +
@@ -1597,6 +1863,16 @@ function openDetail(id) {
     '</div></div>';
 
   document.getElementById('detailModal').classList.add('open');
+  const bindModelNoLinks = () => {
+    document.querySelectorAll('#detailStatRow .modelno-link').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tid = el.getAttribute('data-target');
+        if (tid && state.cards.some(x => x.id === tid)) { closeDetail(); openDetail(tid); }
+      });
+    });
+  };
+  bindModelNoLinks();
   const editBtn = document.getElementById('editFromDetail');
   if (editBtn) editBtn.addEventListener('click', () => { closeDetail(); openEditor(c); });
   const dupBtn = document.getElementById('duplicateFromDetail');
@@ -1617,6 +1893,7 @@ function openDetail(id) {
       const sf = statsFor(views[idx]);
       const sr = document.getElementById('detailStatRow');
       if (sr) sr.innerHTML = sf.html;
+      bindModelNoLinks();
       const dc = document.getElementById('detailCategory');
       if (dc) dc.style.color = sf.tc;
     });
@@ -1735,14 +2012,16 @@ function openEditor(card) {
   (function() {
     const vs = (card && Array.isArray(card.variants)) ? card.variants : [];
     const getV = (t) => vs.find(v => v && v.tier === t) || null;
-    state.pendingVariantImages = { alpha: null, beta: null };
-    ['alpha', 'beta'].forEach(t => {
-      const v = getV(t);
-      setField('f_var_' + t + '_traits', v && v.traits != null ? v.traits : '');
-      setField('f_var_' + t + '_cost', v && v.actionCost != null ? v.actionCost : '');
-      const prev = document.getElementById('var_' + t + '_preview');
-      const clr = document.getElementById('var_' + t + '_clear');
-      const fileEl = document.getElementById('f_var_' + t + '_imgfile');
+    state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null };
+    // Simple variant blocks (traits + cost + image): α/β and parts-L ドライブA/B
+    const simpleMap = { alpha: 'alpha', beta: 'beta', driveA: 'drive_a', driveB: 'drive_b' };
+    Object.keys(simpleMap).forEach(pfx => {
+      const v = getV(simpleMap[pfx]);
+      setField('f_var_' + pfx + '_traits', v && v.traits != null ? v.traits : '');
+      setField('f_var_' + pfx + '_cost', v && v.actionCost != null ? v.actionCost : '');
+      const prev = document.getElementById('var_' + pfx + '_preview');
+      const clr = document.getElementById('var_' + pfx + '_clear');
+      const fileEl = document.getElementById('f_var_' + pfx + '_imgfile');
       if (fileEl) fileEl.value = '';
       if (v && v.image) {
         if (prev) { prev.src = v.image; prev.classList.add('show'); }
@@ -1752,10 +2031,46 @@ function openEditor(card) {
         if (clr) clr.style.display = 'none';
       }
     });
+    // メダチェンジ後 (drive_a) full block — リーダー/サポートメダロット用
+    const mv = getV('drive_a');
+    const mcSplit = splitTactical(mv ? mv.traits : '');
+    const mcTypes = elemList(mv ? mv.elementType : '');
+    setField('f_mc_type1', mcTypes[0] || '');
+    setField('f_mc_type2', mcTypes[1] || '');
+    setField('f_mc_actionCost', mv && mv.actionCost != null ? mv.actionCost : '');
+    setField('f_mc_bp', mv && mv.bp != null ? mv.bp : '');
+    setField('f_mc_coolingCost', mv && mv.coolingCost != null ? mv.coolingCost : '');
+    setField('f_mc_barrierLimit', mv && mv.barrierLimit != null ? mv.barrierLimit : '');
+    setField('f_mc_tactical1', mcSplit.tactical[0] || '');
+    setField('f_mc_tactical2', mcSplit.tactical[1] || '');
+    setField('f_mc_tactical3', mcSplit.tactical[2] || '');
+    setField('f_mc_traits', mcSplit.body || '');
+    (function() {
+      const prev = document.getElementById('var_mc_preview');
+      const clr = document.getElementById('var_mc_clear');
+      const fileEl = document.getElementById('f_var_mc_imgfile');
+      if (fileEl) fileEl.value = '';
+      if (mv && mv.image) {
+        if (prev) { prev.src = mv.image; prev.classList.add('show'); }
+        if (clr) clr.style.display = 'inline-block';
+      } else {
+        if (prev) { prev.src = ''; prev.classList.remove('show'); }
+        if (clr) clr.style.display = 'none';
+      }
+    })();
   })();
-  setField('f_traits', card ? (card.traits || '') : '');
+  (function() {
+    const meta = parseMeta(card ? card.notes : '');
+    setField('f_modelNo', meta.modelNo);
+    setField('f_medarotName', meta.medarotName);
+    state.pendingNotesRest = meta.rest || '';
+    const sp = splitTactical(card ? card.traits : '');
+    setField('f_tactical1', sp.tactical[0] || '');
+    setField('f_tactical2', sp.tactical[1] || '');
+    setField('f_tactical3', sp.tactical[2] || '');
+    setField('f_traits', sp.body || '');
+  })();
   setField('f_effectText', card ? (card.effectText || '') : '');
-  setField('f_notes', card ? (card.notes || '') : '');
   toggleFieldsForCardType(card ? card.cardType : 'leader_medarot');
 
   if (card && card.image) {
@@ -1795,59 +2110,93 @@ function getElementTypeStore() {
 function collectVariantsFromForm(existing) {
   const existingVariants = (existing && Array.isArray(existing.variants)) ? existing.variants : [];
   const findExisting = (tier) => existingVariants.find(v => v && v.tier === tier) || null;
+  const cardType = getField('f_cardType');
+  const partsArm = getField('f_partsArm');
+  const active = activeVariantTiers(cardType, partsArm);
   const out = [];
-  ['alpha', 'beta'].forEach(tier => {
-    const traitsEl = document.getElementById('f_var_' + tier + '_traits');
-    const costEl = document.getElementById('f_var_' + tier + '_cost');
+  const managedTiers = {};
+
+  // Simple variant block (traits + cost + image). prefix = form id prefix,
+  // tier = stored variant tier.
+  function collectSimple(prefix, tier, label) {
+    const traitsEl = document.getElementById('f_var_' + prefix + '_traits');
+    const costEl = document.getElementById('f_var_' + prefix + '_cost');
     const ex = findExisting(tier);
-    // If the form fields don't exist (non-parts card) keep existing as-is
-    if (!traitsEl) { if (ex) out.push(ex); return; }
+    if (!traitsEl) { if (ex) { out.push(ex); managedTiers[tier] = 1; } return; }
+    managedTiers[tier] = 1;
     const traits = traitsEl.value.trim();
     const costRaw = costEl ? costEl.value.trim() : '';
-    // Resolve the variant image (protection: never lose an existing α/β
-    // image unless the user explicitly cleared it):
-    //   pending dataURL  → new upload (handled in saveFromForm)
-    //   '__CLEARED__'    → user explicitly removed it → null
-    //   null (untouched) → keep the existing stored image as-is
-    const pend = state.pendingVariantImages ? state.pendingVariantImages[tier] : null;
+    const pend = state.pendingVariantImages ? state.pendingVariantImages[prefix] : null;
     const exImg = (ex && ex.image != null && String(ex.image).trim() !== '')
       ? String(ex.image).trim() : null;
     let imageVal;
     if (pend === '__CLEARED__') imageVal = null;
-    else if (pend) imageVal = pend; // dataURL, uploaded later
-    else imageVal = exImg; // untouched → preserve existing
+    else if (pend) imageVal = pend;
+    else imageVal = exImg;
     if (traits) {
-      // Cost: the form field is authoritative. Empty → null (no cost).
-      // A present value (including 0) is parsed and always applied, so
-      // edits to a variant that already had a cost take effect on save.
       let nextCost = null;
-      if (costRaw !== '') {
-        const n = Number(costRaw);
-        nextCost = Number.isFinite(n) ? n : null;
-      }
-      // Spread the existing variant first so per-variant overrides
-      // (elementType / barrierLimit / partsMode, etc.) survive a base-card
-      // edit, then apply the form-editable fields on top.
+      if (costRaw !== '') { const n = Number(costRaw); nextCost = Number.isFinite(n) ? n : null; }
       out.push(Object.assign({}, ex || {}, {
         tier: tier,
-        label: (ex && ex.label) ? ex.label : '強化',
+        label: (ex && ex.label) ? ex.label : label,
         traits: traits,
         actionCost: nextCost,
         image: imageVal,
       }));
     } else if (ex) {
-      // Traits field emptied but the variant existed → keep the whole
-      // variant (save-protection). imageVal preserves the existing image
-      // unless the user explicitly cleared it.
       out.push(Object.assign({}, ex, { image: imageVal }));
     }
+  }
+
+  // メダチェンジ後 (drive_a) full block — リーダー/サポートメダロット用.
+  function collectMedaChange() {
+    const tier = 'drive_a';
+    managedTiers[tier] = 1;
+    const ex = findExisting(tier);
+    const body = (document.getElementById('f_mc_traits') || {}).value || '';
+    const tac = [getField('f_mc_tactical1'), getField('f_mc_tactical2'), getField('f_mc_tactical3')]
+      .filter(Boolean);
+    const traits = joinTactical(tac, body.trim());
+    const pend = state.pendingVariantImages ? state.pendingVariantImages.mc : null;
+    const exImg = (ex && ex.image != null && String(ex.image).trim() !== '')
+      ? String(ex.image).trim() : null;
+    let imageVal;
+    if (pend === '__CLEARED__') imageVal = null;
+    else if (pend) imageVal = pend;
+    else imageVal = exImg;
+    const hasContent = !!traits || !!imageVal ||
+      getField('f_mc_type1') || getField('f_mc_actionCost') !== '' ||
+      getField('f_mc_bp') !== '' || getField('f_mc_coolingCost') !== '' ||
+      getField('f_mc_barrierLimit') !== '';
+    if (!hasContent) { return; } // no メダチェンジ後 → drop (if previously none) 
+    const v = Object.assign({}, ex || {}, {
+      tier: tier,
+      label: (ex && ex.label) ? ex.label : 'メダチェンジ',
+      traits: traits,
+      actionCost: getNumField('f_mc_actionCost'),
+      bp: getNumField('f_mc_bp'),
+      coolingCost: getNumField('f_mc_coolingCost'),
+      barrierLimit: getNumField('f_mc_barrierLimit'),
+      image: imageVal,
+    });
+    const et = elemToStore([getField('f_mc_type1'), getField('f_mc_type2')]);
+    if (et) v.elementType = et; else delete v.elementType;
+    out.push(v);
+  }
+
+  active.forEach(tier => {
+    if (tier === 'alpha') collectSimple('alpha', 'alpha', '強化');
+    else if (tier === 'beta') collectSimple('beta', 'beta', '強化');
+    else if (tier === 'drive_a') {
+      if (cardType === 'parts_card') collectSimple('driveA', 'drive_a', 'ドライブ');
+      else collectMedaChange();
+    } else if (tier === 'drive_b') collectSimple('driveB', 'drive_b', 'ドライブ');
   });
-  // Preserve any variants that the editor form does not manage
-  // (e.g. drive_a / drive_b). The form only edits alpha/beta, so without
-  // this, saving a card would silently drop its メダチェンジ variants.
-  const FORM_TIERS = { alpha: 1, beta: 1 };
+
+  // Preserve any variants whose tier the active editor does not manage,
+  // so saving never silently drops unrelated variant data.
   for (const ev of existingVariants) {
-    if (ev && ev.tier && !FORM_TIERS[ev.tier]) out.push(ev);
+    if (ev && ev.tier && !managedTiers[ev.tier]) out.push(ev);
   }
   return out;
 }
@@ -1856,35 +2205,56 @@ function toggleFieldsForCardType(t) {
   const isLeader = t === 'leader_medarot';
   const isParts = t === 'parts_card';
   const isMedaforce = t === 'medaforce_card';
-  const isTextCard = (t === 'support_card' || t === 'tactical_card' || t === 'cheer_card');
+  // テキスト効果カード: 戦術 / メダロッター / メダル / メダフォース / キーワード
+  const isTextCard = (t === 'tactical_card' || t === 'medarotter'
+    || t === 'medal' || t === 'keyword');
+  // バリアリミット・戦術 を持つ6種
+  const has6 = (t === 'leader_medarot' || t === 'parts_card' || t === 'support_medarot'
+    || t === 'tactical_card' || t === 'medarotter' || t === 'medaforce_card');
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'flex' : 'none'; };
 
-  // タイプは メダロット / パーツ / 戦術 / メダフォース で使う
-  const hasType = isMed || isParts || isMedaforce || t === 'tactical_card';
-  document.getElementById('wrap_elementType').style.display = hasType ? 'flex' : 'none';
+  // タイプ: リーダー/サポート/パーツ/戦術/メダロッター/メダフォース
+  const hasType = isMed || isParts || t === 'tactical_card' || t === 'medarotter' || isMedaforce;
+  show('wrap_elementType', hasType);
 
-  // 行動コストは メダロット / メダフォース で使う(パーツは個別行動側に持つ)
-  document.getElementById('wrap_actionCost').style.display = (isMed || isMedaforce) ? 'flex' : 'none';
+  // 型番: リーダー/サポート/パーツ。メダロット名: パーツのみ
+  show('wrap_modelNo', isMed || isParts);
+  show('wrap_medarotName', isParts);
 
-  // BP・冷却コストは メダロットのみ
-  document.getElementById('wrap_bp').style.display = isMed ? 'flex' : 'none';
-  document.getElementById('wrap_coolingCost').style.display = isMed ? 'flex' : 'none';
+  // 行動コスト: メダロット / メダフォース (パーツは行動側に持つ)
+  show('wrap_actionCost', isMed || isMedaforce);
 
-  // 脚部タイプはリーダーメダロットのみ
-  document.getElementById('wrap_legType').style.display = isLeader ? 'flex' : 'none';
+  // BP・冷却コスト: メダロットのみ
+  show('wrap_bp', isMed);
+  show('wrap_coolingCost', isMed);
+
+  // 脚部タイプ: リーダーメダロットのみ
+  show('wrap_legType', isLeader);
 
   // パーツカード専用
-  document.getElementById('wrap_partsArm').style.display = isParts ? 'flex' : 'none';
-  document.getElementById('wrap_partsMode').style.display = isParts ? 'flex' : 'none';
-  document.getElementById('wrap_bonusValue').style.display = isParts ? 'flex' : 'none';
-  document.getElementById('wrap_barrierLimit').style.display = isParts ? 'flex' : 'none';
-  document.getElementById('wrap_variant_alpha').style.display = isParts ? 'flex' : 'none';
-  document.getElementById('wrap_variant_beta').style.display = isParts ? 'flex' : 'none';
+  show('wrap_partsArm', isParts);
+  show('wrap_partsMode', isParts);
+  show('wrap_bonusValue', isParts);
 
-  // 特性・行動テキストは メダロット / パーツ で使う
-  document.getElementById('wrap_traits').style.display = (isMed || isParts) ? 'flex' : 'none';
+  // バリアリミット・戦術: 6種
+  show('wrap_barrierLimit', has6);
+  show('wrap_tactical', has6);
 
-  // 効果テキストは メダフォース / サポート / 戦術 / 応援 で使う
-  document.getElementById('wrap_effectText').style.display = (isTextCard || isMedaforce) ? 'flex' : 'none';
+  // 特性・行動テキスト: メダロット / パーツ
+  show('wrap_traits', isMed || isParts);
+
+  // 効果テキスト: メダフォース / 戦術 / メダロッター / メダル / キーワード
+  show('wrap_effectText', isTextCard || isMedaforce);
+
+  // === Variant editors ===
+  const arm = (document.getElementById('f_partsArm') || {}).value || '';
+  // パーツ R腕 → 強化α/β   パーツ L腕 → メダチェンジ ドライブA/B
+  show('wrap_variant_alpha', isParts && arm === 'R');
+  show('wrap_variant_beta',  isParts && arm === 'R');
+  show('wrap_variant_driveA', isParts && arm === 'L');
+  show('wrap_variant_driveB', isParts && arm === 'L');
+  // リーダー/サポートメダロット → メダチェンジ後 (フル一式)
+  show('wrap_variant_mc', isMed);
 }
 function closeEditor(skipQueueCheck) {
   if (!skipQueueCheck && state.uploadQueue.length > 0) {
@@ -1899,7 +2269,8 @@ function closeEditor(skipQueueCheck) {
   state.pendingImage = null;
   state.pendingOrigImage = null;
   state.pendingDetectedBounds = null;
-  state.pendingVariantImages = { alpha: null, beta: null };
+  state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null };
+  state.pendingNotesRest = '';
 }
 function showStatus(msg, kind) {
   const el = document.getElementById('statusMsg');
@@ -2031,29 +2402,31 @@ function removePendingImage() {
   document.getElementById('fileInput').value = '';
   document.getElementById('useOriginalToggle').checked = false;
 }
-// Process an α/β variant image: same auto-crop pipeline as the base image.
-async function handleVariantImageFile(tier, file) {
+const VARIANT_PFX_LABEL = { alpha: 'α', beta: 'β', driveA: 'ドライブA', driveB: 'ドライブB', mc: 'メダチェンジ後' };
+// Process a variant image (α/β/ドライブA/ドライブB/メダチェンジ後):
+// same auto-crop pipeline as the base image. `prefix` is the form id prefix.
+async function handleVariantImageFile(prefix, file) {
   if (!file || !file.type.startsWith('image/')) { toast('画像ファイルを選択してください', 'error'); return; }
   try {
     const dataUrl = await fileToDataURL(file);
     const bounds = await detectCardBounds(dataUrl);
     const useOrig = !bounds || !bounds.detected;
     const r = await cropAndResize(dataUrl, bounds, useOrig);
-    state.pendingVariantImages[tier] = r.dataUrl;
-    const prev = document.getElementById('var_' + tier + '_preview');
-    const clr = document.getElementById('var_' + tier + '_clear');
+    state.pendingVariantImages[prefix] = r.dataUrl;
+    const prev = document.getElementById('var_' + prefix + '_preview');
+    const clr = document.getElementById('var_' + prefix + '_clear');
     if (prev) { prev.src = r.dataUrl; prev.classList.add('show'); }
     if (clr) clr.style.display = 'inline-block';
-    toast((tier === 'alpha' ? 'α' : 'β') + '画像を読み込みました', 'success');
+    toast((VARIANT_PFX_LABEL[prefix] || '') + '画像を読み込みました', 'success');
   } catch (e) {
     toast('画像読み込み失敗: ' + e.message, 'error');
   }
 }
-function clearVariantImage(tier) {
-  state.pendingVariantImages[tier] = '__CLEARED__';
-  const prev = document.getElementById('var_' + tier + '_preview');
-  const clr = document.getElementById('var_' + tier + '_clear');
-  const fileEl = document.getElementById('f_var_' + tier + '_imgfile');
+function clearVariantImage(prefix) {
+  state.pendingVariantImages[prefix] = '__CLEARED__';
+  const prev = document.getElementById('var_' + prefix + '_preview');
+  const clr = document.getElementById('var_' + prefix + '_clear');
+  const fileEl = document.getElementById('f_var_' + prefix + '_imgfile');
   if (prev) { prev.src = ''; prev.classList.remove('show'); }
   if (clr) clr.style.display = 'none';
   if (fileEl) fileEl.value = '';
@@ -2105,16 +2478,18 @@ async function saveFromForm() {
     bonusValue: getNumField('f_bonusValue'),
     barrierLimit: getNumField('f_barrierLimit'),
     variants: collectVariantsFromForm(existing),
-    traits: getField('f_traits').trim() || null,
+    traits: joinTactical(
+      [getField('f_tactical1'), getField('f_tactical2'), getField('f_tactical3')].filter(Boolean),
+      getField('f_traits').trim()),
     effectText: getField('f_effectText').trim() || null,
-    notes: getField('f_notes').trim() || null,
+    notes: buildMeta(getField('f_modelNo'), getField('f_medarotName'), state.pendingNotesRest || ''),
     image: imageUrl,
     imagePath: imagePath,
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
   };
   try {
-    // Upload any α/β variant images that are still raw dataURLs
+    // Upload any variant images (α/β/ドライブ/メダチェンジ後) still raw dataURLs
     if (Array.isArray(card.variants) && card.variants.length && SUPABASE_ENABLED) {
       for (const v of card.variants) {
         if (v && typeof v.image === 'string' && v.image.startsWith('data:')) {
@@ -2122,7 +2497,9 @@ async function saveFromForm() {
             const vp = await uploadCardImage(cardId + '-' + v.tier, v.image);
             if (vp) v.image = publicImageUrl(vp);
           } catch (ve) {
-            toast((v.tier === 'alpha' ? 'α' : 'β') + '画像アップロード失敗: ' + ve.message, 'error');
+            const lbl = v.tier === 'alpha' ? 'α' : v.tier === 'beta' ? 'β'
+              : v.tier === 'drive_a' ? 'ドライブA/メダチェンジ後' : v.tier === 'drive_b' ? 'ドライブB' : v.tier;
+            toast(lbl + '画像アップロード失敗: ' + ve.message, 'error');
           }
         }
       }
@@ -2156,29 +2533,13 @@ async function deleteCurrent() {
   }
 }
 function duplicateCard(card) {
-  openEditor(null);
-  setField('f_cardType', card.cardType);
+  // Reuse openEditor's full population (variants / メダチェンジ後 / 戦術 / 型番),
+  // then detach so saving creates a brand-new card.
+  openEditor(card);
+  state.editingId = null;
   setField('f_name', (card.name || '') + ' (コピー)');
-  setElementTypeFields(card.elementType);
-  setField('f_actionCost', card.actionCost != null ? card.actionCost : '');
-  setField('f_bp', card.bp != null ? card.bp : '');
-  setField('f_coolingCost', card.coolingCost != null ? card.coolingCost : '');
-  setField('f_legType', card.legType || '');
-  setField('f_partsArm', card.partsArm || '');
-  setField('f_partsMode', card.partsMode || '');
-  setField('f_bonusValue', card.bonusValue != null ? card.bonusValue : '');
-  setField('f_barrierLimit', card.barrierLimit != null ? card.barrierLimit : '');
-  setField('f_traits', card.traits || '');
-  setField('f_effectText', card.effectText || '');
-  setField('f_notes', card.notes || '');
-  toggleFieldsForCardType(card.cardType);
-  if (card.image) {
-    state.pendingImage = card.image;
-    document.getElementById('previewRow').style.display = 'grid';
-    document.getElementById('origPreview').src = card.image;
-    document.getElementById('trimPreview').src = card.image;
-    document.getElementById('imageActions').style.display = 'flex';
-  }
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('duplicateBtn').style.display = 'none';
   document.getElementById('uploadTitle').textContent = 'NEW CARD (DUPLICATE)';
 }
 
@@ -2272,6 +2633,8 @@ async function importJsonFile(file) {
           if (typeof v.barrierLimit === 'number') ov.barrierLimit = v.barrierLimit;
           if (typeof v.partsMode === 'string' && v.partsMode) ov.partsMode = v.partsMode;
           if (typeof v.bonusValue === 'number') ov.bonusValue = v.bonusValue;
+          if (typeof v.bp === 'number') ov.bp = v.bp;
+          if (typeof v.coolingCost === 'number') ov.coolingCost = v.coolingCost;
           return ov;
         }) : [],
         traits: raw.traits || null,
@@ -2347,6 +2710,7 @@ function wire() {
     if (c) { closeEditor(); duplicateCard(c); }
   });
   document.getElementById('f_cardType').addEventListener('change', function(e) { toggleFieldsForCardType(e.target.value); });
+  document.getElementById('f_partsArm').addEventListener('change', function() { toggleFieldsForCardType(getField('f_cardType')); });
   document.getElementById('removeImageBtn').addEventListener('click', removePendingImage);
 
   const dropzone = document.getElementById('dropzone');
@@ -2369,14 +2733,14 @@ function wire() {
     enqueueFiles(files);
   });
 
-  ['alpha', 'beta'].forEach(function(tier) {
-    const dz = document.getElementById('var_' + tier + '_dropzone');
-    const fi = document.getElementById('f_var_' + tier + '_imgfile');
-    const clr = document.getElementById('var_' + tier + '_clear');
+  ['alpha', 'beta', 'driveA', 'driveB', 'mc'].forEach(function(prefix) {
+    const dz = document.getElementById('var_' + prefix + '_dropzone');
+    const fi = document.getElementById('f_var_' + prefix + '_imgfile');
+    const clr = document.getElementById('var_' + prefix + '_clear');
     if (fi) {
       fi.addEventListener('change', function(e) {
         const f = (e.target.files || [])[0];
-        if (f) handleVariantImageFile(tier, f);
+        if (f) handleVariantImageFile(prefix, f);
         e.target.value = '';
       });
     }
@@ -2389,10 +2753,10 @@ function wire() {
       });
       dz.addEventListener('drop', function(e) {
         const f = Array.from(e.dataTransfer.files || []).filter(function(x) { return x.type.startsWith('image/'); })[0];
-        if (f) handleVariantImageFile(tier, f);
+        if (f) handleVariantImageFile(prefix, f);
       });
     }
-    if (clr) clr.addEventListener('click', function() { clearVariantImage(tier); });
+    if (clr) clr.addEventListener('click', function() { clearVariantImage(prefix); });
   });
 
   document.getElementById('useOriginalToggle').addEventListener('change', async function(e) {
