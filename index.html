@@ -879,52 +879,102 @@ function loadImage(src) {
   });
 }
 
-/* AUTO CARD-EDGE DETECTION (center-out expansion)
-   1. Sample background color from many edge points (median for robustness)
-   2. Verify center is card-like
-   3. From center, expand outward along each axis until the row/col
-      crosses below the card-content threshold = boundary
-   4. Validate and scale back to original dimensions */
-// MEDAROT RB card-detail screenshots are a fixed in-game layout: the card
-// always sits at the same centered slot. Measured on the reference
-// 1280x720 capture as the fraction of frame width/height below. Using a
-// fixed proportional rect for standard 16:9 game captures gives a
-// pixel-stable, edge-to-edge crop instead of the per-image variance the
-// content-based detector produces (the card art's own dark regions and
-// the surrounding glow shift the detected edges frame to frame).
-// Source rect on 1280x720: x 470..792, y 115..615.
-const RB_FIXED_RECT = {
-  x: 470 / 1280, y: 115 / 720,
-  w: (792 - 470) / 1280, h: (615 - 115) / 720,
-};
-function rbFixedBounds(w, h) {
-  // Only apply to standard ~16:9 game captures (the card-detail layout).
-  // Tolerance covers minor letterboxing / device scaling.
-  const ar = w / h;
-  if (Math.abs(ar - 16 / 9) > 0.04) return null;
-  if (w < 640) return null; // too small to be a real game capture
-  const sx = Math.round(RB_FIXED_RECT.x * w);
-  const sy = Math.round(RB_FIXED_RECT.y * h);
-  const sw = Math.round(RB_FIXED_RECT.w * w);
-  const sh = Math.round(RB_FIXED_RECT.h * h);
-  const cw = Math.min(sw, w - sx);
-  const ch = Math.min(sh, h - sy);
+/* Whiten the FULL image background BEFORE any cropping.
+   Samples the background color from the image edges, then flood-fills
+   from all four edges turning every background-reachable pixel white.
+   Conservative (safe-side) color threshold so the main card's own dark
+   regions are never mistaken for background; faded siblings / dark
+   gradients touching the card may remain, which is acceptable. Returns
+   a new dataURL plus the detected bg color. */
+async function whitenFullImage(originalDataUrl) {
+  const img = await loadImage(originalDataUrl);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  const imgData = ctx.getImageData(0, 0, W, H);
+  const data = imgData.data;
+
+  // Background color = median of many edge samples (1px inset).
+  const samples = [];
+  const inset = 1;
+  const step = Math.max(1, Math.floor(Math.min(W, H) / 60));
+  function rgbAt(x, y) {
+    const i = (y * W + x) * 4;
+    return [data[i], data[i + 1], data[i + 2]];
+  }
+  for (let x = 0; x < W; x += step) {
+    samples.push(rgbAt(x, inset));
+    samples.push(rgbAt(x, H - 1 - inset));
+  }
+  for (let y = 0; y < H; y += step) {
+    samples.push(rgbAt(inset, y));
+    samples.push(rgbAt(W - 1 - inset, y));
+  }
+  const med = (arr) => { const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const bgR = med(samples.map(c => c[0]));
+  const bgG = med(samples.map(c => c[1]));
+  const bgB = med(samples.map(c => c[2]));
+
+  // Conservative threshold: only clearly background-like pixels qualify,
+  // so the card's dark art is safe (safe-side per requirement).
+  const THRESH = 55;
+  const thresh2 = THRESH * THRESH;
+  const total = W * H;
+  const mask = new Uint8Array(total); // 0 unknown, 1 background, 2 blocker
+  const queue = new Int32Array(total);
+  let qHead = 0, qTail = 0;
+  function isBgLike(pos) {
+    const idx = pos * 4;
+    const dr = data[idx] - bgR, dg = data[idx + 1] - bgG, db = data[idx + 2] - bgB;
+    return (dr * dr + dg * dg + db * db) < thresh2;
+  }
+  function enqueue(x, y) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const pos = y * W + x;
+    if (mask[pos] !== 0) return;
+    if (isBgLike(pos)) { mask[pos] = 1; queue[qTail++] = pos; }
+    else { mask[pos] = 2; }
+  }
+  for (let x = 0; x < W; x++) { enqueue(x, 0); enqueue(x, H - 1); }
+  for (let y = 0; y < H; y++) { enqueue(0, y); enqueue(W - 1, y); }
+  while (qHead < qTail) {
+    const p = queue[qHead++];
+    const x = p % W, y = (p / W) | 0;
+    if (x > 0)     enqueue(x - 1, y);
+    if (x < W - 1) enqueue(x + 1, y);
+    if (y > 0)     enqueue(x, y - 1);
+    if (y < H - 1) enqueue(x, y + 1);
+  }
+  for (let p = 0; p < total; p++) {
+    if (mask[p] === 1) {
+      const i = p * 4;
+      data[i] = 255; data[i + 1] = 255; data[i + 2] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
   return {
-    detected: true, almostFull: false,
-    x: Math.max(0, sx), y: Math.max(0, sy), w: cw, h: ch,
-    ratio: (cw * ch) / (w * h), fixed: true,
+    dataUrl: canvas.toDataURL('image/jpeg', 0.95),
+    bgR: bgR, bgG: bgG, bgB: bgB,
   };
 }
 
+/* AUTO CARD-FRAME DETECTION (outermost frame edge)
+   0. Whiten the full-image background FIRST (whitenFullImage), so the
+      detection and crop both operate on a clean white-bg image
+   1. Sample background color from many edge points (median for robustness)
+   2. Find the dominant card body via the longest contiguous run of
+      card-like rows/cols (ignores short stray UI strips)
+   3. From that body, walk OUTWARD on each side to the outermost frame
+      edge (the card border itself), so the whole card incl. its frame,
+      cost octagon, name bar, type icons and BP row is captured
+   4. Validate and scale back to original dimensions */
 async function detectCardBounds(originalDataUrl) {
-  const img = await loadImage(originalDataUrl);
+  // Step 0: whiten the entire background first, then detect & crop on it.
+  const white = await whitenFullImage(originalDataUrl);
+  const img = await loadImage(white.dataUrl);
   const w = img.naturalWidth, h = img.naturalHeight;
-
-  // Fast path: standard in-game 16:9 capture → use the fixed card slot
-  // (stable, edge-to-edge). Non-standard images fall through to the
-  // content-based detector below (backward compatible).
-  const fixed = rbFixedBounds(w, h);
-  if (fixed) return fixed;
 
   // Downsample for analysis speed
   const ANALYSIS_MAX = 480;
@@ -975,21 +1025,18 @@ async function detectCardBounds(originalDataUrl) {
 
   // Sanity check: center area should be predominantly card
   let centerCard = 0, centerTotal = 0;
-  const ch = Math.max(3, Math.floor(Math.min(aw, ah) * 0.04));
-  for (let y = Math.max(0, cy - ch); y <= Math.min(ah - 1, cy + ch); y++) {
-    for (let x = Math.max(0, cx - ch); x <= Math.min(aw - 1, cx + ch); x++) {
+  const cch = Math.max(3, Math.floor(Math.min(aw, ah) * 0.04));
+  for (let y = Math.max(0, cy - cch); y <= Math.min(ah - 1, cy + cch); y++) {
+    for (let x = Math.max(0, cx - cch); x <= Math.min(aw - 1, cx + cch); x++) {
       if (isCard(x, y)) centerCard++;
       centerTotal++;
     }
   }
   if (centerCard / centerTotal < 0.5) {
-    // Center isn't reliably card content
     return { detected: false, almostFull: false, x: 0, y: 0, w, h, ratio: 1 };
   }
 
-  // Compute "card-ness" for every row/column over the FULL width/height
-  // (full extent — not a narrow center slice — so dark card details
-  // don't appear as gaps when they happen to align with the center axis).
+  // Card-pixel ratio for every row/column (full extent).
   const rowRatios = new Array(ah);
   const colRatios = new Array(aw);
   for (let y = 0; y < ah; y++) {
@@ -1019,10 +1066,8 @@ async function detectCardBounds(originalDataUrl) {
   const rowSm = dilate(rowRatios, 5);
   const colSm = dilate(colRatios, 5);
 
-  // Longest contiguous run of rows/cols above CARD_THRESHOLD.
-  // This picks the dominant subject even when stray UI strips
-  // (text bars, icon rows, side arrows) also exceed the threshold,
-  // because they are short while the card is long.
+  // Longest contiguous run above CARD_THRESHOLD = the dominant card body
+  // (stray UI strips are short and get ignored).
   const CARD_THRESHOLD = 0.18;
   function longestRun(arr, thr) {
     let bs = -1, bl = 0, cs = -1;
@@ -1038,58 +1083,29 @@ async function detectCardBounds(originalDataUrl) {
     if (cs >= 0 && arr.length - cs > bl) { bs = cs; bl = arr.length - cs; }
     return [bs, bs + bl - 1];
   }
-  const initial = longestRun(rowSm, CARD_THRESHOLD);
+  const initialV = longestRun(rowSm, CARD_THRESHOLD);
   const initialH = longestRun(colSm, CARD_THRESHOLD);
-  let top = initial[0], bottom = initial[1];
+  let top = initialV[0], bottom = initialV[1];
   let left = initialH[0], right = initialH[1];
 
-  // Validation: must be reasonably large
   if (top < 0 || left < 0 ||
       right - left < aw * 0.2 || bottom - top < ah * 0.2) {
     return { detected: false, almostFull: false, x: 0, y: 0, w, h, ratio: 1 };
   }
 
-  // === Stage 2: loose expansion (capture glow / halo around card) ===
-  // Use a much lower color threshold to detect the faded outer edges
-  // of the glow. Restrict the scan range to avoid being pulled into
-  // adjacent UI / faded sibling cards.
-  const LOOSE_THRESH = 18;
-  const loose2 = LOOSE_THRESH * LOOSE_THRESH;
-  const LOOSE_MIN = 0.08;
-  function looseRowRatio(y, x0, x1) {
-    let c = 0;
-    for (let x = x0; x <= x1; x++) {
-      const i = (y * aw + x) * 4;
-      const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
-      if (dr * dr + dg * dg + db * db > loose2) c++;
-    }
-    return c / (x1 - x0 + 1);
-  }
-  function looseColRatio(x, y0, y1) {
-    let c = 0;
-    for (let y = y0; y <= y1; y++) {
-      const i = (y * aw + x) * 4;
-      const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
-      if (dr * dr + dg * dg + db * db > loose2) c++;
-    }
-    return c / (y1 - y0 + 1);
-  }
-
-  const origTop = top, origBottom = bottom;
-  const MAX_EXP_V = Math.max(4, Math.floor((bottom - top + 1) * 0.18));
-  for (let i = 0; i < MAX_EXP_V && top > 0; i++) {
-    if (looseRowRatio(top - 1, left, right) > LOOSE_MIN) top--; else break;
-  }
-  for (let i = 0; i < MAX_EXP_V && bottom < ah - 1; i++) {
-    if (looseRowRatio(bottom + 1, left, right) > LOOSE_MIN) bottom++; else break;
-  }
-  const MAX_EXP_H = Math.max(4, Math.floor((right - left + 1) * 0.08));
-  for (let i = 0; i < MAX_EXP_H && left > 0; i++) {
-    if (looseColRatio(left - 1, origTop, origBottom) > LOOSE_MIN) left--; else break;
-  }
-  for (let i = 0; i < MAX_EXP_H && right < aw - 1; i++) {
-    if (looseColRatio(right + 1, origTop, origBottom) > LOOSE_MIN) right++; else break;
-  }
+  // === Walk outward to the OUTERMOST frame edge ===
+  // From the card body, step out one line at a time while the adjacent
+  // row/col is still clearly card content (the frame border line). Uses
+  // the SAME tight color threshold (not a loose glow threshold) so it
+  // stops at the true frame edge and is not pulled into faded siblings
+  // or the surrounding glow. A safety cap bounds how far it can travel.
+  const EDGE_MIN = 0.30;
+  const CAP_V = Math.max(2, Math.floor((bottom - top + 1) * 0.10));
+  const CAP_H = Math.max(2, Math.floor((right - left + 1) * 0.10));
+  for (let i = 0; i < CAP_V && top > 0 && rowRatios[top - 1] >= EDGE_MIN; i++) top--;
+  for (let i = 0; i < CAP_V && bottom < ah - 1 && rowRatios[bottom + 1] >= EDGE_MIN; i++) bottom++;
+  for (let i = 0; i < CAP_H && left > 0 && colRatios[left - 1] >= EDGE_MIN; i++) left--;
+  for (let i = 0; i < CAP_H && right < aw - 1 && colRatios[right + 1] >= EDGE_MIN; i++) right++;
 
   const sx = Math.max(0, Math.round(left / scale));
   const sy = Math.max(0, Math.round(top / scale));
@@ -1103,11 +1119,16 @@ async function detectCardBounds(originalDataUrl) {
     x: sx, y: sy, w: sw, h: sh,
     ratio: areaRatio,
     bgR: bgR, bgG: bgG, bgB: bgB,
+    whitenedDataUrl: white.dataUrl,
   };
 }
 
 async function cropAndResize(originalDataUrl, bounds, useOriginal, maxSide = 1200) {
-  const img = await loadImage(originalDataUrl);
+  // Source = the already background-whitened full image (produced in
+  // detectCardBounds step 0). Falls back to the original if unavailable
+  // (e.g. detection failed / useOriginal). White-bg-first → then crop.
+  const srcUrl = (bounds && bounds.whitenedDataUrl) ? bounds.whitenedDataUrl : originalDataUrl;
+  const img = await loadImage(srcUrl);
   const W = img.naturalWidth, H = img.naturalHeight;
   let sx = 0, sy = 0, sw = W, sh = H;
   if (!useOriginal && bounds && bounds.detected) {
@@ -1123,9 +1144,37 @@ async function cropAndResize(originalDataUrl, bounds, useOriginal, maxSide = 120
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
 
-  // Replace background with white using detected bg color (flood-fill).
+  // Background is already white (whitened before cropping). A light
+  // second pass cleans up any residual bg color along the new crop
+  // edges; it is a no-op on already-white pixels.
   if (bounds && typeof bounds.bgR === 'number') {
     whitenBackground(ctx, dw, dh, bounds.bgR, bounds.bgG, bounds.bgB);
+  }
+
+  // Equal-margin framing: place the cropped card centered on a white
+  // canvas so the padding is identical on all four sides. The margin is
+  // a fixed fraction of the card's longer side, so every card ends up
+  // with a visually consistent, balanced border regardless of its own
+  // aspect ratio.
+  if (!useOriginal && bounds && bounds.detected) {
+    const MARGIN_FRAC = 0.06; // 6% of the longer side, applied uniformly
+    const pad = Math.round(Math.max(dw, dh) * MARGIN_FRAC);
+    const fw = dw + pad * 2;
+    const fh = dh + pad * 2;
+    const framed = document.createElement('canvas');
+    framed.width = fw; framed.height = fh;
+    const fctx = framed.getContext('2d');
+    fctx.fillStyle = '#ffffff';
+    fctx.fillRect(0, 0, fw, fh);
+    fctx.imageSmoothingEnabled = true;
+    fctx.imageSmoothingQuality = 'high';
+    // Centered → equal left/right and top/bottom margins by construction.
+    fctx.drawImage(canvas, pad, pad);
+    return {
+      dataUrl: framed.toDataURL('image/jpeg', 0.9),
+      origDims: { w: W, h: H },
+      outDims: { w: fw, h: fh },
+    };
   }
 
   return {
@@ -1984,7 +2033,7 @@ async function rotateImage90CW() {
     const bounds = await detectCardBounds(state.pendingOrigImage);
     state.pendingDetectedBounds = bounds;
     if (bounds.detected) {
-      setCropStatus(bounds.fixed ? 'カード枠に合わせてトリミング' : ('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング'), 'success');
+      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
     } else if (bounds.almostFull) {
       setCropStatus('画像は既にトリミング済みです', 'original');
     } else {
@@ -2012,7 +2061,7 @@ async function handleImageFile(file) {
     const bounds = await detectCardBounds(dataUrl);
     state.pendingDetectedBounds = bounds;
     if (bounds.detected) {
-      setCropStatus(bounds.fixed ? 'カード枠に合わせてトリミング' : ('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング'), 'success');
+      setCropStatus('枠を検出 — ' + Math.round((1 - bounds.ratio) * 100) + '% トリミング', 'success');
     } else if (bounds.almostFull) {
       setCropStatus('画像は既にトリミング済みです', 'original');
     } else {
