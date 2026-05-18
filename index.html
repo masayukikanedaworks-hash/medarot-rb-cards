@@ -318,8 +318,9 @@ button{font-family:inherit}
 .deck-head .modal-close{width:26px;height:26px;font-size:12px;flex-shrink:0}
 .deck-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .deck-fixed{flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--border-1)}
-.deck-pool-search{width:calc(100% - 20px);margin:8px 10px;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:8px 11px;font-family:var(--f-mono);font-size:12px;outline:none}
+.deck-pool-search{width:100%;background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:8px 11px;font-family:var(--f-mono);font-size:12px;outline:none}
 .deck-pool-search:focus{border-color:var(--cyan)}
+.deck-menu-search{flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--border-1);background:var(--bg-2)}
 /* ---- left slide-in menu panel ---- */
 .deck-menu-overlay{position:fixed;inset:0;background:rgba(2,4,8,.6);backdrop-filter:blur(2px);z-index:210;display:none}
 .deck-menu-overlay.open{display:block}
@@ -526,7 +527,6 @@ button{font-family:inherit}
   <div class="deck-body">
     <div class="deck-fixed">
       <div class="deck-subtabs" id="deckSubtabs" style="display:none;"></div>
-      <input class="deck-pool-search" id="deckPoolSearch" type="text" placeholder="名前 / 効果で絞り込み" autocomplete="off">
     </div>
     <div class="deck-split">
       <div class="deck-pane-label">カードリスト — タップで追加 <span id="deckPoolHint"></span></div>
@@ -546,6 +546,9 @@ button{font-family:inherit}
   <div class="deck-menu-head">
     <div class="deck-menu-head-title">デッキ構築</div>
     <button class="modal-close" id="deckMenuClose" aria-label="閉じる">✕</button>
+  </div>
+  <div class="deck-menu-search">
+    <input class="deck-pool-search" id="deckPoolSearch" type="text" placeholder="名前 / 効果で絞り込み" autocomplete="off">
   </div>
   <div class="deck-menu-list" id="deckMenuList"></div>
   <div class="deck-menu-name" id="deckMenuNameWrap" style="display:none;">
@@ -1414,6 +1417,14 @@ function deckActiveMainSub() {
 }
 function deckCatMeta() {
   const d = deckState.draft;
+  if (!d) {
+    return {
+      leader: { cur: 0, max: 1 }, parts: { cur: 0, max: 6 },
+      support: { cur: 0, max: 35 }, tactical: { cur: 0, max: 35 },
+      medarotter: { cur: 0, max: 35 }, medal: { cur: 0, max: 1 },
+      medaforce: { cur: 0, max: 2 }, __main: { cur: 0, max: 35 },
+    };
+  }
   const mainTotal = d.mainDeck.reduce((s, e) => s + (e.qty || 0), 0);
   const subCount = (t) => d.mainDeck.filter(e => {
     const c = cardById(e.cardId); return c && c.cardType === t;
