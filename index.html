@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 05:00 JST | LAYOUT=fit-1screen-shrink+leader-keep | cache=vercel.json+meta | rev=p -->
+<!-- BUILD 2026-05-20 05:45 JST | LAYOUT=fit-1screen+leader-in-loop+header-small | cache=vercel.json+meta | rev=q -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -464,8 +464,8 @@ button{font-family:inherit}
 .deck-summary-scroll{flex:1 1 auto;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px;display:block}
 .deck-summary-sheet{width:100%;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:8px;clip-path:var(--clip-lg)}
 .ds-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap;width:100%}
-.ds-head-name{font-family:var(--f-display);font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-align:left}
-.ds-head-code{font-family:var(--f-mono);font-size:11px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap;flex:0 0 auto;text-align:right;margin-left:auto;opacity:.85}
+.ds-head-name{font-family:var(--f-display);font-size:16px;font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-align:left}
+.ds-head-code{font-family:var(--f-mono);font-size:9px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap;flex:0 0 auto;text-align:right;margin-left:auto;opacity:.85}
 /* 左腕の下: メダル・メダフォースを腕パーツと同一の3列グリッド・同サイズ(90%=10%縮小) */
 .ds-mm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:var(--ds-np-w,90%);min-width:0;
   margin-top:7px;padding-top:7px;border-top:1px solid var(--border-1)}
@@ -480,7 +480,7 @@ button{font-family:inherit}
 .ds-block.is-cyan .ds-block-title::before{background:var(--cyan)}
 .ds-leader-parts{display:flex;gap:10px;align-items:flex-start;width:100%;min-width:0}
 /* リーダーは倍率そのまま維持（縮小しない） */
-.ds-leader{flex:0 0 28%;max-width:200px;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:8px}
+.ds-leader{flex:0 0 var(--ds-leader-w,28%);max-width:var(--ds-leader-max,200px);min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:8px}
 .ds-leader>.ds-card,.ds-leader>.ds-mc-card{width:100%;max-width:none}
 .ds-mc-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
@@ -1176,7 +1176,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 05:00 JST';
+const BUILD_ID = '2026-05-20 05:45 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2105,13 +2105,11 @@ function openDeckSummary(d) {
 function fitDeckHeadName() {
   const nameEl = document.getElementById('deckSummaryName');
   if (!nameEl) return;
-  // CODE/コピーは固定幅でフル表示。残り幅にデッキ名が1行で収まるよう
-  // フォントを上限20pxから下限11pxまで段階的に縮小する。
-  let fs = 20;
+  // デッキ名は小さめ: 上限16px→下限10pxで1行に収める
+  let fs = 16;
   nameEl.style.fontSize = fs + 'px';
-  // scrollWidth(必要幅) が clientWidth(表示幅) を超える間だけ縮める
   let guard = 0;
-  while (nameEl.scrollWidth > nameEl.clientWidth && fs > 11 && guard < 40) {
+  while (nameEl.scrollWidth > nameEl.clientWidth && fs > 10 && guard < 40) {
     fs -= 1;
     nameEl.style.fontSize = fs + 'px';
     guard++;
@@ -2127,25 +2125,35 @@ function fitDeckSummary() {
   sheet.style.maxWidth = 'none';
   sheet.style.marginLeft = '0';
   scroll.style.overflowX = 'hidden';
-  // [1画面フィット] スクショ1枚にメダロッターまで収めるため、リーダー以外を
-  // 段階縮小（デッキ列数↑＋パーツ/メダル幅↓）して縦スクロールを無くす。
-  // リーダー・配置・構成・文字サイズは不変。
+  // [1画面フィット] スクショ1枚にメダロッターまで収めるため段階縮小して
+  // 縦スクロールを無くす。配置・構図・デザインは不変。
+  // 縮小順: (1)デッキ列数↑ (2)パーツ/メダル幅↓ (3)リーダー幅↓(他より常に大)
   let cols = 6;        // デッキ列数（増やすほどカードが小さく＝縦が短い）
-  let npw = 90;        // 右腕/左腕/メダル/メダフォース の幅%（縮めるほど小さい）
+  let npw = 90;        // 右腕/左腕/メダル/メダフォース の幅%
+  let lw = 28;         // リーダー幅%（最後に縮小・最小20%で他カードより大を維持）
+  let lmax = 200;      // リーダー最大px
   sheet.style.setProperty('--ds-deck-cols', cols);
   sheet.style.setProperty('--ds-np-w', npw + '%');
+  sheet.style.setProperty('--ds-leader-w', lw + '%');
+  sheet.style.setProperty('--ds-leader-max', lmax + 'px');
   scroll.style.overflowY = 'hidden';
   const avail = () => scroll.clientHeight;
   const over = () => sheet.scrollHeight > avail() + 1;
-  // 最大26回で必ず停止（cols 6→14, npw 90→50 の範囲で段階調整）
+  // 最大40回で必ず停止
   let guard = 0;
-  while (over() && guard < 26) {
+  while (over() && guard < 40) {
     if (cols < 14) {
       cols += 1;
       sheet.style.setProperty('--ds-deck-cols', cols);
     } else if (npw > 50) {
       npw -= 5;
       sheet.style.setProperty('--ds-np-w', npw + '%');
+    } else if (lw > 20) {
+      // リーダーも縮小（最小20%・他カードより常に大きい比率を維持）
+      lw -= 1;
+      lmax -= 8;
+      sheet.style.setProperty('--ds-leader-w', lw + '%');
+      sheet.style.setProperty('--ds-leader-max', lmax + 'px');
     } else {
       break; // 限界まで縮めても収まらない場合はスクロール許容
     }
