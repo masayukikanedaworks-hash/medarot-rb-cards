@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 04:15 JST | LAYOUT=mm-below-Larm+uniform90+name-2line | cache=vercel.json+meta | rev=o -->
+<!-- BUILD 2026-05-20 05:00 JST | LAYOUT=fit-1screen-shrink+leader-keep | cache=vercel.json+meta | rev=p -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -467,7 +467,7 @@ button{font-family:inherit}
 .ds-head-name{font-family:var(--f-display);font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-align:left}
 .ds-head-code{font-family:var(--f-mono);font-size:11px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap;flex:0 0 auto;text-align:right;margin-left:auto;opacity:.85}
 /* 左腕の下: メダル・メダフォースを腕パーツと同一の3列グリッド・同サイズ(90%=10%縮小) */
-.ds-mm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:90%;min-width:0;
+.ds-mm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:var(--ds-np-w,90%);min-width:0;
   margin-top:7px;padding-top:7px;border-top:1px solid var(--border-1)}
 .ds-mm-slot{min-width:0;display:flex;flex-direction:column;gap:2px}
 .ds-mm-slot>.ds-card,.ds-mm-slot>.ds-card-empty{width:100%;min-width:0}
@@ -486,16 +486,14 @@ button{font-family:inherit}
 .ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
 /* リーダー以外のパーツ列: 現比率維持で 10% 縮小（max-width 90%） */
 .ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;min-width:0;justify-content:flex-start}
-.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:90%;min-width:0}
+.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:var(--ds-np-w,90%);min-width:0}
 .ds-band{width:100%;margin-bottom:10px}
 .ds-mm-lbl{font-family:var(--f-display);font-size:9px;font-weight:700;color:var(--cyan);
   letter-spacing:.04em;line-height:1.2;min-height:11px}
 /* デッキ: サポート → 戦術 → メダロッター を縦に配置（リーダー以外=10%縮小） */
 .ds-deck-full{margin-bottom:0}
 .ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
-.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}
-@media(min-width:560px){.ds-grid.cols5{grid-template-columns:repeat(7,1fr)}}
-@media(min-width:820px){.ds-grid.cols5{grid-template-columns:repeat(8,1fr)}}
+.ds-grid.cols5{grid-template-columns:repeat(var(--ds-deck-cols,6),1fr)}
 .ds-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
@@ -1178,7 +1176,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 04:15 JST';
+const BUILD_ID = '2026-05-20 05:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2123,14 +2121,38 @@ function fitDeckSummary() {
   const scroll = document.getElementById('deckSummaryScroll');
   const sheet = document.getElementById('deckSummarySheet');
   if (!scroll || !sheet) return;
-  // 横幅優先方針: scale縮小は廃止。シートは常にコンテナ幅100%、
-  // 縦に長い場合は縦スクロールで対応（横の余白を完全に解消）。
+  // 横幅優先: scale縮小は使わない。シートは常にコンテナ幅100%。
   sheet.style.transform = 'none';
   sheet.style.width = '100%';
   sheet.style.maxWidth = 'none';
   sheet.style.marginLeft = '0';
   scroll.style.overflowX = 'hidden';
-  scroll.style.overflowY = 'auto';
+  // [1画面フィット] スクショ1枚にメダロッターまで収めるため、リーダー以外を
+  // 段階縮小（デッキ列数↑＋パーツ/メダル幅↓）して縦スクロールを無くす。
+  // リーダー・配置・構成・文字サイズは不変。
+  let cols = 6;        // デッキ列数（増やすほどカードが小さく＝縦が短い）
+  let npw = 90;        // 右腕/左腕/メダル/メダフォース の幅%（縮めるほど小さい）
+  sheet.style.setProperty('--ds-deck-cols', cols);
+  sheet.style.setProperty('--ds-np-w', npw + '%');
+  scroll.style.overflowY = 'hidden';
+  const avail = () => scroll.clientHeight;
+  const over = () => sheet.scrollHeight > avail() + 1;
+  // 最大26回で必ず停止（cols 6→14, npw 90→50 の範囲で段階調整）
+  let guard = 0;
+  while (over() && guard < 26) {
+    if (cols < 14) {
+      cols += 1;
+      sheet.style.setProperty('--ds-deck-cols', cols);
+    } else if (npw > 50) {
+      npw -= 5;
+      sheet.style.setProperty('--ds-np-w', npw + '%');
+    } else {
+      break; // 限界まで縮めても収まらない場合はスクロール許容
+    }
+    guard += 1;
+  }
+  // 収まったらスクロール不要、収まらなければ縦スクロールを許可（保険）
+  scroll.style.overflowY = over() ? 'auto' : 'hidden';
 }
 function closeDeckSummary() {
   document.getElementById('deckSummaryOverlay').classList.remove('open');
