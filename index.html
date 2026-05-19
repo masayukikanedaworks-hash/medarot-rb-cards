@@ -456,12 +456,12 @@ button{font-family:inherit}
 .deck-summary-overlay{position:fixed;inset:0;z-index:330;background:var(--bg-0);display:none;flex-direction:column}
 .deck-summary-overlay.open{display:flex}
 .deck-summary-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-1);background:rgba(7,10,16,.92);backdrop-filter:blur(10px)}
-.deck-summary-scroll{flex:1 1 auto;overflow:hidden;padding:6px;display:block}
-.deck-summary-sheet{width:100%;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:10px;clip-path:var(--clip-lg);transform-origin:top center}
-.ds-head{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap}
-.ds-head-name{font-family:var(--f-display);font-size:clamp(14px,4vw,20px);font-weight:700;color:var(--text-1);letter-spacing:.04em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto}
-.ds-head-code{font-family:var(--f-mono);font-size:clamp(10px,2.6vw,13px);color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;letter-spacing:.08em;white-space:nowrap}
+.deck-summary-scroll{flex:1 1 auto;overflow:hidden;padding:4px;display:block}
+.deck-summary-sheet{width:100%;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:8px;clip-path:var(--clip-lg);transform-origin:top center}
+.ds-head{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap;width:100%}
+.ds-head-name{font-family:var(--f-display);font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden}
+.ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.ds-head-code{font-family:var(--f-mono);font-size:13px;color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;letter-spacing:.06em;white-space:nowrap;flex:0 0 auto}
 .ds-copy-btn{display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--cyan);background:transparent;border:1px solid var(--cyan);width:32px;height:32px;padding:0;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);flex:0 0 auto}
 .ds-copy-btn:hover{background:var(--cyan-soft);box-shadow:0 0 12px var(--cyan-glow)}
 .ds-copy-btn:active{transform:scale(.92)}
@@ -2050,7 +2050,7 @@ function openDeckSummary(d) {
       : '<div class="ds-empty-note">なし</div>') + '</div>';
   sheet.innerHTML =
     '<div class="ds-head">' +
-      '<div class="ds-head-name">' + escapeHtml(d.name || '無題') + '</div>' +
+      '<div class="ds-head-name" id="deckSummaryName">' + escapeHtml(d.name || '無題') + '</div>' +
       '<div class="ds-head-code-wrap">' +
         '<div class="ds-head-code">CODE: ' + escapeHtml(d.deckCode || '----') + '</div>' +
         '<button class="ds-copy-btn" id="deckCodeCopy" title="コードをコピー" aria-label="コードをコピー" data-code="' +
@@ -2088,6 +2088,8 @@ function openDeckSummary(d) {
       subHtml('メダロッター', mdr) +
     '</div>';
   document.getElementById('deckSummaryOverlay').classList.add('open');
+  // ヘッダー: デッキ名を1行に収まるよう適応縮小（CODE/コピーは常にフル）
+  requestAnimationFrame(fitDeckHeadName);
   // [6] 画面幅・高さに自動フィット（カード数に応じ自動縮小・スクロール無し）
   fitDeckSummary();
   const copyBtn = document.getElementById('deckCodeCopy');
@@ -2109,6 +2111,21 @@ function openDeckSummary(d) {
   });
 }
 // シート全体を表示領域に収めるよう transform: scale を計算して適用
+function fitDeckHeadName() {
+  const nameEl = document.getElementById('deckSummaryName');
+  if (!nameEl) return;
+  // CODE/コピーは固定幅でフル表示。残り幅にデッキ名が1行で収まるよう
+  // フォントを上限20pxから下限11pxまで段階的に縮小する。
+  let fs = 20;
+  nameEl.style.fontSize = fs + 'px';
+  // scrollWidth(必要幅) が clientWidth(表示幅) を超える間だけ縮める
+  let guard = 0;
+  while (nameEl.scrollWidth > nameEl.clientWidth && fs > 11 && guard < 40) {
+    fs -= 1;
+    nameEl.style.fontSize = fs + 'px';
+    guard++;
+  }
+}
 function fitDeckSummary() {
   const scroll = document.getElementById('deckSummaryScroll');
   const sheet = document.getElementById('deckSummarySheet');
@@ -2162,11 +2179,11 @@ function wireDeckBuilder() {
   document.getElementById('deckSummaryImg').addEventListener('click', showScreenshotGuide);
   window.addEventListener('resize', () => {
     const ov = document.getElementById('deckSummaryOverlay');
-    if (ov && ov.classList.contains('open')) fitDeckSummary();
+    if (ov && ov.classList.contains('open')) { fitDeckHeadName(); fitDeckSummary(); }
   });
   window.addEventListener('orientationchange', () => {
     const ov = document.getElementById('deckSummaryOverlay');
-    if (ov && ov.classList.contains('open')) setTimeout(fitDeckSummary, 150);
+    if (ov && ov.classList.contains('open')) setTimeout(() => { fitDeckHeadName(); fitDeckSummary(); }, 150);
   });
 }
 // ===== APP SHELL: opening screen, header menu, home, deck filter =====
