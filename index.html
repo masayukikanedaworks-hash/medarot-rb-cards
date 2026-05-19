@@ -456,27 +456,29 @@ button{font-family:inherit}
 .deck-summary-overlay{position:fixed;inset:0;z-index:330;background:var(--bg-0);display:none;flex-direction:column}
 .deck-summary-overlay.open{display:flex}
 .deck-summary-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-1);background:rgba(7,10,16,.92);backdrop-filter:blur(10px)}
-.deck-summary-scroll{flex:1 1 auto;overflow:auto;padding:10px;display:flex;justify-content:center}
-.deck-summary-sheet{width:100%;max-width:1100px;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:12px;clip-path:var(--clip-lg)}
-.ds-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:wrap}
-.ds-head-name{font-family:var(--f-display);font-size:clamp(14px,4vw,20px);font-weight:700;color:var(--text-1);letter-spacing:.04em}
-.ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.ds-head-code{font-family:var(--f-mono);font-size:clamp(10px,2.6vw,13px);color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;letter-spacing:.08em}
-.ds-copy-btn{font-family:var(--f-display);font-size:clamp(10px,2.4vw,12px);font-weight:700;color:var(--cyan);background:transparent;border:1px solid var(--cyan);padding:5px 10px;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);white-space:nowrap}
+.deck-summary-scroll{flex:1 1 auto;overflow:hidden;padding:8px;display:flex;justify-content:center;align-items:flex-start}
+.deck-summary-sheet{width:100%;max-width:1100px;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:12px;clip-path:var(--clip-lg);transform-origin:top center}
+.ds-head{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap}
+.ds-head-name{font-family:var(--f-display);font-size:clamp(14px,4vw,20px);font-weight:700;color:var(--text-1);letter-spacing:.04em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto}
+.ds-head-code{font-family:var(--f-mono);font-size:clamp(10px,2.6vw,13px);color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;letter-spacing:.08em;white-space:nowrap}
+.ds-copy-btn{display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--cyan);background:transparent;border:1px solid var(--cyan);width:32px;height:32px;padding:0;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);flex:0 0 auto}
 .ds-copy-btn:hover{background:var(--cyan-soft);box-shadow:0 0 12px var(--cyan-glow)}
-.ds-copy-btn:active{transform:scale(.96)}
+.ds-copy-btn:active{transform:scale(.92)}
 .ds-block{border:1px solid var(--border-2);background:rgba(0,0,0,.25);padding:7px;margin-bottom:8px}
-.ds-block-title{font-family:var(--f-display);font-size:clamp(9px,2.4vw,11px);font-weight:700;letter-spacing:.12em;color:var(--orange);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ds-block-title{font-family:var(--f-display);font-size:clamp(9px,2.4vw,11px);font-weight:700;letter-spacing:.1em;color:var(--orange);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
 .ds-block-title::before{content:"";width:12px;height:2px;background:var(--orange)}
 .ds-block.is-cyan .ds-block-title{color:var(--cyan)}
 .ds-block.is-cyan .ds-block-title::before{background:var(--cyan)}
-.ds-leader-parts{display:flex;gap:10px;align-items:flex-start}
-.ds-leader{flex:0 0 30%;max-width:200px;min-width:0}
-.ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:4px;min-width:0}
-.ds-parts-grouplabel{font-family:var(--f-display);font-size:clamp(9px,2.2vw,11px);font-weight:700;color:var(--text-2);letter-spacing:.1em;margin-top:2px}
+.ds-leader-parts{display:flex;gap:10px;align-items:stretch}
+.ds-leader{flex:0 0 26%;max-width:180px;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px}
+.ds-leader>.ds-card,.ds-leader>.ds-mc-card{width:100%}
+.ds-mc-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
+.ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
+.ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:5px;min-width:0;justify-content:flex-start}
 .ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start}
-.ds-mm .ds-card,.ds-mm .ds-grid{max-width:200px}
+.ds-mm .ds-card,.ds-mm .ds-grid{max-width:180px}
 .ds-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 .ds-grid.cols5{grid-template-columns:repeat(4,1fr)}
 @media(min-width:560px){.ds-grid{grid-template-columns:repeat(4,1fr)}.ds-grid.cols5{grid-template-columns:repeat(5,1fr)}}
@@ -711,7 +713,7 @@ button{font-family:inherit}
     <div class="spacer"></div>
     <button class="btn btn-cyan" id="deckSummaryImg">📷 スクショで保存</button>
   </div>
-  <div class="deck-summary-scroll">
+  <div class="deck-summary-scroll" id="deckSummaryScroll">
     <div class="deck-summary-sheet" id="deckSummarySheet"></div>
   </div>
 </div>
@@ -2004,12 +2006,28 @@ function dsSortedCards(entries) {
 }
 function openDeckSummary(d) {
   const sheet = document.getElementById('deckSummarySheet');
-  // パーツ: 右腕①②③ を横並び1行 / その下に 左腕①②③ を横並び1行
+  // パーツ: 右腕①②③ を横並び1行 / その下に 左腕①②③ を横並び1行（個別ラベルなし）
   const partsRow = (arr, kind) => {
     let cells = arr.map(id => dsCardHtml(id, 1)).join('');
     if (!arr.length) cells = '<div class="ds-empty-note">' + kind + 'なし</div>';
     return '<div class="ds-parts-row">' + cells + '</div>';
   };
+  // リーダー本体 + メダチェンジ後画像(あれば下に縦並び・枠内センター)
+  const leaderHtml = (function() {
+    if (!d.leaderId) return '<div class="ds-card-empty">リーダー未選択</div>';
+    const lc = cardById(d.leaderId);
+    let html = dsCardHtml(d.leaderId, 1);
+    if (lc && Array.isArray(lc.variants)) {
+      const dv = lc.variants.find(v => v && (v.tier === 'drive_a' || v.tier === 'drive_b') &&
+        v.image && String(v.image).trim() !== '');
+      if (dv) {
+        html += '<div class="ds-mc-card"><img src="' + dv.image +
+          '" crossorigin="anonymous" alt="メダチェンジ後">' +
+          '<div class="ds-card-nm">メダチェンジ後</div></div>';
+      }
+    }
+    return html;
+  })();
   const mainBy = (t) => dsSortedCards(
     d.mainDeck.filter(e => { const c = cardById(e.cardId); return c && c.cardType === t; }));
   const sup = mainBy('support_medarot'), tac = mainBy('tactical_card'), mdr = mainBy('medarotter');
@@ -2025,24 +2043,22 @@ function openDeckSummary(d) {
       '<div class="ds-head-name">' + escapeHtml(d.name || '無題') + '</div>' +
       '<div class="ds-head-code-wrap">' +
         '<div class="ds-head-code">CODE: ' + escapeHtml(d.deckCode || '----') + '</div>' +
-        '<button class="ds-copy-btn" id="deckCodeCopy" title="コードをコピー" data-code="' +
-          escapeAttr(d.deckCode || '') + '">⧉ コピー</button>' +
+        '<button class="ds-copy-btn" id="deckCodeCopy" title="コードをコピー" aria-label="コードをコピー" data-code="' +
+          escapeAttr(d.deckCode || '') + '">⧉</button>' +
       '</div>' +
     '</div>' +
-    // [1] 上部: リーダー / パーツ[右腕 / 左腕]
+    // [1] 上部: リーダー / パーツ（右腕 / 左腕）
     '<div class="ds-block">' +
-      '<div class="ds-block-title">リーダー / パーツ</div>' +
+      '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
       '<div class="ds-leader-parts">' +
-        '<div class="ds-leader">' +
-          (d.leaderId ? dsCardHtml(d.leaderId, 1)
-            : '<div class="ds-card-empty">リーダー未選択</div>') + '</div>' +
+        '<div class="ds-leader">' + leaderHtml + '</div>' +
         '<div class="ds-parts-col">' +
-          '<div class="ds-parts-grouplabel">右腕</div>' + partsRow(d.partsR, 'R腕') +
-          '<div class="ds-parts-grouplabel">左腕</div>' + partsRow(d.partsL, 'L腕') +
+          partsRow(d.partsR, 'R腕') +
+          partsRow(d.partsL, 'L腕') +
         '</div>' +
       '</div>' +
     '</div>' +
-    // [2] 中段: デッキ[現状の表示方法]
+    // [2] 中段: デッキ
     '<div class="ds-block is-cyan">' +
       '<div class="ds-block-title">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
       subHtml('サポートメダロット', sup) +
@@ -2060,13 +2076,14 @@ function openDeckSummary(d) {
           : '<div class="ds-card-empty">未選択</div>') + '</div>' +
     '</div>';
   document.getElementById('deckSummaryOverlay').classList.add('open');
+  // [6] 画面幅・高さに自動フィット（カード数に応じ自動縮小・スクロール無し）
+  fitDeckSummary();
   const copyBtn = document.getElementById('deckCodeCopy');
   if (copyBtn) copyBtn.addEventListener('click', () => {
     const code = copyBtn.getAttribute('data-code') || '';
     if (!code) { toast('コードがありません', 'error', 2000); return; }
     const done = () => toast('デッキコードをコピーしました', 'success', 2000);
     const fail = () => {
-      // フォールバック: 一時textareaで execCommand
       try {
         const ta = document.createElement('textarea');
         ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
@@ -2077,6 +2094,27 @@ function openDeckSummary(d) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(code).then(done).catch(fail);
     } else { fail(); }
+  });
+}
+// シート全体を表示領域に収めるよう transform: scale を計算して適用
+function fitDeckSummary() {
+  const scroll = document.getElementById('deckSummaryScroll');
+  const sheet = document.getElementById('deckSummarySheet');
+  if (!scroll || !sheet) return;
+  sheet.style.transform = 'none';
+  sheet.style.transformOrigin = 'top center';
+  // レイアウト確定後に実寸を測ってスケール係数を算出
+  requestAnimationFrame(() => {
+    const availW = scroll.clientWidth - 4;
+    const availH = scroll.clientHeight - 4;
+    const needW = sheet.scrollWidth;
+    const needH = sheet.scrollHeight;
+    if (needW <= 0 || needH <= 0) return;
+    let s = Math.min(availW / needW, availH / needH, 1);
+    if (!isFinite(s) || s <= 0) s = 1;
+    sheet.style.transform = 'scale(' + s + ')';
+    // scale後の余白でスクロールバーが出ないよう高さを調整
+    scroll.style.overflow = (s < 1) ? 'hidden' : 'auto';
   });
 }
 function closeDeckSummary() {
@@ -2106,6 +2144,14 @@ function wireDeckBuilder() {
   });
   document.getElementById('deckSummaryClose').addEventListener('click', closeDeckSummary);
   document.getElementById('deckSummaryImg').addEventListener('click', showScreenshotGuide);
+  window.addEventListener('resize', () => {
+    const ov = document.getElementById('deckSummaryOverlay');
+    if (ov && ov.classList.contains('open')) fitDeckSummary();
+  });
+  window.addEventListener('orientationchange', () => {
+    const ov = document.getElementById('deckSummaryOverlay');
+    if (ov && ov.classList.contains('open')) setTimeout(fitDeckSummary, 150);
+  });
 }
 // ===== APP SHELL: opening screen, header menu, home, deck filter =====
 const OPENING_SEEN_KEY = 'medarot_rb_opening_seen_v1';
