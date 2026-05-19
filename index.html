@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 00:15 JST | LAYOUT=mm-fluid-nooverflow+leader-vcenter | cache=vercel.json+meta | rev=j -->
+<!-- BUILD 2026-05-20 01:05 JST | LAYOUT=uniform-3col-mm+fit-green | cache=vercel.json+meta | rev=k -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -482,21 +482,19 @@ button{font-family:inherit}
 .ds-mc-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
 .ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;min-width:0;justify-content:flex-start}
-.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;min-width:0}
+/* 腕パーツ・メダル・メダフォースを同一サイズに統一。3列・最大幅を抑え
+   3段(右腕/左腕/メダル・メダフォース)がリーダー2枚の高さ内に収まるようにする */
+.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;min-width:0;max-width:360px}
 /* 3バンド: 各ブロック横幅いっぱい・縦は均等な余白 */
 .ds-band{width:100%;margin-bottom:10px}
-/* 左腕の下にネストした メダル｜メダフォース 2分割（枠内に確実に収める） */
-.ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch;width:100%;min-width:0}
-.ds-mm-nested{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-1)}
-.ds-mm-cell{display:flex;flex-direction:column;min-width:0;overflow:hidden}
-.ds-mm-inner{flex:1 1 auto;display:flex;align-items:flex-start;justify-content:flex-start;flex-wrap:wrap;gap:6px;min-width:0}
-/* メダフォースは枠内中央寄せ・余白均等 */
-.ds-mf-center{align-items:center;justify-content:center}
-/* メダルカード: セル幅にフィット（固定min-widthを撤廃しはみ出し防止） */
-.ds-mm-inner>.ds-card,.ds-mm-inner>.ds-card-empty{width:60%;min-width:0;max-width:96px;flex:0 0 auto}
-.ds-mf-grid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;width:100%;min-width:0}
-/* メダフォースカード: 2枚並んでもセル内に収まる流動幅 */
-.ds-mf-grid>.ds-card{width:calc(50% - 3px);min-width:0;max-width:96px;flex:0 0 auto}
+/* 左腕の下: メダル・メダフォースを腕パーツと同一の3列グリッドで均等表示
+   （区切り線はグリッド幅＝カード表示幅まで。上下左右はみ出さない） */
+.ds-mm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;min-width:0;max-width:360px;
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--border-1)}
+.ds-mm-slot{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ds-mm-lbl{font-family:var(--f-display);font-size:9px;font-weight:700;color:var(--cyan);
+  letter-spacing:.04em;line-height:1.2;min-height:11px}
+.ds-mm-slot>.ds-card,.ds-mm-slot>.ds-card-empty{width:100%;min-width:0}
 /* デッキ: サポート → 戦術 → メダロッター を縦に配置 */
 .ds-deck-full{margin-bottom:0}
 .ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
@@ -1182,7 +1180,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 00:15 JST';
+const BUILD_ID = '2026-05-20 01:05 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2079,17 +2077,21 @@ function openDeckSummary(d) {
         '<div class="ds-parts-col">' +
           partsRow(d.partsR, 'R腕') +
           partsRow(d.partsL, 'L腕') +
-          // 左腕の下（＝メダチェンジ後カードの右隣）: メダル(左) ｜ メダフォース(右)
-          '<div class="ds-mm ds-mm-nested">' +
-            '<div class="ds-mm-cell"><div class="ds-sub-title">メダル</div>' +
-              '<div class="ds-mm-inner">' +
+          // 左腕の下: メダル・メダフォースを腕パーツと同じ3列グリッドで均等表示
+          '<div class="ds-mm-row ds-mm-nested">' +
+            '<div class="ds-mm-slot">' +
+              '<div class="ds-mm-lbl">メダル</div>' +
               (d.medalId ? dsCardHtml(d.medalId, 1)
-                : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
-            '<div class="ds-mm-cell"><div class="ds-sub-title">メダフォース</div>' +
-              '<div class="ds-mm-inner ds-mf-center">' +
-              (d.medaforce.length
-                ? '<div class="ds-grid ds-mf-grid">' + d.medaforce.map(id => dsCardHtml(id, 1)).join('') + '</div>'
-                : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
+                : '<div class="ds-card-empty">未選択</div>') +
+            '</div>' +
+            (d.medaforce.length
+              ? d.medaforce.map((id, ix) =>
+                  '<div class="ds-mm-slot">' +
+                    '<div class="ds-mm-lbl">' + (ix === 0 ? 'メダフォース' : '&nbsp;') + '</div>' +
+                    dsCardHtml(id, 1) +
+                  '</div>').join('')
+              : '<div class="ds-mm-slot"><div class="ds-mm-lbl">メダフォース</div>' +
+                '<div class="ds-card-empty">未選択</div></div>') +
           '</div>' +
         '</div>' +
       '</div>' +
