@@ -481,11 +481,12 @@ button{font-family:inherit}
 .ds-band{width:100%;margin-bottom:10px}
 .ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:stretch}
 .ds-mm>.ds-block{margin-bottom:0;display:flex;flex-direction:column}
-.ds-mm-inner{flex:1 1 auto;display:flex;align-items:center;justify-content:center}
-.ds-mm-inner>.ds-card{width:34%;min-width:90px;max-width:150px}
-.ds-mm-inner>.ds-card-empty{width:34%;min-width:90px;max-width:150px}
-.ds-mf-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:60%;max-width:320px;margin:0 auto}
-.ds-mf-grid>.ds-card{width:100%}
+.ds-mm-inner{flex:1 1 auto;display:flex;align-items:flex-start;justify-content:flex-start;flex-wrap:wrap;gap:6px}
+/* メダル1枚 / メダフォース1〜2枚 を他カードと同程度の実寸で表示
+   （デッキ枠の1カラム幅 ≒ コンテナ/5 相当を基準に固定） */
+.ds-mm-inner>.ds-card,.ds-mm-inner>.ds-card-empty{width:calc(20% - 5px);min-width:84px;max-width:120px;flex:0 0 auto}
+.ds-mf-grid{display:flex;flex-wrap:wrap;gap:6px}
+.ds-mf-grid>.ds-card{width:calc(20% - 5px);min-width:84px;max-width:120px;flex:0 0 auto}
 .ds-deck-full{margin-bottom:0}
 .ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .ds-grid.cols5{grid-template-columns:repeat(8,1fr)}
@@ -2112,28 +2113,23 @@ function fitDeckSummary() {
   const scroll = document.getElementById('deckSummaryScroll');
   const sheet = document.getElementById('deckSummarySheet');
   if (!scroll || !sheet) return;
-  // いったんリセットして「コンテナ横幅いっぱい」で自然な高さを測る
+  // リセット: コンテナ幅いっぱいで自然な高さを測る
   sheet.style.transform = 'none';
   sheet.style.transformOrigin = 'top center';
   sheet.style.width = '100%';
   sheet.style.maxWidth = 'none';
+  sheet.style.marginLeft = '0';
   requestAnimationFrame(() => {
     const availW = scroll.clientWidth;
     const availH = scroll.clientHeight;
     if (availW <= 0 || availH <= 0) return;
     const needH = sheet.scrollHeight;
     if (needH <= 0) return;
-    // 高さがはみ出す分だけ縮小。横幅は縮小後もコンテナ一杯になるよう
-    // sheet の実幅を 1/s 倍に広げてから scale(s) で戻す（=常に横いっぱい）。
+    // 高さがはみ出す分だけ全体を均等縮小（横もはみ出さず中央維持）。
+    // transform-origin:top center なので縮小後は左右対称の余白で中央寄せ。
     let s = Math.min(availH / needH, 1);
     if (!isFinite(s) || s <= 0) s = 1;
-    if (s < 1) {
-      sheet.style.width = (100 / s) + '%';
-      sheet.style.transform = 'scale(' + s + ')';
-    } else {
-      sheet.style.width = '100%';
-      sheet.style.transform = 'none';
-    }
+    sheet.style.transform = (s < 1) ? ('scale(' + s + ')') : 'none';
     scroll.style.overflow = 'hidden';
   });
 }
