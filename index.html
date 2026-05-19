@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 01:05 JST | LAYOUT=uniform-3col-mm+fit-green | cache=vercel.json+meta | rev=k -->
+<!-- BUILD 2026-05-20 02:00 JST | LAYOUT=2col-summary+header-rework | cache=vercel.json+meta | rev=l -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -463,11 +463,15 @@ button{font-family:inherit}
 .deck-summary-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-1);background:rgba(7,10,16,.92);backdrop-filter:blur(10px)}
 .deck-summary-scroll{flex:1 1 auto;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px;display:block}
 .deck-summary-sheet{width:100%;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:8px;clip-path:var(--clip-lg)}
-.ds-head{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap;width:100%}
-.ds-head-name{font-family:var(--f-display);font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden}
-.ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex:0 0 auto}
-.ds-head-code{font-family:var(--f-mono);font-size:13px;color:var(--cyan);background:var(--cyan-soft);border:1px solid var(--cyan);padding:4px 10px;letter-spacing:.06em;white-space:nowrap;flex:0 0 auto}
-.ds-copy-btn{display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--cyan);background:transparent;border:1px solid var(--cyan);width:32px;height:32px;padding:0;cursor:pointer;transition:all .15s;clip-path:var(--clip-sm);flex:0 0 auto}
+.ds-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap;width:100%}
+.ds-head-name{font-family:var(--f-display);font-weight:700;color:var(--text-1);letter-spacing:.02em;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-align:left}
+.ds-head-code{font-family:var(--f-mono);font-size:11px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap;flex:0 0 auto;text-align:right;margin-left:auto;opacity:.85}
+/* 添付画像どおりの横並び2カラム（左:リーダー/パーツ 右:デッキ） */
+.ds-2col{display:flex;gap:12px;align-items:flex-start;width:100%;min-width:0}
+.ds-col{min-width:0}
+.ds-col-left{flex:0 0 46%;max-width:46%}
+.ds-col-right{flex:1 1 auto;min-width:0}
+@media(max-width:520px){.ds-2col{flex-direction:column}.ds-col-left,.ds-col-right{flex:1 1 auto;max-width:none;width:100%}}
 .ds-copy-btn:hover{background:var(--cyan-soft);box-shadow:0 0 12px var(--cyan-glow)}
 .ds-copy-btn:active{transform:scale(.92)}
 .ds-block{border:1px solid var(--border-2);background:rgba(0,0,0,.25);padding:7px;margin-bottom:8px}
@@ -497,9 +501,10 @@ button{font-family:inherit}
 .ds-mm-slot>.ds-card,.ds-mm-slot>.ds-card-empty{width:100%;min-width:0}
 /* デッキ: サポート → 戦術 → メダロッター を縦に配置 */
 .ds-deck-full{margin-bottom:0}
-.ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
-.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}
-@media(min-width:560px){.ds-grid.cols5{grid-template-columns:repeat(8,1fr)}}
+.ds-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.ds-grid.cols5{grid-template-columns:repeat(5,1fr)}
+@media(min-width:560px){.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}}
+@media(min-width:820px){.ds-grid.cols5{grid-template-columns:repeat(7,1fr)}}
 .ds-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
@@ -1180,7 +1185,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 01:05 JST';
+const BUILD_ID = '2026-05-20 02:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2063,68 +2068,52 @@ function openDeckSummary(d) {
   sheet.innerHTML =
     '<div class="ds-head">' +
       '<div class="ds-head-name" id="deckSummaryName">' + escapeHtml(d.name || '無題') + '</div>' +
-      '<div class="ds-head-code-wrap">' +
-        '<div class="ds-head-code">CODE: ' + escapeHtml(d.deckCode || '----') + '</div>' +
-        '<button class="ds-copy-btn" id="deckCodeCopy" title="コードをコピー" aria-label="コードをコピー" data-code="' +
-          escapeAttr(d.deckCode || '') + '">⧉</button>' +
-      '</div>' +
+      '<div class="ds-head-code">CODE: ' + escapeHtml(d.deckCode || '----') + '</div>' +
     '</div>' +
-    // [帯1] リーダー / パーツ（左:リーダー＋メダチェンジ後 / 右:右腕・左腕・メダル｜メダフォース）
-    '<div class="ds-block ds-band">' +
-      '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
-      '<div class="ds-leader-parts">' +
-        '<div class="ds-leader">' + leaderHtml + '</div>' +
-        '<div class="ds-parts-col">' +
-          partsRow(d.partsR, 'R腕') +
-          partsRow(d.partsL, 'L腕') +
-          // 左腕の下: メダル・メダフォースを腕パーツと同じ3列グリッドで均等表示
-          '<div class="ds-mm-row ds-mm-nested">' +
-            '<div class="ds-mm-slot">' +
-              '<div class="ds-mm-lbl">メダル</div>' +
-              (d.medalId ? dsCardHtml(d.medalId, 1)
-                : '<div class="ds-card-empty">未選択</div>') +
+    '<div class="ds-2col">' +
+      // [左カラム] リーダー / パーツ（リーダー＋メダチェンジ / 右腕 / 左腕 / メダル・メダフォース）
+      '<div class="ds-col ds-col-left">' +
+        '<div class="ds-block ds-band">' +
+          '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
+          '<div class="ds-leader-parts">' +
+            '<div class="ds-leader">' + leaderHtml + '</div>' +
+            '<div class="ds-parts-col">' +
+              partsRow(d.partsR, 'R腕') +
+              partsRow(d.partsL, 'L腕') +
+              '<div class="ds-mm-row ds-mm-nested">' +
+                '<div class="ds-mm-slot">' +
+                  '<div class="ds-mm-lbl">メダル</div>' +
+                  (d.medalId ? dsCardHtml(d.medalId, 1)
+                    : '<div class="ds-card-empty">未選択</div>') +
+                '</div>' +
+                (d.medaforce.length
+                  ? d.medaforce.map((id, ix) =>
+                      '<div class="ds-mm-slot">' +
+                        '<div class="ds-mm-lbl">' + (ix === 0 ? 'メダフォース' : '&nbsp;') + '</div>' +
+                        dsCardHtml(id, 1) +
+                      '</div>').join('')
+                  : '<div class="ds-mm-slot"><div class="ds-mm-lbl">メダフォース</div>' +
+                    '<div class="ds-card-empty">未選択</div></div>') +
+              '</div>' +
             '</div>' +
-            (d.medaforce.length
-              ? d.medaforce.map((id, ix) =>
-                  '<div class="ds-mm-slot">' +
-                    '<div class="ds-mm-lbl">' + (ix === 0 ? 'メダフォース' : '&nbsp;') + '</div>' +
-                    dsCardHtml(id, 1) +
-                  '</div>').join('')
-              : '<div class="ds-mm-slot"><div class="ds-mm-lbl">メダフォース</div>' +
-                '<div class="ds-card-empty">未選択</div></div>') +
           '</div>' +
         '</div>' +
       '</div>' +
-    '</div>' +
-    // [帯2] デッキ: サポート → 戦術 → メダロッター を縦に配置
-    '<div class="ds-block is-cyan ds-band ds-deck-full">' +
-      '<div class="ds-block-title">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
-      subHtml('サポートメダロット', sup) +
-      subHtml('戦術', tac) +
-      subHtml('メダロッター', mdr) +
+      // [右カラム] デッキ: サポート → 戦術 → メダロッター を縦に配置
+      '<div class="ds-col ds-col-right">' +
+        '<div class="ds-block is-cyan ds-band ds-deck-full">' +
+          '<div class="ds-block-title">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
+          subHtml('サポートメダロット', sup) +
+          subHtml('戦術', tac) +
+          subHtml('メダロッター', mdr) +
+        '</div>' +
+      '</div>' +
     '</div>';
   document.getElementById('deckSummaryOverlay').classList.add('open');
-  // ヘッダー: デッキ名を1行に収まるよう適応縮小（CODE/コピーは常にフル）
+  // ヘッダー: デッキ名を1行に収まるよう適応縮小
   requestAnimationFrame(fitDeckHeadName);
-  // [6] 画面幅・高さに自動フィット（カード数に応じ自動縮小・スクロール無し）
+  // [6] 画面幅・高さに自動フィット
   fitDeckSummary();
-  const copyBtn = document.getElementById('deckCodeCopy');
-  if (copyBtn) copyBtn.addEventListener('click', () => {
-    const code = copyBtn.getAttribute('data-code') || '';
-    if (!code) { toast('コードがありません', 'error', 2000); return; }
-    const done = () => toast('デッキコードをコピーしました', 'success', 2000);
-    const fail = () => {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.focus(); ta.select();
-        document.execCommand('copy'); ta.remove(); done();
-      } catch (e) { toast('コピーに失敗しました: ' + code, 'info', 4000); }
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(code).then(done).catch(fail);
-    } else { fail(); }
-  });
 }
 // シート全体を表示領域に収めるよう transform: scale を計算して適用
 function fitDeckHeadName() {
