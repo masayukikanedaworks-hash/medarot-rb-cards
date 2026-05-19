@@ -480,24 +480,21 @@ button{font-family:inherit}
 .ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:480px}
 /* 3バンド: 各ブロック横幅いっぱい・縦は均等な余白 */
 .ds-band{width:100%;margin-bottom:10px}
-.ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:stretch}
-.ds-mm>.ds-block{margin-bottom:0;display:flex;flex-direction:column}
+/* 左腕の下にネストした メダル｜メダフォース 2分割 */
+.ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
+.ds-mm-nested{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-1)}
+.ds-mm-cell{display:flex;flex-direction:column;min-width:0}
 .ds-mm-inner{flex:1 1 auto;display:flex;align-items:flex-start;justify-content:flex-start;flex-wrap:wrap;gap:6px}
 /* メダフォースは枠内中央寄せ・余白均等 */
 .ds-mf-center{align-items:center;justify-content:center}
 .ds-mm-inner>.ds-card,.ds-mm-inner>.ds-card-empty{width:calc(20% - 5px);min-width:84px;max-width:120px;flex:0 0 auto}
 .ds-mf-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center}
 .ds-mf-grid>.ds-card{width:84px;min-width:84px;max-width:120px;flex:0 0 auto}
-/* デッキ: 左=サポート(複数行可・カード大きめ) / 右=戦術+メダロッター縦積み */
+/* デッキ: サポート → 戦術 → メダロッター を縦に配置 */
 .ds-deck-full{margin-bottom:0}
-.ds-deck-split{display:grid;grid-template-columns:62% 1fr;gap:10px;align-items:start}
-.ds-deck-left{min-width:0}
-.ds-deck-right{min-width:0;display:flex;flex-direction:column;gap:8px}
-.ds-deck-right .ds-sub{margin-bottom:0}
-.ds-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.ds-grid.cols5{grid-template-columns:repeat(5,1fr)}
-.ds-deck-right .ds-grid.cols5{grid-template-columns:repeat(3,1fr)}
-@media(min-width:560px){.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}.ds-deck-right .ds-grid.cols5{grid-template-columns:repeat(4,1fr)}}
+.ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}
+@media(min-width:560px){.ds-grid.cols5{grid-template-columns:repeat(8,1fr)}}
 .ds-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
@@ -2064,7 +2061,7 @@ function openDeckSummary(d) {
           escapeAttr(d.deckCode || '') + '">⧉</button>' +
       '</div>' +
     '</div>' +
-    // [帯1] リーダー / パーツ（横幅いっぱい）
+    // [帯1] リーダー / パーツ（リーダー＋メダチェンジ / 右腕 / 左腕 / メダル｜メダフォース）
     '<div class="ds-block ds-band">' +
       '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
       '<div class="ds-leader-parts">' +
@@ -2074,29 +2071,25 @@ function openDeckSummary(d) {
           partsRow(d.partsL, 'L腕') +
         '</div>' +
       '</div>' +
+      // 左腕の下: メダル(左) ｜ メダフォース(右)
+      '<div class="ds-mm ds-mm-nested">' +
+        '<div class="ds-mm-cell"><div class="ds-sub-title">メダル</div>' +
+          '<div class="ds-mm-inner">' +
+          (d.medalId ? dsCardHtml(d.medalId, 1)
+            : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
+        '<div class="ds-mm-cell"><div class="ds-sub-title">メダフォース</div>' +
+          '<div class="ds-mm-inner ds-mf-center">' +
+          (d.medaforce.length
+            ? '<div class="ds-grid ds-mf-grid">' + d.medaforce.map(id => dsCardHtml(id, 1)).join('') + '</div>'
+            : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
+      '</div>' +
     '</div>' +
-    // [帯2] メダル ｜ メダフォース（横並び2分割・横幅いっぱい）
-    '<div class="ds-mm">' +
-      '<div class="ds-block"><div class="ds-block-title">メダル</div>' +
-        '<div class="ds-mm-inner">' +
-        (d.medalId ? dsCardHtml(d.medalId, 1)
-          : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
-      '<div class="ds-block"><div class="ds-block-title">メダフォース</div>' +
-        '<div class="ds-mm-inner ds-mf-center">' +
-        (d.medaforce.length
-          ? '<div class="ds-grid ds-mf-grid">' + d.medaforce.map(id => dsCardHtml(id, 1)).join('') + '</div>'
-          : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
-    '</div>' +
-    // [帯3] デッキ: 左=サポート（複数行可）／右=戦術(上)+メダロッター(下)
+    // [帯2] デッキ: サポート → 戦術 → メダロッター を縦に配置
     '<div class="ds-block is-cyan ds-band ds-deck-full">' +
       '<div class="ds-block-title">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
-      '<div class="ds-deck-split">' +
-        '<div class="ds-deck-left">' + subHtml('サポートメダロット', sup) + '</div>' +
-        '<div class="ds-deck-right">' +
-          subHtml('戦術', tac) +
-          subHtml('メダロッター', mdr) +
-        '</div>' +
-      '</div>' +
+      subHtml('サポートメダロット', sup) +
+      subHtml('戦術', tac) +
+      subHtml('メダロッター', mdr) +
     '</div>';
   document.getElementById('deckSummaryOverlay').classList.add('open');
   // ヘッダー: デッキ名を1行に収まるよう適応縮小（CODE/コピーは常にフル）
