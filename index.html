@@ -456,8 +456,8 @@ button{font-family:inherit}
 .deck-summary-overlay{position:fixed;inset:0;z-index:330;background:var(--bg-0);display:none;flex-direction:column}
 .deck-summary-overlay.open{display:flex}
 .deck-summary-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-1);background:rgba(7,10,16,.92);backdrop-filter:blur(10px)}
-.deck-summary-scroll{flex:1 1 auto;overflow:hidden;padding:8px;display:flex;justify-content:center;align-items:flex-start}
-.deck-summary-sheet{width:100%;max-width:1100px;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:12px;clip-path:var(--clip-lg);transform-origin:top center}
+.deck-summary-scroll{flex:1 1 auto;overflow:hidden;padding:6px;display:block}
+.deck-summary-sheet{width:100%;background:linear-gradient(160deg,#0e1a2e,#0a1320);border:1px solid var(--border-2);padding:10px;clip-path:var(--clip-lg);transform-origin:top center}
 .ds-head{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--cyan);padding-bottom:8px;margin-bottom:10px;flex-wrap:nowrap}
 .ds-head-name{font-family:var(--f-display);font-size:clamp(14px,4vw,20px);font-weight:700;color:var(--text-1);letter-spacing:.04em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-head-code-wrap{display:flex;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto}
@@ -470,24 +470,27 @@ button{font-family:inherit}
 .ds-block-title::before{content:"";width:12px;height:2px;background:var(--orange)}
 .ds-block.is-cyan .ds-block-title{color:var(--cyan)}
 .ds-block.is-cyan .ds-block-title::before{background:var(--cyan)}
-.ds-leader-parts{display:flex;gap:10px;align-items:stretch}
-.ds-leader{flex:0 0 26%;max-width:180px;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px}
+.ds-leader-parts{display:flex;gap:12px;align-items:stretch}
+.ds-leader{flex:0 0 22%;max-width:170px;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px}
 .ds-leader>.ds-card,.ds-leader>.ds-mc-card{width:100%}
 .ds-mc-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
-.ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:5px;min-width:0;justify-content:flex-start}
-.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.ds-top{display:grid;grid-template-columns:1fr minmax(180px,30%);gap:10px;align-items:start;margin-bottom:8px}
-.ds-top-left{margin-bottom:0}
-.ds-top-right{display:flex;flex-direction:column;gap:8px;min-width:0}
-.ds-top-right .ds-block{margin-bottom:0}
-.ds-top-right .ds-card{max-width:130px}
-.ds-top-right .ds-grid{grid-template-columns:repeat(2,1fr);gap:5px;max-width:none}
+.ds-parts-col{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;min-width:0;justify-content:center}
+.ds-parts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:560px}
+/* 3バンド: 各ブロック横幅いっぱい・縦は均等な余白 */
+.ds-band{width:100%;margin-bottom:10px}
+.ds-mm{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:stretch}
+.ds-mm>.ds-block{margin-bottom:0;display:flex;flex-direction:column}
+.ds-mm-inner{flex:1 1 auto;display:flex;align-items:center;justify-content:center}
+.ds-mm-inner>.ds-card{width:34%;min-width:90px;max-width:150px}
+.ds-mm-inner>.ds-card-empty{width:34%;min-width:90px;max-width:150px}
+.ds-mf-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:60%;max-width:320px;margin:0 auto}
+.ds-mf-grid>.ds-card{width:100%}
 .ds-deck-full{margin-bottom:0}
-.ds-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.ds-grid.cols5{grid-template-columns:repeat(6,1fr)}
-@media(min-width:560px){.ds-grid{grid-template-columns:repeat(5,1fr)}.ds-grid.cols5{grid-template-columns:repeat(8,1fr)}}
-@media(min-width:860px){.ds-grid.cols5{grid-template-columns:repeat(10,1fr)}}
+.ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.ds-grid.cols5{grid-template-columns:repeat(8,1fr)}
+@media(min-width:560px){.ds-grid{grid-template-columns:repeat(6,1fr)}.ds-grid.cols5{grid-template-columns:repeat(10,1fr)}}
+@media(min-width:860px){.ds-grid.cols5{grid-template-columns:repeat(12,1fr)}}
 .ds-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
@@ -2053,30 +2056,31 @@ function openDeckSummary(d) {
           escapeAttr(d.deckCode || '') + '">⧉</button>' +
       '</div>' +
     '</div>' +
-    // 上段: 2カラム（左=リーダー/パーツ ／ 右=メダル+メダフォース 縦積み）
-    '<div class="ds-top">' +
-      '<div class="ds-block ds-top-left">' +
-        '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
-        '<div class="ds-leader-parts">' +
-          '<div class="ds-leader">' + leaderHtml + '</div>' +
-          '<div class="ds-parts-col">' +
-            partsRow(d.partsR, 'R腕') +
-            partsRow(d.partsL, 'L腕') +
-          '</div>' +
+    // [帯1] リーダー / パーツ（横幅いっぱい）
+    '<div class="ds-block ds-band">' +
+      '<div class="ds-block-title">リーダー / パーツ（右腕 / 左腕）</div>' +
+      '<div class="ds-leader-parts">' +
+        '<div class="ds-leader">' + leaderHtml + '</div>' +
+        '<div class="ds-parts-col">' +
+          partsRow(d.partsR, 'R腕') +
+          partsRow(d.partsL, 'L腕') +
         '</div>' +
       '</div>' +
-      '<div class="ds-top-right">' +
-        '<div class="ds-block"><div class="ds-block-title">メダル</div>' +
-          (d.medalId ? dsCardHtml(d.medalId, 1)
-            : '<div class="ds-card-empty">未選択</div>') + '</div>' +
-        '<div class="ds-block"><div class="ds-block-title">メダフォース</div>' +
-          (d.medaforce.length
-            ? '<div class="ds-grid">' + d.medaforce.map(id => dsCardHtml(id, 1)).join('') + '</div>'
-            : '<div class="ds-card-empty">未選択</div>') + '</div>' +
-      '</div>' +
     '</div>' +
-    // 下段: デッキ（メイン）を全幅独立ブロック
-    '<div class="ds-block is-cyan ds-deck-full">' +
+    // [帯2] メダル ｜ メダフォース（横並び2分割・横幅いっぱい）
+    '<div class="ds-mm">' +
+      '<div class="ds-block"><div class="ds-block-title">メダル</div>' +
+        '<div class="ds-mm-inner">' +
+        (d.medalId ? dsCardHtml(d.medalId, 1)
+          : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
+      '<div class="ds-block"><div class="ds-block-title">メダフォース</div>' +
+        '<div class="ds-mm-inner">' +
+        (d.medaforce.length
+          ? '<div class="ds-grid ds-mf-grid">' + d.medaforce.map(id => dsCardHtml(id, 1)).join('') + '</div>'
+          : '<div class="ds-card-empty">未選択</div>') + '</div></div>' +
+    '</div>' +
+    // [帯3] デッキ（メイン）（横幅いっぱい）
+    '<div class="ds-block is-cyan ds-band ds-deck-full">' +
       '<div class="ds-block-title">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
       subHtml('サポートメダロット', sup) +
       subHtml('戦術', tac) +
@@ -2108,20 +2112,29 @@ function fitDeckSummary() {
   const scroll = document.getElementById('deckSummaryScroll');
   const sheet = document.getElementById('deckSummarySheet');
   if (!scroll || !sheet) return;
+  // いったんリセットして「コンテナ横幅いっぱい」で自然な高さを測る
   sheet.style.transform = 'none';
   sheet.style.transformOrigin = 'top center';
-  // レイアウト確定後に実寸を測ってスケール係数を算出
+  sheet.style.width = '100%';
+  sheet.style.maxWidth = 'none';
   requestAnimationFrame(() => {
-    const availW = scroll.clientWidth - 4;
-    const availH = scroll.clientHeight - 4;
-    const needW = sheet.scrollWidth;
+    const availW = scroll.clientWidth;
+    const availH = scroll.clientHeight;
+    if (availW <= 0 || availH <= 0) return;
     const needH = sheet.scrollHeight;
-    if (needW <= 0 || needH <= 0) return;
-    let s = Math.min(availW / needW, availH / needH, 1);
+    if (needH <= 0) return;
+    // 高さがはみ出す分だけ縮小。横幅は縮小後もコンテナ一杯になるよう
+    // sheet の実幅を 1/s 倍に広げてから scale(s) で戻す（=常に横いっぱい）。
+    let s = Math.min(availH / needH, 1);
     if (!isFinite(s) || s <= 0) s = 1;
-    sheet.style.transform = 'scale(' + s + ')';
-    // scale後の余白でスクロールバーが出ないよう高さを調整
-    scroll.style.overflow = (s < 1) ? 'hidden' : 'auto';
+    if (s < 1) {
+      sheet.style.width = (100 / s) + '%';
+      sheet.style.transform = 'scale(' + s + ')';
+    } else {
+      sheet.style.width = '100%';
+      sheet.style.transform = 'none';
+    }
+    scroll.style.overflow = 'hidden';
   });
 }
 function closeDeckSummary() {
