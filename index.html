@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 07:15 JST | LAYOUT=borderless+medal-select | cache=vercel.json+meta | rev=s -->
+<!-- BUILD 2026-05-20 08:00 JST | LAYOUT=sup2col+tacmdr-side+namefix22 | cache=vercel.json+meta | rev=t -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -494,12 +494,19 @@ button{font-family:inherit}
 .ds-deck-head{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--cyan);margin-bottom:6px}
 .ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .ds-grid.cols5{grid-template-columns:repeat(var(--ds-deck-cols,6),1fr)}
+/* サポートメダロット: 2列で配置（カード大きめ・カード名折り返し回避優先） */
+.ds-grid.cols2{grid-template-columns:repeat(2,1fr);gap:5px}
+/* 戦術＋メダロッターを横並び（左:戦術 / 右:メダロッター） */
+.ds-tm-row{display:flex;gap:10px;align-items:flex-start;width:100%;min-width:0}
+.ds-tm-col{flex:1 1 0;min-width:0}
+.ds-grid.cols-tac{grid-template-columns:repeat(3,1fr);gap:5px}
+.ds-grid.cols-mdr{grid-template-columns:repeat(4,1fr);gap:5px}
 .ds-card{position:relative;background:#fff;border:1px solid var(--border-1);overflow:hidden}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
 .ds-card-qty{position:absolute;top:2px;right:2px;font-family:var(--f-mono);font-weight:700;font-size:9px;color:#fff;background:var(--orange);border:1px solid var(--orange-bright);padding:1px 4px;z-index:2}
 .ds-card-nm{font-family:var(--f-body);font-size:7px;font-weight:700;color:var(--text-1);padding:2px 1px;line-height:1.15;background:var(--bg-1);text-align:center;
-  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word;min-height:18px}
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word;height:22px;box-sizing:border-box}
 .ds-sub{margin-bottom:9px}
 .ds-sub-title{font-family:var(--f-display);font-size:clamp(10px,2.6vw,12px);font-weight:700;color:var(--cyan);margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border-2)}
 .ds-sub-title b{color:var(--text-1);font-family:var(--f-mono);margin-left:6px}
@@ -1174,7 +1181,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 07:15 JST';
+const BUILD_ID = '2026-05-20 08:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2057,11 +2064,11 @@ function openDeckSummary(d) {
     d.mainDeck.filter(e => { const c = cardById(e.cardId); return c && c.cardType === t; }));
   const sup = mainBy('support_medarot'), tac = mainBy('tactical_card'), mdr = mainBy('medarotter');
   const cnt = (arr) => arr.reduce((s, e) => s + (e.qty || 1), 0);
-  const subHtml = (label, arr) =>
+  const subHtml = (label, arr, gridCls) =>
     '<div class="ds-sub"><div class="ds-sub-title">' + label +
     '<b>' + cnt(arr) + '枚</b></div>' +
     (arr.length
-      ? '<div class="ds-grid cols5">' + arr.map(e => dsCardHtml(e.cardId, e.qty)).join('') + '</div>'
+      ? '<div class="ds-grid ' + (gridCls || 'cols5') + '">' + arr.map(e => dsCardHtml(e.cardId, e.qty)).join('') + '</div>'
       : '<div class="ds-empty-note">なし</div>') + '</div>';
   sheet.innerHTML =
     '<div class="ds-head">' +
@@ -2102,12 +2109,14 @@ function openDeckSummary(d) {
         '</div>' +
       '</div>' +
     '</div>' +
-    // [ブロック2] デッキ: サポート → 戦術 → メダロッター を縦に配置
+    // [ブロック2] デッキ: サポート(2列) → 戦術＋メダロッター(横並び)
     '<div class="ds-block is-cyan ds-band ds-deck-full">' +
       '<div class="ds-deck-head">デッキ（メイン ' + (cnt(sup) + cnt(tac) + cnt(mdr)) + '/35）</div>' +
-      subHtml('サポートメダロット', sup) +
-      subHtml('戦術', tac) +
-      subHtml('メダロッター', mdr) +
+      subHtml('サポートメダロット', sup, 'cols2') +
+      '<div class="ds-tm-row">' +
+        '<div class="ds-tm-col">' + subHtml('戦術', tac, 'cols-tac') + '</div>' +
+        '<div class="ds-tm-col">' + subHtml('メダロッター', mdr, 'cols-mdr') + '</div>' +
+      '</div>' +
     '</div>';
   document.getElementById('deckSummaryOverlay').classList.add('open');
   // ヘッダー: デッキ名を1行に収まるよう適応縮小
