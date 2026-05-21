@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 09:30 JST | LAYOUT=noscroll-shrink+head14+smallbar | cache=vercel.json+meta | rev=v -->
+<!-- BUILD 2026-05-20 10:15 JST | LAYOUT=fullwidth+deckshrink+name1line+align-lock | cache=vercel.json+meta | rev=w -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -491,7 +491,7 @@ button{font-family:inherit}
 .ds-mc-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
 .ds-band{width:100%;margin-bottom:8px}
 /* デッキ: ヘッダー(境界線無し)＋サポート→戦術→メダロッター縦配置 */
-.ds-deck-full{margin-bottom:0}
+.ds-deck-full{margin-bottom:0;max-width:var(--ds-deck-shrink,100%);margin-left:auto;margin-right:auto}
 .ds-deck-head{font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--cyan);margin-bottom:6px}
 .ds-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .ds-grid.cols5{grid-template-columns:repeat(var(--ds-deck-cols,6),1fr)}
@@ -502,8 +502,8 @@ button{font-family:inherit}
 .ds-card img{width:100%;aspect-ratio:5/7;object-fit:contain;display:block;image-rendering:auto;-webkit-backface-visibility:hidden}
 .ds-card-empty{width:100%;aspect-ratio:5/7;background:#11203a;display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:8px;color:var(--text-3);text-align:center;padding:3px}
 .ds-card-qty{position:absolute;top:2px;right:2px;font-family:var(--f-mono);font-weight:700;color:#fff;background:var(--orange);border:1px solid var(--orange-bright);padding:1px 4px;z-index:2;line-height:1}
-.ds-card-nm{font-family:var(--f-body);font-weight:700;color:var(--text-1);padding:1px 1px;line-height:1.15;background:var(--bg-1);text-align:center;
-  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word;box-sizing:border-box}
+.ds-card-nm{font-family:var(--f-body);font-weight:700;color:var(--text-1);padding:1px 2px;line-height:1.15;background:var(--bg-1);text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:14px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
 .ds-sub{margin-bottom:9px}
 .ds-sub-title{font-family:var(--f-display);font-size:clamp(10px,2.6vw,12px);font-weight:700;color:var(--cyan);margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid var(--border-2)}
 .ds-sub-title b{color:var(--text-1);font-family:var(--f-mono);margin-left:6px}
@@ -1178,7 +1178,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 09:30 JST';
+const BUILD_ID = '2026-05-20 10:15 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2028,9 +2028,16 @@ function openDeckSummary(d) {
   const sheet = document.getElementById('deckSummarySheet');
   // パーツ: 右腕①②③ を横並び1行 / その下に 左腕①②③ を横並び1行（個別ラベルなし）
   const partsRow = (arr, kind) => {
-    let cells = arr.map(id => dsCardHtml(id, 1)).join('');
-    if (!arr.length) cells = '<div class="ds-empty-note">' + kind + 'なし</div>';
-    return cells;
+    // 常に3セル: 不足分は空プレースホルダで埋めて行高さ・下端ラインを安定
+    const cells = [];
+    for (let i = 0; i < 3; i++) {
+      if (arr[i]) {
+        cells.push(dsCardHtml(arr[i], 1));
+      } else {
+        cells.push('<div class="ds-card-empty">&nbsp;</div>');
+      }
+    }
+    return cells.join('');
   };
   // リーダー本体カード／メダチェンジ後カード を別々に取得
   const leaderBaseHtml = d.leaderId
@@ -2092,9 +2099,18 @@ function openDeckSummary(d) {
           '</div>' +
           '<div class="ds-lp-tag">メダフォース</div>' +
           '<div class="ds-g2">' +
-            (d.medaforce.length
-              ? d.medaforce.map(id => '<div class="ds-cell">' + dsCardHtml(id, 1) + '</div>').join('')
-              : '<div class="ds-cell"><div class="ds-card-empty">未選択</div></div>') +
+            (function(){
+              // 常に2セル: 不足分は空プレースホルダで埋めて行高さを安定
+              const cells = [];
+              for (let i = 0; i < 2; i++) {
+                if (d.medaforce[i]) {
+                  cells.push('<div class="ds-cell">' + dsCardHtml(d.medaforce[i], 1) + '</div>');
+                } else {
+                  cells.push('<div class="ds-cell"><div class="ds-card-empty">&nbsp;</div></div>');
+                }
+              }
+              return cells.join('');
+            })() +
           '</div>' +
         '</div>' +
         // 右ブロック: 右腕パーツ / 左腕パーツ
@@ -2169,10 +2185,19 @@ function fitDeckSummaryCardLabels() {
   cards.forEach(card => {
     const w = card.clientWidth || 0;
     if (w <= 0) return;
-    // カード名: 幅の 8% 程度を上限(11px)、下限(6px)でクランプ
-    const nmFs = Math.max(6, Math.min(11, Math.round(w * 0.10)));
+    // カード名: カード幅の 10% を基準フォント、上限11px・下限6px
+    let nmFs = Math.max(6, Math.min(11, Math.round(w * 0.10)));
     const nm = card.querySelector('.ds-card-nm');
-    if (nm) nm.style.fontSize = nmFs + 'px';
+    if (nm) {
+      nm.style.fontSize = nmFs + 'px';
+      // 1行に収まらない場合は最小5pxまでフォントを段階縮小（それでも収まらなければ末尾省略…）
+      let guard = 0;
+      while (nm.scrollWidth > nm.clientWidth && nmFs > 5 && guard < 10) {
+        nmFs -= 1;
+        nm.style.fontSize = nmFs + 'px';
+        guard++;
+      }
+    }
     // 枚数バッジ: 幅の 14% 程度を上限(14px)、下限(7px)でクランプ
     const qtyFs = Math.max(7, Math.min(14, Math.round(w * 0.14)));
     const qty = card.querySelector('.ds-card-qty');
@@ -2202,30 +2227,30 @@ function fitDeckSummary() {
   const scroll = document.getElementById('deckSummaryScroll');
   const sheet = document.getElementById('deckSummarySheet');
   if (!scroll || !sheet) return;
-  // 横幅優先: scale縮小は使わない。シートは常にコンテナ幅100%。
+  // シートは常に幅100%（左右余白なし）。上ブロックは不変。
   sheet.style.transform = 'none';
-  sheet.style.marginLeft = 'auto';
-  sheet.style.marginRight = 'auto';
-  scroll.style.overflowX = 'hidden';
-  // [1画面フィット] 縦スクロールを出さない: シート幅を段階縮小して
-  // 上ブロック・デッキの全カードを均等に縮小（リーダー含む全要素一括）。
-  // 配置・構図・デザインは不変。
-  let shrink = 100; // %（100→50を段階的に縮小）
-  sheet.style.width = shrink + '%';
+  sheet.style.width = '100%';
   sheet.style.maxWidth = 'none';
+  sheet.style.marginLeft = '0';
+  sheet.style.marginRight = '0';
+  scroll.style.overflowX = 'hidden';
+  // [1画面フィット] デッキカード部分のみ段階縮小して収める。
+  // 上ブロックは不変・配置/構図/デザインは不変。
+  let dshrink = 100; // %（100→50を段階的に縮小）
+  sheet.style.setProperty('--ds-deck-shrink', dshrink + '%');
   scroll.style.overflowY = 'hidden';
   const avail = () => scroll.clientHeight;
   const over = () => sheet.scrollHeight > avail() + 1;
   // 最大25回（100%→50%、step=2%）で必ず停止
   let guard = 0;
-  while (over() && shrink > 50 && guard < 25) {
-    shrink -= 2;
-    sheet.style.width = shrink + '%';
+  while (over() && dshrink > 50 && guard < 25) {
+    dshrink -= 2;
+    sheet.style.setProperty('--ds-deck-shrink', dshrink + '%');
     guard += 1;
   }
   // カード名・枚数バッジを新しいカード幅で再フィット
   fitDeckSummaryCardLabels();
-  // 収まったらスクロール不要、収まらなければ縦スクロールを許可（保険）
+  // 収まったらスクロール不要、収まらなければ縦スクロール許可
   scroll.style.overflowY = over() ? 'auto' : 'hidden';
 }
 function closeDeckSummary() {
