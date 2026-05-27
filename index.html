@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 11:30 JST | LAYOUT=list4col+listmenu+typesort+ruleguide | cache=vercel.json+meta | rev=x -->
+<!-- BUILD 2026-05-20 13:00 JST | LAYOUT=stickybar+inline-search+menu1of3+rule-in-nav | cache=vercel.json+meta | rev=y -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -47,31 +47,39 @@ button{font-family:inherit}
 .section-label{font-family:var(--f-display);font-size:10px;letter-spacing:.25em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .section-label::before{content:"";width:16px;height:1px;background:var(--orange)}
 .tabs-wrap{margin-bottom:14px}
-/* カードリストメニュー: 左上ボタン＋ドロワー（検索窓＋タブ＋ルールガイド） */
-.list-menu-bar{display:flex;align-items:center;padding:8px 12px;margin-bottom:8px;border-bottom:1px solid var(--border-2)}
-.list-menu-btn{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--cyan);color:var(--cyan);padding:6px 10px;font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.06em;cursor:pointer;clip-path:var(--clip-sm)}
+/* カードリスト上部バー: メニューボタン＋検索/フィルタ を1行に・スクロール固定 */
+.list-bar-sticky{position:sticky;top:0;z-index:40;background:rgba(7,10,16,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border-2);margin:0 -16px 6px;padding:0 12px}
+.list-menu-bar{display:flex;align-items:center;gap:8px;padding:5px 0;min-height:32px}
+.list-menu-btn{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--cyan);color:var(--cyan);padding:4px 8px;font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.06em;cursor:pointer;clip-path:var(--clip-sm);min-height:0;line-height:1.1;flex:0 0 auto}
 .list-menu-btn:active{background:var(--cyan-soft)}
-.list-menu-icon{font-size:14px;line-height:1}
+.list-menu-icon{font-size:13px;line-height:1}
 .list-menu-cur{font-family:var(--f-display);font-size:11px;color:var(--cyan)}
+.list-bar-spacer{flex:1 1 auto}
+/* 検索/フィルタ: バー内に inline 配置。details の開閉はその場で展開 */
+.list-search-inline{flex:0 0 auto;position:relative}
+.list-search-inline>.search-toggle{padding:4px 8px;font-size:11px;min-height:0;line-height:1.1}
+.list-search-inline[open]>.filters,
+.list-search-inline[open]>.adv-filters{position:absolute;right:0;top:100%;width:min(92vw,560px);background:rgba(7,10,16,.96);border:1px solid var(--border-2);padding:10px;margin-top:4px;z-index:41;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.list-search-inline[open]>.adv-filters{top:calc(100% + 50px)}
+/* メニュー幅: 現在の1/3に縮小 */
 .list-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .18s;z-index:99}
 .list-menu-overlay.open{opacity:1;pointer-events:auto}
-.list-menu{position:fixed;top:0;left:0;bottom:0;width:min(86vw,340px);background:var(--bg-1);border-right:1px solid var(--border-2);transform:translateX(-100%);transition:transform .22s cubic-bezier(.2,.8,.2,1);z-index:100;display:flex;flex-direction:column;padding:14px 10px 12px;gap:8px;box-shadow:6px 0 24px rgba(0,0,0,.5)}
+.list-menu{position:fixed;top:0;left:0;bottom:0;width:min(28vw,113px);background:var(--bg-1);border-right:1px solid var(--border-2);transform:translateX(-100%);transition:transform .22s cubic-bezier(.2,.8,.2,1);z-index:100;display:flex;flex-direction:column;padding:10px 6px 8px;gap:6px;box-shadow:6px 0 24px rgba(0,0,0,.5)}
 .list-menu.open{transform:translateX(0)}
-.list-menu-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--border-2)}
-.list-menu-title{font-family:var(--f-display);font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--cyan)}
-.list-menu-close{background:transparent;border:1px solid var(--border-2);color:var(--text-2);width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1}
+.list-menu-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:5px;border-bottom:1px solid var(--border-2);gap:4px}
+.list-menu-title{font-family:var(--f-display);font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--cyan)}
+.list-menu-close{background:transparent;border:1px solid var(--border-2);color:var(--text-2);width:22px;height:22px;cursor:pointer;font-size:11px;line-height:1;padding:0;flex:0 0 auto}
 .list-menu-close:active{background:var(--cyan-soft)}
-.list-menu-search input.search{width:100%;padding:8px 10px;font-family:var(--f-body);font-size:13px;background:var(--bg-2);border:1px solid var(--border-2);color:var(--text-1);outline:none}
+.list-menu-search input.search{width:100%;padding:5px 6px;font-family:var(--f-body);font-size:10px;background:var(--bg-2);border:1px solid var(--border-2);color:var(--text-1);outline:none;box-sizing:border-box}
 .list-menu-search input.search:focus{border-color:var(--cyan)}
-.list-menu-nav{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;overflow-y:auto}
-.list-menu-tab{display:flex;align-items:baseline;gap:8px;text-align:left;background:transparent;border:0;border-left:3px solid transparent;color:var(--text-1);font-family:var(--f-display);font-size:14px;font-weight:700;letter-spacing:.04em;padding:9px 10px;cursor:pointer}
+.list-menu-nav{display:flex;flex-direction:column;gap:1px;flex:1 1 auto;overflow-y:auto}
+.list-menu-tab{display:flex;align-items:baseline;gap:4px;text-align:left;background:transparent;border:0;border-left:2px solid transparent;color:var(--text-1);font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.02em;padding:7px 6px;cursor:pointer;width:100%;box-sizing:border-box}
 .list-menu-tab.active{border-left-color:var(--cyan);color:var(--cyan);background:rgba(0,200,255,.06)}
 .list-menu-tab:active{background:rgba(0,200,255,.12)}
-.list-menu-tab .cnt{font-family:var(--f-mono);font-size:7px;color:var(--text-3);font-weight:700;margin-left:auto}
+.list-menu-tab .cnt{font-family:var(--f-mono);font-size:10px;color:var(--text-3);font-weight:700;margin-left:auto}
 .list-menu-tab.active .cnt{color:var(--cyan)}
-.list-menu-foot{padding-top:6px;border-top:1px solid var(--border-2)}
-.list-menu-rule{width:100%;text-align:left;background:transparent;border:0;border-left:3px solid transparent;color:var(--text-1);font-family:var(--f-display);font-size:14px;font-weight:700;letter-spacing:.04em;padding:9px 10px;cursor:pointer}
-.list-menu-rule:active{background:rgba(0,200,255,.12)}
+/* ルールガイドはキーワードの下に通常タブと同じスタイルで配置・上に境界線 */
+.list-menu-tab.is-rule{border-top:1px solid var(--border-2);margin-top:4px;padding-top:9px}
 /* ルールガイド（準備中）ポップアップ */
 .rule-guide-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);opacity:0;pointer-events:none;transition:opacity .18s;z-index:120;display:flex;align-items:center;justify-content:center;padding:24px}
 .rule-guide-overlay.open{opacity:1;pointer-events:auto}
@@ -616,12 +624,87 @@ button{font-family:inherit}
 <div class="cloud-indicator" id="cloudIndicator" title="Supabase 接続中" style="display:none;"></div>
 
 <main class="app">
-  <!-- カードリストメニュー: 検索窓＋タイプ別タブ＋ルールガイド を収納 -->
-  <div class="list-menu-bar">
-    <button class="list-menu-btn" id="listMenuBtn" aria-label="カードリストメニュー" title="メニュー">
-      <span class="list-menu-icon">☰</span>
-      <span class="list-menu-cur" id="listMenuCur">リーダー</span>
-    </button>
+  <!-- カードリスト上部バー: メニューボタン＋検索/フィルタ を1行に。スクロールで固定 -->
+  <div class="list-bar-sticky">
+    <div class="list-menu-bar">
+      <button class="list-menu-btn" id="listMenuBtn" aria-label="カードリストメニュー" title="メニュー">
+        <span class="list-menu-icon">☰</span>
+        <span class="list-menu-cur" id="listMenuCur">リーダー</span>
+      </button>
+      <div class="list-bar-spacer"></div>
+      <details class="search-collapse list-search-inline" id="searchCollapse">
+        <summary class="search-toggle">
+          <span class="search-toggle-icon">🔍</span>
+          <span class="search-toggle-label">検索 / フィルタ</span>
+          <span class="search-toggle-state" id="searchFilterCount"></span>
+          <span class="search-toggle-arrow">▾</span>
+        </summary>
+
+        <div class="filters">
+          <div class="search-wrap">
+            <input id="search" class="search" type="text" placeholder="CARD NAME / EFFECT TEXT" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="filter-controls">
+            <div class="type-chips" id="typeChips"></div>
+          </div>
+        </div>
+
+        <div class="adv-filters">
+          <div class="range-group">
+            <div class="range-group-label">行動コスト</div>
+            <div class="range-inputs">
+              <input type="number" id="costMin" placeholder="min" min="0">
+              <span>–</span>
+              <input type="number" id="costMax" placeholder="max" min="0">
+            </div>
+          </div>
+          <div class="range-group">
+            <div class="range-group-label">BP</div>
+            <div class="range-inputs">
+              <input type="number" id="bpMin" placeholder="min" min="0">
+              <span>–</span>
+              <input type="number" id="bpMax" placeholder="max" min="0">
+            </div>
+          </div>
+          <div class="range-group" id="legGroup" style="display:none;">
+            <div class="range-group-label">脚部タイプ</div>
+            <div class="range-inputs">
+              <input type="text" id="legFilter" placeholder="二脚 / 多脚 / 飛行...">
+            </div>
+          </div>
+          <div class="range-group" id="partsArmGroup" style="display:none;">
+            <div class="range-group-label">パーツ腕</div>
+            <select id="partsArmFilter" class="sort-select">
+              <option value="">指定なし</option>
+              <option value="L">L腕</option>
+              <option value="R">R腕</option>
+            </select>
+          </div>
+          <div class="range-group" id="partsModeGroup" style="display:none;">
+            <div class="range-group-label">パーツモード</div>
+            <select id="partsModeFilter" class="sort-select">
+              <option value="">指定なし</option>
+              <option value="行動">行動</option>
+              <option value="戦術">戦術</option>
+            </select>
+          </div>
+          <div class="range-group">
+            <div class="range-group-label">並び替え</div>
+            <select id="sortSelect" class="sort-select">
+              <option value="type-name">基本(タイプ→50音)</option>
+              <option value="name-asc">名前(A→Z)</option>
+              <option value="name-desc">名前(Z→A)</option>
+              <option value="cost-asc">コスト(低→高)</option>
+              <option value="cost-desc">コスト(高→低)</option>
+              <option value="bp-asc">BP(低→高)</option>
+              <option value="bp-desc">BP(高→低)</option>
+            </select>
+          </div>
+          <div class="spacer"></div>
+          <button class="clear-btn" id="clearFilters">CLEAR ALL</button>
+        </div>
+      </details>
+    </div>
   </div>
   <div class="list-menu-overlay" id="listMenuOverlay"></div>
   <aside class="list-menu" id="listMenu" aria-label="カードリストメニュー">
@@ -633,87 +716,11 @@ button{font-family:inherit}
       <input id="listMenuSearch" class="search" type="text" placeholder="カード検索" autocomplete="off" spellcheck="false">
     </div>
     <nav class="list-menu-nav" id="listMenuNav"></nav>
-    <div class="list-menu-foot">
-      <button class="list-menu-rule" id="listMenuRule">ルールガイド</button>
-    </div>
   </aside>
 
   <div class="tabs-wrap" style="display:none">
     <div class="tabs" id="tabs"></div>
   </div>
-
-  <details class="search-collapse" id="searchCollapse">
-    <summary class="search-toggle">
-      <span class="search-toggle-icon">🔍</span>
-      <span class="search-toggle-label">検索 / フィルタ</span>
-      <span class="search-toggle-state" id="searchFilterCount"></span>
-      <span class="search-toggle-arrow">▾</span>
-    </summary>
-
-    <div class="filters">
-      <div class="search-wrap">
-        <input id="search" class="search" type="text" placeholder="CARD NAME / EFFECT TEXT" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="filter-controls">
-        <div class="type-chips" id="typeChips"></div>
-      </div>
-    </div>
-
-    <div class="adv-filters">
-      <div class="range-group">
-        <div class="range-group-label">行動コスト</div>
-        <div class="range-inputs">
-          <input type="number" id="costMin" placeholder="min" min="0">
-          <span>–</span>
-          <input type="number" id="costMax" placeholder="max" min="0">
-        </div>
-      </div>
-      <div class="range-group">
-        <div class="range-group-label">BP</div>
-        <div class="range-inputs">
-          <input type="number" id="bpMin" placeholder="min" min="0">
-          <span>–</span>
-          <input type="number" id="bpMax" placeholder="max" min="0">
-        </div>
-      </div>
-      <div class="range-group" id="legGroup" style="display:none;">
-        <div class="range-group-label">脚部タイプ</div>
-        <div class="range-inputs">
-          <input type="text" id="legFilter" placeholder="二脚 / 多脚 / 飛行...">
-        </div>
-      </div>
-      <div class="range-group" id="partsArmGroup" style="display:none;">
-        <div class="range-group-label">パーツ腕</div>
-        <select id="partsArmFilter" class="sort-select">
-          <option value="">指定なし</option>
-          <option value="L">L腕</option>
-          <option value="R">R腕</option>
-        </select>
-      </div>
-      <div class="range-group" id="partsModeGroup" style="display:none;">
-        <div class="range-group-label">パーツモード</div>
-        <select id="partsModeFilter" class="sort-select">
-          <option value="">指定なし</option>
-          <option value="行動">行動</option>
-          <option value="戦術">戦術</option>
-        </select>
-      </div>
-      <div class="range-group">
-        <div class="range-group-label">並び替え</div>
-        <select id="sortSelect" class="sort-select">
-          <option value="type-name">基本(タイプ→50音)</option>
-          <option value="name-asc">名前(A→Z)</option>
-          <option value="name-desc">名前(Z→A)</option>
-          <option value="cost-asc">コスト(低→高)</option>
-          <option value="cost-desc">コスト(高→低)</option>
-          <option value="bp-asc">BP(低→高)</option>
-          <option value="bp-desc">BP(高→低)</option>
-        </select>
-      </div>
-      <div class="spacer"></div>
-      <button class="clear-btn" id="clearFilters">CLEAR ALL</button>
-    </div>
-  </details>
 
   <div id="grid" class="grid"></div>
   <div id="emptyState" class="empty" style="display:none;">
@@ -1233,7 +1240,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 11:30 JST';
+const BUILD_ID = '2026-05-20 13:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2836,10 +2843,13 @@ const LIST_MENU_TAB_ORDER = [
 function renderListMenuNav(counts) {
   const nav = document.getElementById('listMenuNav');
   if (!nav) return;
-  nav.innerHTML = LIST_MENU_TAB_ORDER.map(t =>
+  // タブ8種を仕様の順番で配置。最後にルールガイド（境界線で区切る）を追加
+  const tabsHtml = LIST_MENU_TAB_ORDER.map(t =>
     '<button class="list-menu-tab ' + (state.activeTab === t.key ? 'active' : '') + '" data-tab="' + t.key + '">' +
     escapeHtml(t.label) + '<span class="cnt">' + (counts[t.key] || 0) + '</span></button>'
   ).join('');
+  const ruleHtml = '<button class="list-menu-tab is-rule" data-rule="1">ルールガイド</button>';
+  nav.innerHTML = tabsHtml + ruleHtml;
   nav.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.activeTab = btn.dataset.tab;
@@ -2848,6 +2858,11 @@ function renderListMenuNav(counts) {
       // スクロール最上部にリセット
       window.scrollTo({ top: 0, behavior: 'auto' });
     });
+  });
+  const ruleBtn = nav.querySelector('[data-rule]');
+  if (ruleBtn) ruleBtn.addEventListener('click', () => {
+    closeListMenu();
+    openRuleGuide();
   });
   // 現在のタブ名をメニューボタン横に表示
   const cur = LIST_MENU_TAB_ORDER.find(t => t.key === state.activeTab);
@@ -4081,10 +4096,6 @@ function wire() {
     const s2 = document.getElementById('search');
     if (s2) s2.value = e.target.value;
     renderGrid();
-  });
-  document.getElementById('listMenuRule').addEventListener('click', function() {
-    closeListMenu();
-    openRuleGuide();
   });
   document.getElementById('bpMin').addEventListener('input', function(e) { state.bpMin = e.target.value; renderGrid(); });
   document.getElementById('bpMax').addEventListener('input', function(e) { state.bpMax = e.target.value; renderGrid(); });
