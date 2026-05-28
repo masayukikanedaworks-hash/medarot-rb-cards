@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-21 11:30 JST | LAYOUT=hdr-nav+pool-vbadge+legselect+admin-ui | cache=vercel.json+meta | rev=ae -->
+<!-- BUILD 2026-05-21 15:00 JST | LAYOUT=header3row+medal-mf+keyword+medarotter-effecttext | cache=vercel.json+meta | rev=af -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -20,15 +20,23 @@ body{font-family:var(--f-body);background:var(--bg-0);color:var(--text-1);font-s
 button{font-family:inherit}
 .header{position:sticky;top:0;z-index:50;background:rgba(7,10,16,.85);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--border-1)}
 .header::after{content:"";display:block;height:1px;background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:.4}
-.header-inner{max-width:1400px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.header-inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;flex-direction:column;gap:8px}
+.hdr-row{display:flex;align-items:center;gap:10px;width:100%}
+.hdr-row1{justify-content:space-between}
+.hdr-row2{gap:8px}
+.hdr-row2 .hdr-nav-btn{flex:1 1 0}
+.hdr-row3{gap:8px}
+.hdr-row3 .deck-pool-search{flex:1 1 auto;margin:0;min-width:0}
+.hdr-row3 .deck-filter-toggle{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:11px;color:var(--text-3);background:transparent;border:1px solid var(--border-1);padding:8px 12px;cursor:pointer;clip-path:var(--clip-sm);letter-spacing:.06em;white-space:nowrap;transition:all .15s}
+.hdr-row3 .deck-filter-toggle:hover{color:var(--cyan);border-color:var(--cyan)}
 /* ヘッダーのデッキ/リスト ナビボタン */
-.hdr-nav-btn{font-family:var(--f-display);font-weight:700;font-size:12px;letter-spacing:.06em;padding:6px 12px;background:transparent;border:1px solid currentColor;cursor:pointer;clip-path:var(--clip-sm);line-height:1;white-space:nowrap}
+.hdr-nav-btn{font-family:var(--f-display);font-weight:700;font-size:13px;letter-spacing:.06em;padding:8px 12px;background:transparent;border:1px solid currentColor;cursor:pointer;clip-path:var(--clip-sm);line-height:1;white-space:nowrap;text-align:center}
 .hdr-deck{color:var(--orange)}
 .hdr-deck:active{background:rgba(255,107,26,.14)}
 .hdr-list{color:var(--cyan)}
 .hdr-list:active{background:rgba(0,200,255,.14)}
-@media(max-width:420px){.hdr-nav-btn{font-size:11px;padding:5px 9px}}
-@media(min-width:720px){.header-inner{padding:14px 24px;gap:16px}}
+@media(max-width:420px){.hdr-nav-btn{font-size:12px;padding:7px 9px}}
+@media(min-width:720px){.header-inner{padding:12px 24px;gap:10px}}
 .brand{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
 .brand-mark{font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.08em;color:var(--orange);text-shadow:0 0 18px var(--orange-glow);display:flex;align-items:center;gap:8px}
 .brand-mark::before{content:"";display:inline-block;width:10px;height:10px;background:var(--orange);box-shadow:0 0 10px var(--orange);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
@@ -54,27 +62,21 @@ button{font-family:inherit}
 .section-label{font-family:var(--f-display);font-size:10px;letter-spacing:.25em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .section-label::before{content:"";width:16px;height:1px;background:var(--orange)}
 .tabs-wrap{margin-bottom:14px}
-/* カードリスト上部バー: position:fixed で常時固定 */
-.list-bar-sticky{position:fixed;top:58px;left:0;right:0;z-index:40;background:rgba(7,10,16,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border-2)}
-@media(min-width:720px){.list-bar-sticky{top:62px}}
-/* バー固定でその下に重ねないよう、app に上余白（メニュー行＋検索行ぶん） */
-.app.app-list-pad{padding-top:108px}
-@media(min-width:720px){.app.app-list-pad{padding-top:114px}}
-.list-menu-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 0;max-width:1400px;margin:0 auto}
-@media(min-width:720px){.list-menu-bar{padding:6px 24px 0}}
-.list-menu-btn{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--orange);color:var(--orange);padding:6px 12px;font-family:var(--f-display);font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;clip-path:var(--clip-sm);min-height:0;line-height:1.1;flex:0 0 auto}
-.list-menu-btn:active{background:rgba(255,107,26,.12)}
-.list-menu-icon{font-size:15px;line-height:1}
-.list-menu-cur{font-family:var(--f-display);font-size:13px;color:var(--orange)}
-/* 検索/フィルタ: デッキ構築と同じ見え方（入力欄＋フィルタボタン横並び＋チップ） */
-.list-search-fixed{max-width:1400px;margin:0 auto;padding:8px 14px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;position:relative}
-@media(min-width:720px){.list-search-fixed{padding:8px 24px}}
-.list-search-fixed .deck-pool-search{margin:0}
-.list-search-fixed .deck-filter-toggle{display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:11px;color:var(--text-3);background:transparent;border:1px solid var(--border-1);padding:8px 12px;cursor:pointer;clip-path:var(--clip-sm);letter-spacing:.06em;white-space:nowrap;transition:all .15s}
-.list-search-fixed .deck-filter-toggle:hover{color:var(--cyan);border-color:var(--cyan)}
-.deck-filter-body{display:none;flex-wrap:wrap;gap:8px;grid-column:1/-1}
-.deck-filter-body.open{display:flex}
+/* 検索窓・フィルタはヘッダー3行目へ。app 上余白はヘッダー実高に依存しないので最小限 */
+.app.app-list-pad{padding-top:14px}
+/* フィルタ展開パネル（ヘッダー下に通常フローで表示） */
+.list-filter-panel{display:none;flex-wrap:wrap;gap:8px;background:var(--bg-1);border:1px solid var(--border-2);padding:12px;margin-bottom:12px}
+.list-filter-panel.open{display:flex}
 .list-adv-filters{display:flex;flex-wrap:wrap;gap:8px;width:100%;align-items:flex-end}
+/* メダル: メダフォース Lv別画像3つ */
+.medal-mf-row{display:flex;gap:10px}
+.medal-mf-cell{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;border:1px solid var(--border-1);padding:8px;background:var(--bg-0)}
+.medal-mf-lv{font-family:var(--f-display);font-weight:700;font-size:11px;color:var(--cyan);letter-spacing:.04em}
+/* メダル詳細: 対応メダフォース Lv別画像表示 */
+.medal-mf-view-row{display:flex;gap:8px;margin-top:6px}
+.medal-mf-view-cell{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.medal-mf-view-img{width:100%;height:auto;border:1px solid var(--border-1);cursor:zoom-in}
+.medal-mf-view-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);border:1px dashed var(--border-1);font-size:18px}
 /* メニュー幅: 現在の1/3に縮小 */
 .list-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .18s;z-index:99}
 .list-menu-overlay.open{opacity:1;pointer-events:auto}
@@ -630,19 +632,30 @@ button{font-family:inherit}
 
 <header class="header">
   <div class="header-inner">
-    <div class="brand">
-      <div class="brand-mark">MEDAROT RB</div>
-      <div class="brand-sub">CARD DATABASE</div>
+    <!-- 1行目: タイトル + ホーム/メニュー -->
+    <div class="hdr-row hdr-row1">
+      <div class="brand">
+        <div class="brand-mark">MEDAROT RB</div>
+        <div class="brand-sub">CARD DATABASE</div>
+      </div>
+      <div class="header-tools">
+        <button class="icon-btn" id="homeBtn" title="ホーム" aria-label="ホーム">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </button>
+        <button class="icon-btn" id="appMenuBtn" title="メニュー" aria-label="メニュー">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="header-tools">
-      <button class="hdr-nav-btn hdr-deck" id="hdrDeckBtn" title="デッキ構築">デッキ</button>
-      <button class="hdr-nav-btn hdr-list" id="hdrListBtn" title="カードリスト">リスト</button>
-      <button class="icon-btn" id="homeBtn" title="ホーム" aria-label="ホーム">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      </button>
-      <button class="icon-btn" id="appMenuBtn" title="メニュー" aria-label="メニュー">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
+    <!-- 2行目: デッキ構築 / カードリスト -->
+    <div class="hdr-row hdr-row2">
+      <button class="hdr-nav-btn hdr-deck" id="hdrDeckBtn" title="デッキ構築">デッキ構築</button>
+      <button class="hdr-nav-btn hdr-list" id="hdrListBtn" title="カードリスト">カードリスト</button>
+    </div>
+    <!-- 3行目: 検索窓 / フィルタ -->
+    <div class="hdr-row hdr-row3">
+      <input class="deck-pool-search" id="search" type="text" placeholder="名前 / 効果で絞り込み" autocomplete="off" spellcheck="false">
+      <button class="deck-filter-toggle" id="listFilterToggle">⚙ フィルタ ▾</button>
     </div>
   </div>
 </header>
@@ -698,12 +711,8 @@ button{font-family:inherit}
 <div class="cloud-indicator" id="cloudIndicator" title="Supabase 接続中" style="display:none;"></div>
 
 <main class="app app-list-pad">
-  <!-- カードリスト上部バー: デッキ構築と同じ見え方の検索/フィルタに統一・固定 -->
-  <div class="list-bar-sticky">
-    <div class="list-search-fixed">
-      <input class="deck-pool-search" id="search" type="text" placeholder="名前 / 効果で絞り込み" autocomplete="off" spellcheck="false">
-      <button class="deck-filter-toggle" id="listFilterToggle">⚙ フィルタ ▾</button>
-      <div class="deck-filter-body" id="listFilterBody">
+  <!-- 検索窓/フィルタボタンはヘッダー3行目へ移設。ここはフィルタ展開パネルのみ -->
+  <div class="list-filter-panel" id="listFilterBody">
         <div class="type-chips" id="typeChips"></div>
         <div class="list-adv-filters">
           <div class="range-group">
@@ -766,8 +775,6 @@ button{font-family:inherit}
           <div class="spacer"></div>
           <button class="clear-btn" id="clearFilters">CLEAR ALL</button>
         </div>
-      </div>
-    </div>
   </div>
   <div class="list-menu-overlay" id="listMenuOverlay"></div>
   <aside class="list-menu" id="listMenu" aria-label="カードリストメニュー">
@@ -1220,6 +1227,43 @@ button{font-family:inherit}
           <label>効果テキスト</label>
           <textarea id="f_effectText" placeholder="カードの効果"></textarea>
         </div>
+
+        <!-- メダル専用: 対応メダフォース画像（Lv.1 / Lv.3 / Lv.5） -->
+        <div class="field field-full" id="wrap_medalMF" style="display:none;">
+          <label>対応メダフォース（レベル別画像）</label>
+          <div class="medal-mf-row">
+            <div class="medal-mf-cell">
+              <div class="medal-mf-lv">Lv.1</div>
+              <label class="var-dropzone" id="var_mflv1_dropzone">
+                <input type="file" id="f_var_mflv1_imgfile" accept="image/*">
+                <div class="var-dropzone-icon">⬆</div>
+                <div class="var-dropzone-text">Lv.1</div>
+              </label>
+              <img id="var_mflv1_preview" class="var-img-preview" alt="">
+              <button type="button" class="var-img-clear" id="var_mflv1_clear" style="display:none;">削除</button>
+            </div>
+            <div class="medal-mf-cell">
+              <div class="medal-mf-lv">Lv.3</div>
+              <label class="var-dropzone" id="var_mflv3_dropzone">
+                <input type="file" id="f_var_mflv3_imgfile" accept="image/*">
+                <div class="var-dropzone-icon">⬆</div>
+                <div class="var-dropzone-text">Lv.3</div>
+              </label>
+              <img id="var_mflv3_preview" class="var-img-preview" alt="">
+              <button type="button" class="var-img-clear" id="var_mflv3_clear" style="display:none;">削除</button>
+            </div>
+            <div class="medal-mf-cell">
+              <div class="medal-mf-lv">Lv.5</div>
+              <label class="var-dropzone" id="var_mflv5_dropzone">
+                <input type="file" id="f_var_mflv5_imgfile" accept="image/*">
+                <div class="var-dropzone-icon">⬆</div>
+                <div class="var-dropzone-text">Lv.5</div>
+              </label>
+              <img id="var_mflv5_preview" class="var-img-preview" alt="">
+              <button type="button" class="var-img-clear" id="var_mflv5_clear" style="display:none;">削除</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="row-actions">
@@ -1311,7 +1355,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-21 11:30 JST';
+const BUILD_ID = '2026-05-21 15:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -1431,7 +1475,7 @@ const state = {
   editingId: null,
   pendingImage: null, pendingOrigImage: null,
   pendingDetectedBounds: null, useOriginal: false,
-  pendingVariantImages: { alpha: null, beta: null, driveA: null, driveB: null, mc: null },
+  pendingVariantImages: { alpha: null, beta: null, driveA: null, driveB: null, mc: null, mflv1: null, mflv3: null, mflv5: null },
   pendingNotesRest: '',
   uploadQueue: [],
 };
@@ -3479,15 +3523,21 @@ function openDetail(id) {
   const tierOrder = { base: 0, alpha: 1, beta: 2, drive_a: 3, drive_b: 4 };
   const greek = { base: '', alpha: 'α', beta: 'β', drive_a: 'A', drive_b: 'B' };
   const vs = Array.isArray(c.variants) ? c.variants : [];
+  // メダロッター/戦術カード: 効果は effectText に統一表示し、特性・行動(views)は出さない。
+  // 既存データで effectText が空・traits に本文がある場合は traits をフォールバックとして効果に使う。
+  const isEffectOnlyCard = (c.cardType === 'medarotter' || c.cardType === 'tactical_card');
+  const effEffectText = isEffectOnlyCard
+    ? (c.effectText && String(c.effectText).trim() !== '' ? c.effectText : (c.traits || ''))
+    : c.effectText;
   const views = [];
-  if (c.traits) views.push({
+  if (c.traits && !isEffectOnlyCard) views.push({
     key: 'base', label: '基本', greek: '', traits: c.traits,
     actionCost: c.actionCost, image: c.image || null,
     elementType: c.elementType, partsMode: c.partsMode, barrierLimit: c.barrierLimit,
     bp: c.bp, coolingCost: c.coolingCost, legType: c.legType,
   });
   vs.slice().sort((a, b) => (tierOrder[a.tier] != null ? tierOrder[a.tier] : 9) - (tierOrder[b.tier] != null ? tierOrder[b.tier] : 9))
-    .forEach(v => views.push({
+    .forEach(v => { if (isEffectOnlyCard) return; views.push({
       key: v.tier,
       label: (function() {
         const isLeader = c.cardType === 'leader_medarot';
@@ -3513,7 +3563,7 @@ function openDetail(id) {
       bp: (v.bp != null && v.bp !== '') ? v.bp : c.bp,
       coolingCost: (v.coolingCost != null && v.coolingCost !== '') ? v.coolingCost : c.coolingCost,
       legType: (v.legType != null && v.legType !== '') ? v.legType : c.legType,
-    }));
+    }); });
 
   // Compute the stat row for a given view (overrides win, base is fallback).
   // For parts cards the 腕 column is shown before TYPE (per UI request).
@@ -3634,7 +3684,20 @@ function openDetail(id) {
         window.__detailVariantViews = views;
         return html;
       })() +
-      (c.effectText ? '<div class="detail-text-label">効果</div><div class="detail-text-block">' + escapeHtml(c.effectText) + '</div>' : '') +
+      (effEffectText ? '<div class="detail-text-label">効果</div><div class="detail-text-block">' + escapeHtml(effEffectText) + '</div>' : '') +
+      (function() {
+        // メダル: 対応メダフォース Lv別画像を表示
+        if (c.cardType !== 'medal') return '';
+        const lv = (tier, label) => {
+          const v = (Array.isArray(c.variants) ? c.variants : []).find(x => x && x.tier === tier);
+          const img = (v && v.image) ? v.image : null;
+          return '<div class="medal-mf-view-cell"><div class="medal-mf-lv">' + label + '</div>' +
+            (img ? '<img class="medal-mf-view-img" src="' + img + '" data-mf-img="' + img + '" alt="' + label + '">'
+                 : '<div class="medal-mf-view-empty">—</div>') + '</div>';
+        };
+        return '<div class="detail-text-label">対応メダフォース</div>' +
+          '<div class="medal-mf-view-row">' + lv('mf_lv1', 'Lv.1') + lv('mf_lv3', 'Lv.3') + lv('mf_lv5', 'Lv.5') + '</div>';
+      })() +
       '' +
       '<div class="row-actions" style="margin-top:14px;">' +
         (isAdmin() ? '<button class="btn btn-ghost" id="editFromDetail">編集</button>' : '') +
@@ -3652,6 +3715,14 @@ function openDetail(id) {
     });
   };
   bindModelNoLinks();
+  // メダル: 対応メダフォース画像タップで拡大
+  document.querySelectorAll('#detailBody [data-mf-img]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const src = el.getAttribute('data-mf-img');
+      if (src) openLightbox(src);
+    });
+  });
   const editBtn = document.getElementById('editFromDetail');
   if (editBtn) editBtn.addEventListener('click', () => { requireAdmin(() => { closeDetail(); openEditor(c); }); });
   const variantTabs = document.getElementById('variantTabs');
@@ -3806,7 +3877,7 @@ function openEditor(card) {
   (function() {
     const vs = (card && Array.isArray(card.variants)) ? card.variants : [];
     const getV = (t) => vs.find(v => v && v.tier === t) || null;
-    state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null };
+    state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null, mflv1: null, mflv3: null, mflv5: null };
     // Simple variant blocks (traits + cost + image): α/β and parts-L ドライブA/B
     const simpleMap = { alpha: 'alpha', beta: 'beta', driveA: 'drive_a', driveB: 'drive_b' };
     Object.keys(simpleMap).forEach(pfx => {
@@ -3825,7 +3896,21 @@ function openEditor(card) {
         if (clr) clr.style.display = 'none';
       }
     });
-    // メダチェンジ後 — リーダー: drive_a(=ドライブA) + drive_b(=ドライブB)、
+    // メダル: 対応メダフォース Lv別画像 (mf_lv1/3/5)
+    [['mflv1', 'mf_lv1'], ['mflv3', 'mf_lv3'], ['mflv5', 'mf_lv5']].forEach(([pfx, tier]) => {
+      const v = getV(tier);
+      const prev = document.getElementById('var_' + pfx + '_preview');
+      const clr = document.getElementById('var_' + pfx + '_clear');
+      const fileEl = document.getElementById('f_var_' + pfx + '_imgfile');
+      if (fileEl) fileEl.value = '';
+      if (v && v.image) {
+        if (prev) { prev.src = v.image; prev.classList.add('show'); }
+        if (clr) clr.style.display = 'inline-block';
+      } else {
+        if (prev) { prev.src = ''; prev.classList.remove('show'); }
+        if (clr) clr.style.display = 'none';
+      }
+    });
     // サポート: drive_a のみ。共通ステータスは drive_a 優先(無ければ drive_b)。
     const da = getV('drive_a');
     const db = getV('drive_b');
@@ -4011,6 +4096,21 @@ function collectVariantsFromForm(existing) {
     });
   } else if (cardType === 'leader_medarot' || cardType === 'support_medarot') {
     collectMedaChange();
+  } else if (cardType === 'medal') {
+    // メダル: 対応メダフォース Lv別画像（画像のみのバリアント mf_lv1/3/5）
+    [['mflv1', 'mf_lv1', 'Lv.1'], ['mflv3', 'mf_lv3', 'Lv.3'], ['mflv5', 'mf_lv5', 'Lv.5']].forEach(([prefix, tier, label]) => {
+      managedTiers[tier] = 1;
+      const ex = findExisting(tier);
+      const pend = state.pendingVariantImages ? state.pendingVariantImages[prefix] : null;
+      const exImg = (ex && ex.image != null && String(ex.image).trim() !== '') ? String(ex.image).trim() : null;
+      let imageVal;
+      if (pend === '__CLEARED__') imageVal = null;
+      else if (pend) imageVal = pend;
+      else imageVal = exImg;
+      if (imageVal && String(imageVal).trim() !== '') {
+        out.push(Object.assign({}, ex || {}, { tier: tier, label: label, traits: '', actionCost: null, image: imageVal }));
+      }
+    });
   }
 
   // Preserve any variants whose tier the active editor does not manage,
@@ -4054,8 +4154,10 @@ function toggleFieldsForCardType(t) {
   show('wrap_tactical', has6);
   // 特性・行動: メダロット / パーツ
   show('wrap_traits', isMed || isParts);
-  // 効果テキスト: メダフォース / 戦術 / メダロッター / メダル / キーワード
-  show('wrap_effectText', isTextCard || isMedaforce);
+  // 効果テキスト: メダフォース / 戦術 / メダロッター / キーワード（メダルは画像式なので除外）
+  show('wrap_effectText', (t === 'tactical_card' || t === 'medarotter' || t === 'keyword') || isMedaforce);
+  // メダル専用: 対応メダフォース Lv別画像
+  show('wrap_medalMF', t === 'medal');
 
   // === Collapsibles (display:block on <details>) ===
   const arm = (document.getElementById('f_partsArm') || {}).value || '';
@@ -4082,7 +4184,7 @@ function closeEditor(skipQueueCheck) {
   state.pendingImage = null;
   state.pendingOrigImage = null;
   state.pendingDetectedBounds = null;
-  state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null };
+  state.pendingVariantImages = { alpha: null, beta: null, driveA: null, driveB: null, mc: null, mflv1: null, mflv3: null, mflv5: null };
   state.pendingNotesRest = '';
 }
 function showStatus(msg, kind) {
@@ -4198,7 +4300,7 @@ async function refreshCroppedPreview() {
   document.getElementById('origSize').textContent = r.origDims.w + '×' + r.origDims.h;
   document.getElementById('trimSize').textContent = r.outDims.w + '×' + r.outDims.h;
 }
-const VARIANT_PFX_LABEL = { alpha: 'α', beta: 'β', driveA: 'ドライブA', driveB: 'ドライブB', mc: 'メダチェンジ後' };
+const VARIANT_PFX_LABEL = { alpha: 'α', beta: 'β', driveA: 'ドライブA', driveB: 'ドライブB', mc: 'メダチェンジ後', mflv1: 'Lv.1', mflv3: 'Lv.3', mflv5: 'Lv.5' };
 // Process a variant image (α/β/ドライブA/ドライブB/メダチェンジ後):
 // same auto-crop pipeline as the base image. `prefix` is the form id prefix.
 async function handleVariantImageFile(prefix, file) {
@@ -4284,6 +4386,14 @@ async function saveFromForm() {
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
   };
+  // メダロッター/戦術カード: 効果は effectText に一本化。
+  // 編集画面では「特性・行動」を表示しないため、過去データで traits 側に本文がある場合は effectText へ移行し、traits は空にする。
+  if (card.cardType === 'medarotter' || card.cardType === 'tactical_card') {
+    const ef = (card.effectText && String(card.effectText).trim() !== '') ? card.effectText : null;
+    const tr = (card.traits && String(card.traits).trim() !== '') ? card.traits : null;
+    card.effectText = ef || tr || null;
+    card.traits = null;
+  }
   try {
     // Upload any variant images (α/β/ドライブ/メダチェンジ後) still raw dataURLs
     if (Array.isArray(card.variants) && card.variants.length && SUPABASE_ENABLED) {
@@ -4542,7 +4652,7 @@ function wire() {
     enqueueFiles(files);
   });
 
-  ['alpha', 'beta', 'driveA', 'driveB', 'mc'].forEach(function(prefix) {
+  ['alpha', 'beta', 'driveA', 'driveB', 'mc', 'mflv1', 'mflv3', 'mflv5'].forEach(function(prefix) {
     const dz = document.getElementById('var_' + prefix + '_dropzone');
     const fi = document.getElementById('f_var_' + prefix + '_imgfile');
     const clr = document.getElementById('var_' + prefix + '_clear');
