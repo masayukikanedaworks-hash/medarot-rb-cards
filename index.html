@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-21 17:00 JST | LAYOUT=menu-unify+deckname-move+code-copy | cache=vercel.json+meta | rev=ag -->
+<!-- BUILD 2026-05-21 18:30 JST | LAYOUT=fix-deckmenu+header-fixed | cache=vercel.json+meta | rev=ah -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -18,7 +18,9 @@
 html,body{height:100%}
 body{font-family:var(--f-body);background:var(--bg-0);color:var(--text-1);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;background-image:radial-gradient(ellipse 80% 60% at top left,rgba(255,107,26,.07),transparent 60%),radial-gradient(ellipse 60% 60% at bottom right,rgba(34,211,238,.05),transparent 60%),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);background-size:auto,auto,28px 28px,28px 28px;background-attachment:fixed;min-height:100vh;overflow-x:hidden}
 button{font-family:inherit}
-.header{position:sticky;top:0;z-index:50;background:rgba(7,10,16,.85);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--border-1)}
+.header{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(7,10,16,.92);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--border-1)}
+/* 固定ヘッダーぶんの上余白（実高は JS で body に padding-top 設定。これはフォールバック） */
+body{padding-top:0}
 .header::after{content:"";display:block;height:1px;background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:.4}
 .header-inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;flex-direction:column;gap:8px}
 .hdr-row{display:flex;align-items:center;gap:10px;width:100%}
@@ -63,7 +65,7 @@ button{font-family:inherit}
 .section-label::before{content:"";width:16px;height:1px;background:var(--orange)}
 .tabs-wrap{margin-bottom:14px}
 /* 検索窓・フィルタはヘッダー3行目へ。app 上余白はヘッダー実高に依存しないので最小限 */
-.app.app-list-pad{padding-top:14px}
+.app.app-list-pad{padding-top:8px}
 /* フィルタ展開パネル（ヘッダー下に通常フローで表示） */
 .list-filter-panel{display:none;flex-wrap:wrap;gap:8px;background:var(--bg-1);border:1px solid var(--border-2);padding:12px;margin-bottom:12px}
 .list-filter-panel.open{display:flex}
@@ -1363,7 +1365,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-21 17:00 JST';
+const BUILD_ID = '2026-05-21 18:30 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2725,6 +2727,7 @@ function showOpening() {
 function hideOpening() {
   document.getElementById('opening').classList.add('hidden');
   try { localStorage.setItem(OPENING_SEEN_KEY, '1'); } catch (e) {}
+  if (typeof syncHeaderOffset === 'function') setTimeout(syncHeaderOffset, 50);
 }
 function openAppMenu() {
   document.getElementById('appMenuOverlay').classList.add('open');
@@ -2830,7 +2833,7 @@ function wireAppShell() {
   document.getElementById('appMenuClose').addEventListener('click', closeAppMenu);
   document.getElementById('appMenuOverlay').addEventListener('click', closeAppMenu);
   const hdrDeckBtn = document.getElementById('hdrDeckBtn');
-  if (hdrDeckBtn) hdrDeckBtn.addEventListener('click', () => { openDeckBuilder(); });
+  if (hdrDeckBtn) hdrDeckBtn.addEventListener('click', () => { openDeckBuilder(); openDeckMenu(); });
   document.getElementById('menuImportBtn').addEventListener('click', () => {
     closeAppMenu(); document.getElementById('importBtn').click();
   });
@@ -4881,6 +4884,16 @@ async function init() {
   state.sortBy = 'type-name';
   const ss = document.getElementById('sortSelect');
   if (ss) ss.value = 'type-name';
+  // 固定ヘッダーの実高ぶん body に上余白を確保（3行ヘッダー・可変高に対応）
+  syncHeaderOffset();
+  window.addEventListener('resize', syncHeaderOffset);
+}
+// 固定ヘッダーの高さを測り、body の padding-top に反映（コンテンツがヘッダー裏に隠れないように）
+function syncHeaderOffset() {
+  try {
+    const h = document.querySelector('.header');
+    if (h) document.body.style.paddingTop = h.offsetHeight + 'px';
+  } catch (e) { /* ignore */ }
 }
 init();
 </script>
