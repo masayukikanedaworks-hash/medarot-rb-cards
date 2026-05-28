@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-20 14:00 JST | LAYOUT=fixedbar+fixeddropdown | cache=vercel.json+meta | rev=z -->
+<!-- BUILD 2026-05-20 15:30 JST | LAYOUT=search-unify+deckpool4col+sortreset+name-autofit | cache=vercel.json+meta | rev=aa -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -47,25 +47,27 @@ button{font-family:inherit}
 .section-label{font-family:var(--f-display);font-size:10px;letter-spacing:.25em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .section-label::before{content:"";width:16px;height:1px;background:var(--orange)}
 .tabs-wrap{margin-bottom:14px}
-/* カードリスト上部バー: position:fixed で常時固定（sticky だと親の overflow で無効化されるケースに対応） */
-.list-bar-sticky{position:fixed;top:58px;left:0;right:0;z-index:40;background:rgba(7,10,16,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border-2);padding:0 14px}
-@media(min-width:720px){.list-bar-sticky{top:62px;padding:0 24px}}
-/* バー固定でその下に重ねないよう、app に上余白 */
-.app.app-list-pad{padding-top:60px}
-.list-menu-bar{display:flex;align-items:center;gap:8px;padding:5px 0;min-height:36px;max-width:1400px;margin:0 auto}
-.list-menu-btn{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--cyan);color:var(--cyan);padding:5px 9px;font-family:var(--f-display);font-size:11px;font-weight:700;letter-spacing:.06em;cursor:pointer;clip-path:var(--clip-sm);min-height:0;line-height:1.1;flex:0 0 auto}
-.list-menu-btn:active{background:var(--cyan-soft)}
-.list-menu-icon{font-size:13px;line-height:1}
-.list-menu-cur{font-family:var(--f-display);font-size:11px;color:var(--cyan)}
-.list-bar-spacer{flex:1 1 auto}
-/* 検索/フィルタ: バー右寄せ・パネルは position:fixed で確実にバーの下に表示（クリッピング回避） */
-.list-search-inline{flex:0 0 auto}
-.list-search-inline>.search-toggle{padding:5px 9px;font-size:11px;min-height:0;line-height:1.1}
-.list-search-inline[open]{position:static}
-/* 開いた時の中身（filters/adv-filters）を画面右上に固定パネルとして展開 */
-.list-search-inline[open]>.filters{position:fixed;top:calc(58px + 42px);right:14px;width:min(92vw,520px);background:rgba(7,10,16,.96);border:1px solid var(--cyan);border-bottom:0;padding:10px;z-index:42;box-shadow:0 8px 20px rgba(0,0,0,.6);box-sizing:border-box}
-.list-search-inline[open]>.adv-filters{position:fixed;top:calc(58px + 42px + 80px);right:14px;width:min(92vw,520px);background:rgba(7,10,16,.96);border:1px solid var(--cyan);border-top:0;padding:10px;z-index:42;box-shadow:0 8px 20px rgba(0,0,0,.6);box-sizing:border-box;display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto}
-@media(min-width:720px){.list-search-inline[open]>.filters{top:calc(62px + 46px);right:24px}.list-search-inline[open]>.adv-filters{top:calc(62px + 46px + 80px);right:24px}}
+/* カードリスト上部バー: position:fixed で常時固定 */
+.list-bar-sticky{position:fixed;top:58px;left:0;right:0;z-index:40;background:rgba(7,10,16,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border-2)}
+@media(min-width:720px){.list-bar-sticky{top:62px}}
+/* バー固定でその下に重ねないよう、app に上余白（メニュー行＋検索行ぶん） */
+.app.app-list-pad{padding-top:118px}
+@media(min-width:720px){.app.app-list-pad{padding-top:126px}}
+.list-menu-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 0;max-width:1400px;margin:0 auto}
+@media(min-width:720px){.list-menu-bar{padding:6px 24px 0}}
+.list-menu-btn{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--orange);color:var(--orange);padding:6px 12px;font-family:var(--f-display);font-size:13px;font-weight:700;letter-spacing:.06em;cursor:pointer;clip-path:var(--clip-sm);min-height:0;line-height:1.1;flex:0 0 auto}
+.list-menu-btn:active{background:rgba(255,107,26,.12)}
+.list-menu-icon{font-size:15px;line-height:1}
+.list-menu-cur{font-family:var(--f-display);font-size:13px;color:var(--orange)}
+/* 検索/フィルタ: デッキ構築と同じ見え方（入力欄＋フィルタボタン横並び＋チップ） */
+.list-search-fixed{max-width:1400px;margin:0 auto;padding:8px 14px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;position:relative}
+@media(min-width:720px){.list-search-fixed{padding:8px 24px}}
+.list-search-fixed .deck-pool-search{margin:0}
+.list-search-fixed .deck-filter-toggle{display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:11px;color:var(--text-3);background:transparent;border:1px solid var(--border-1);padding:8px 12px;cursor:pointer;clip-path:var(--clip-sm);letter-spacing:.06em;white-space:nowrap;transition:all .15s}
+.list-search-fixed .deck-filter-toggle:hover{color:var(--cyan);border-color:var(--cyan)}
+.deck-filter-body{display:none;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+.deck-filter-body.open{display:flex}
+.list-adv-filters{display:flex;flex-wrap:wrap;gap:8px;width:100%;align-items:flex-end}
 /* メニュー幅: 現在の1/3に縮小 */
 .list-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .18s;z-index:99}
 .list-menu-overlay.open{opacity:1;pointer-events:auto}
@@ -157,7 +159,7 @@ button{font-family:inherit}
 .card-vbadges{position:absolute;bottom:3px;right:3px;display:flex;gap:3px;z-index:2}
 .card-vbadge{font-family:var(--f-mono);font-weight:700;font-size:10px;line-height:1;color:var(--orange);background:rgba(0,0,0,.85);padding:3px 5px;border:1px solid var(--orange);border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .card-info{padding:5px 6px 6px;border-top:1px solid var(--border-1);background:var(--bg-1)}
-.card-name{font-family:var(--f-body);font-weight:700;font-size:11px;color:var(--text-1);line-height:1.25;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-name{font-family:var(--f-body);font-weight:700;font-size:11px;color:var(--text-1);line-height:1.25;margin-bottom:3px;white-space:nowrap;overflow:hidden}
 .card-meta{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--f-mono);font-size:8px;color:var(--text-3)}
 .card-meta span{display:inline-flex;align-items:center;gap:2px}
 .card-meta b{color:var(--cyan);font-weight:600}
@@ -419,6 +421,10 @@ button{font-family:inherit}
 .deck-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 @media(min-width:540px){.deck-grid{grid-template-columns:repeat(6,1fr);gap:9px}}
 @media(min-width:880px){.deck-grid{grid-template-columns:repeat(9,1fr);gap:10px}}
+/* デッキ構築の「カードリスト」部分（プール=上半分）は4列に統一。デッキ部分は5列のまま */
+#deckPoolGrid.deck-grid{grid-template-columns:repeat(4,1fr)}
+@media(min-width:540px){#deckPoolGrid.deck-grid{grid-template-columns:repeat(5,1fr)}}
+@media(min-width:880px){#deckPoolGrid.deck-grid{grid-template-columns:repeat(7,1fr)}}
 .dcard{position:relative;background:var(--bg-1);border:1px solid var(--border-1);cursor:pointer;overflow:hidden;clip-path:var(--clip-sm);transition:transform .15s,border-color .15s,box-shadow .15s}
 .dcard:hover{transform:translateY(-2px);border-color:var(--orange);box-shadow:0 8px 20px rgba(255,107,26,.18)}
 .dcard:active{transform:translateY(0)}
@@ -629,32 +635,20 @@ button{font-family:inherit}
 <div class="cloud-indicator" id="cloudIndicator" title="Supabase 接続中" style="display:none;"></div>
 
 <main class="app app-list-pad">
-  <!-- カードリスト上部バー: メニューボタン＋検索/フィルタ を1行に。スクロールで固定 -->
+  <!-- カードリスト上部バー: デッキ構築と同じ見え方の検索/フィルタに統一・固定 -->
   <div class="list-bar-sticky">
     <div class="list-menu-bar">
       <button class="list-menu-btn" id="listMenuBtn" aria-label="カードリストメニュー" title="メニュー">
         <span class="list-menu-icon">☰</span>
         <span class="list-menu-cur" id="listMenuCur">リーダー</span>
       </button>
-      <div class="list-bar-spacer"></div>
-      <details class="search-collapse list-search-inline" id="searchCollapse">
-        <summary class="search-toggle">
-          <span class="search-toggle-icon">🔍</span>
-          <span class="search-toggle-label">検索 / フィルタ</span>
-          <span class="search-toggle-state" id="searchFilterCount"></span>
-          <span class="search-toggle-arrow">▾</span>
-        </summary>
-
-        <div class="filters">
-          <div class="search-wrap">
-            <input id="search" class="search" type="text" placeholder="CARD NAME / EFFECT TEXT" autocomplete="off" spellcheck="false">
-          </div>
-          <div class="filter-controls">
-            <div class="type-chips" id="typeChips"></div>
-          </div>
-        </div>
-
-        <div class="adv-filters">
+    </div>
+    <div class="list-search-fixed">
+      <input class="deck-pool-search" id="search" type="text" placeholder="名前 / 効果で絞り込み" autocomplete="off" spellcheck="false">
+      <button class="deck-filter-toggle" id="listFilterToggle">⚙ フィルタ ▾</button>
+      <div class="deck-filter-body" id="listFilterBody">
+        <div class="type-chips" id="typeChips"></div>
+        <div class="list-adv-filters">
           <div class="range-group">
             <div class="range-group-label">行動コスト</div>
             <div class="range-inputs">
@@ -708,7 +702,7 @@ button{font-family:inherit}
           <div class="spacer"></div>
           <button class="clear-btn" id="clearFilters">CLEAR ALL</button>
         </div>
-      </details>
+      </div>
     </div>
   </div>
   <div class="list-menu-overlay" id="listMenuOverlay"></div>
@@ -1245,7 +1239,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-20 14:00 JST';
+const BUILD_ID = '2026-05-20 15:30 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2934,6 +2928,23 @@ function renderGrid() {
   grid.querySelectorAll('[data-card-id]').forEach(el => {
     el.addEventListener('click', () => openDetail(el.dataset.cardId));
   });
+  // カード名が全文1行で収まるようフォントサイズを自動調整（折り返し・省略なし）
+  requestAnimationFrame(fitCardListNames);
+}
+// 各カード名の実幅を測り、はみ出す場合はフォントを縮小して全文表示（最小6px）
+function fitCardListNames() {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  grid.querySelectorAll('.card-name').forEach(nm => {
+    let fs = 11;
+    nm.style.fontSize = fs + 'px';
+    let guard = 0;
+    while (nm.scrollWidth > nm.clientWidth && fs > 6 && guard < 12) {
+      fs -= 1;
+      nm.style.fontSize = fs + 'px';
+      guard++;
+    }
+  });
 }
 function cardTileHtml(c, i) {
   const img = c.image
@@ -4090,7 +4101,7 @@ function wire() {
   document.getElementById('exportBtn').addEventListener('click', exportJson);
   document.getElementById('importBtn').addEventListener('click', openImportModal);
 
-  document.getElementById('search').addEventListener('input', function(e) { state.search = e.target.value; renderGrid(); });
+  document.getElementById('search').addEventListener('input', function(e) { state.search = e.target.value; const lm = document.getElementById('listMenuSearch'); if (lm) lm.value = e.target.value; renderGrid(); });
   // カードリストメニュー: 開閉・検索同期・ルールガイド
   document.getElementById('listMenuBtn').addEventListener('click', openListMenu);
   document.getElementById('listMenuClose').addEventListener('click', closeListMenu);
@@ -4102,6 +4113,15 @@ function wire() {
     if (s2) s2.value = e.target.value;
     renderGrid();
   });
+  // 検索/フィルタ: フィルタトグル（デッキ構築と同じ下展開スタイル）
+  const listFilterToggle = document.getElementById('listFilterToggle');
+  const listFilterBody = document.getElementById('listFilterBody');
+  if (listFilterToggle && listFilterBody) {
+    listFilterToggle.addEventListener('click', function() {
+      const open = listFilterBody.classList.toggle('open');
+      listFilterToggle.textContent = open ? '⚙ フィルタ ▴' : '⚙ フィルタ ▾';
+    });
+  }
   document.getElementById('bpMin').addEventListener('input', function(e) { state.bpMin = e.target.value; renderGrid(); });
   document.getElementById('bpMax').addEventListener('input', function(e) { state.bpMax = e.target.value; renderGrid(); });
   document.getElementById('costMin').addEventListener('input', function(e) { state.costMin = e.target.value; renderGrid(); });
@@ -4331,6 +4351,10 @@ async function init() {
   }
   // 起動時はカードリストをスクロール最上部にリセット（activeTab=リーダー固定）
   window.scrollTo({ top: 0, behavior: 'auto' });
+  // 起動時は必ず「タイプ→名前順」ソートにリセット
+  state.sortBy = 'type-name';
+  const ss = document.getElementById('sortSelect');
+  if (ss) ss.value = 'type-name';
 }
 init();
 </script>
