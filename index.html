@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-21 18:30 JST | LAYOUT=fix-deckmenu+header-fixed | cache=vercel.json+meta | rev=ah -->
+<!-- BUILD 2026-05-21 19:30 JST | LAYOUT=fix-deckmenu-rerender | cache=vercel.json+meta | rev=ai -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1365,7 +1365,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-21 18:30 JST';
+const BUILD_ID = '2026-05-21 19:30 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -1891,6 +1891,12 @@ function closeDeckMenu() {
 }
 function renderDeckMenu() {
   const list = document.getElementById('deckMenuList');
+  // デッキ名編集窓は静的要素。list.innerHTML で消えないよう、再描画前に一旦 panel 直下へ退避。
+  const panel = document.getElementById('deckMenuPanel');
+  const nameWrapSafe = document.getElementById('deckMenuNameWrap');
+  if (nameWrapSafe && panel && nameWrapSafe.parentNode !== panel) {
+    panel.appendChild(nameWrapSafe);
+  }
   const hasMode = !!deckState.mode;
   const meta = deckCatMeta();
   const dis = hasMode ? '' : ' deck-menu-disabled';
@@ -1940,10 +1946,10 @@ function renderDeckMenu() {
       renderDeckBuilder();
     });
   });
-  document.getElementById('deckMenuNameWrap').style.display = hasMode ? 'block' : 'none';
+  const nameWrap = document.getElementById('deckMenuNameWrap');
+  if (nameWrap) nameWrap.style.display = hasMode ? 'block' : 'none';
   // デッキ名編集窓を「保存」ボタンの直後に移動（静的要素を移設してイベント束縛を維持）
   const saveBtn = list.querySelector('[data-act="save"]');
-  const nameWrap = document.getElementById('deckMenuNameWrap');
   if (saveBtn && nameWrap && saveBtn.parentNode === list) {
     list.insertBefore(nameWrap, saveBtn.nextSibling);
   }
