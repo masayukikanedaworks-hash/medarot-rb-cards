@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-22 11:00 JST | LAYOUT=deckpicker-delete+block+sort | cache=vercel.json+meta | rev=ak -->
+<!-- BUILD 2026-05-22 14:00 JST | LAYOUT=user-accounts+mypage+owner-decks | cache=vercel.json+meta | rev=al -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -537,7 +537,11 @@ body{padding-top:0}
 .auth-field input:focus{border-color:var(--cyan)}
 .auth-msg{font-family:var(--f-mono);font-size:11px;color:#f87171;min-height:16px;margin-bottom:10px;line-height:1.4}
 .auth-msg.ok{color:#34d399}
-.auth-actions{display:flex;gap:8px;justify-content:flex-end}
+.auth-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.auth-actions .spacer{flex:1 1 auto}
+.auth-tabs{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border-1);clip-path:var(--clip-sm)}
+.auth-tab{flex:1;font-family:var(--f-display);font-size:12px;font-weight:700;padding:8px 0;background:transparent;border:0;color:var(--text-3);cursor:pointer;transition:all .12s}
+.auth-tab.active{background:var(--cyan-soft);color:var(--cyan)}
 /* ===== OPENING SCREEN ===== */
 .opening{position:fixed;inset:0;z-index:400;background:var(--bg-0);display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px 16px;background-image:radial-gradient(ellipse 80% 60% at top left,rgba(255,107,26,.1),transparent 60%),radial-gradient(ellipse 60% 60% at bottom right,rgba(34,211,238,.08),transparent 60%)}
 .opening.hidden{display:none}
@@ -715,10 +719,67 @@ body{padding-top:0}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     JSONエクスポート
   </button>
+  <button class="app-menu-item" id="menuUserBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span id="menuUserLabel">ログイン / 新規登録</span>
+  </button>
+  <button class="app-menu-item" id="menuMyPageBtn" style="display:none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M12 11v0"/></svg>
+    マイページ
+  </button>
   <button class="app-menu-item" id="menuAuthBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     <span id="menuAuthLabel">管理者ログイン</span>
   </button>
+</div>
+
+<!-- 一般ユーザー ログイン/新規登録 モーダル -->
+<div class="auth-overlay" id="userAuthOverlay" role="dialog" aria-modal="true">
+  <div class="auth-modal">
+    <div class="auth-head">
+      <div class="auth-title" id="userAuthTitle">ログイン</div>
+      <button class="modal-close" id="userAuthClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="userTabLogin">ログイン</button>
+      <button class="auth-tab" id="userTabSignup">新規登録</button>
+    </div>
+    <div class="auth-desc" id="userAuthDesc">ニックネームとパスワードでログインします。</div>
+    <label class="auth-field"><span>ニックネーム（Twitter ID等）</span>
+      <input type="text" id="userNick" autocomplete="username" placeholder="例: medarotter01" spellcheck="false"></label>
+    <label class="auth-field" id="userPlayerNameField" style="display:none;"><span>プレイヤー名</span>
+      <input type="text" id="userPlayerName" placeholder="例: ロクショウ使い" spellcheck="false"></label>
+    <label class="auth-field"><span>パスワード</span>
+      <input type="password" id="userPassword" autocomplete="current-password" placeholder="6文字以上"></label>
+    <div class="auth-msg" id="userAuthMsg"></div>
+    <div class="auth-actions">
+      <button class="btn btn-ghost" id="userAuthCancel">キャンセル</button>
+      <button class="btn btn-primary" id="userAuthSubmit">ログイン</button>
+    </div>
+  </div>
+</div>
+
+<!-- マイページ モーダル -->
+<div class="auth-overlay" id="myPageOverlay" role="dialog" aria-modal="true">
+  <div class="auth-modal">
+    <div class="auth-head">
+      <div class="auth-title">マイページ</div>
+      <button class="modal-close" id="myPageClose" aria-label="閉じる">✕</button>
+    </div>
+    <div class="auth-desc">プロフィールを登録・編集できます。自分が作成したデッキだけが「デッキを選択」に表示されます。</div>
+    <label class="auth-field"><span>プレイヤー名</span>
+      <input type="text" id="mpPlayerName" placeholder="プレイヤー名" spellcheck="false"></label>
+    <label class="auth-field"><span>Twitter ID（@なしでも可・表示用）</span>
+      <input type="text" id="mpTwitterId" placeholder="例: medarot_taro" spellcheck="false"></label>
+    <label class="auth-field"><span>Tonamel ID</span>
+      <input type="text" id="mpTonamelId" placeholder="例: tonamel_id" spellcheck="false"></label>
+    <div class="auth-msg" id="myPageMsg"></div>
+    <div class="auth-actions">
+      <button class="btn btn-danger" id="myPageLogout">ログアウト</button>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="myPageSave">保存</button>
+    </div>
+  </div>
 </div>
 
 <!-- 管理者ログイン モーダル -->
@@ -1408,7 +1469,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-22 11:00 JST';
+const BUILD_ID = '2026-05-22 14:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -1552,20 +1613,40 @@ function supaHeaders(extra) {
 // === 管理者認証 (Supabase Auth: email/password) ===
 // ログイン中のユーザーのみカードの追加・編集・削除が可能（RLSで制御）。
 // デッキの閲覧・作成・コード読込は未ログインでも可能。
-const authState = { token: null, email: null, refresh: null };
+// 一般ユーザーは「ニックネーム＋パスワード」でログイン（擬似メール <nickname>@medarot-rb.local を使用）。
+// 管理者は実メールでログインし、カード編集が可能。一般ユーザーは自分のデッキのみ閲覧・編集。
+const USER_EMAIL_DOMAIN = 'medarot-rb.local';
+const authState = { token: null, email: null, refresh: null, userId: null, nickname: null, profile: null };
 const AUTH_STORE_KEY = 'medarot_rb_auth_v1';
-function isAdmin() { return !!(authState && authState.token); }
+// ログイン中か（一般ユーザー含む）
+function isLoggedIn() { return !!(authState && authState.token); }
+// 管理者か（カード編集権限）。擬似ドメインの一般ユーザーは管理者ではない。
+function isAdmin() {
+  if (!authState || !authState.token || !authState.email) return false;
+  return !String(authState.email).toLowerCase().endsWith('@' + USER_EMAIL_DOMAIN);
+}
+// ニックネーム → 擬似メール
+function nicknameToEmail(nick) {
+  const n = String(nick || '').trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+  return n + '@' + USER_EMAIL_DOMAIN;
+}
 function authRestore() {
   try {
     const raw = sessionStorage.getItem(AUTH_STORE_KEY);
     if (!raw) return;
     const o = JSON.parse(raw);
-    if (o && o.token) { authState.token = o.token; authState.email = o.email || null; authState.refresh = o.refresh || null; }
+    if (o && o.token) {
+      authState.token = o.token; authState.email = o.email || null; authState.refresh = o.refresh || null;
+      authState.userId = o.userId || null; authState.nickname = o.nickname || null;
+    }
   } catch (e) { /* ignore */ }
 }
 function authPersist() {
   try {
-    if (authState.token) sessionStorage.setItem(AUTH_STORE_KEY, JSON.stringify({ token: authState.token, email: authState.email, refresh: authState.refresh }));
+    if (authState.token) sessionStorage.setItem(AUTH_STORE_KEY, JSON.stringify({
+      token: authState.token, email: authState.email, refresh: authState.refresh,
+      userId: authState.userId, nickname: authState.nickname,
+    }));
     else sessionStorage.removeItem(AUTH_STORE_KEY);
   } catch (e) { /* ignore */ }
 }
@@ -1585,8 +1666,52 @@ async function authSignIn(email, password) {
   authState.token = data.access_token;
   authState.refresh = data.refresh_token || null;
   authState.email = (data.user && data.user.email) ? data.user.email : email;
+  authState.userId = (data.user && data.user.id) ? data.user.id : null;
   authPersist();
   return true;
+}
+// 一般ユーザー: ニックネーム＋パスワードでログイン
+async function userSignIn(nickname, password) {
+  await authSignIn(nicknameToEmail(nickname), password);
+  authState.nickname = String(nickname || '').trim();
+  authPersist();
+  await loadMyProfile().catch(() => {});
+  return true;
+}
+// 一般ユーザー: ニックネーム＋パスワードで新規登録
+async function userSignUp(nickname, password, playerName) {
+  if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
+  const nick = String(nickname || '').trim();
+  if (nick.length < 2) throw new Error('ニックネームは2文字以上で入力してください');
+  if (!/^[A-Za-z0-9_.-]+$/.test(nick)) throw new Error('ニックネームは半角英数字と _ . - のみ使用できます');
+  if (String(password || '').length < 6) throw new Error('パスワードは6文字以上で入力してください');
+  const email = nicknameToEmail(nick);
+  const resp = await fetch(SUPABASE_URL + '/auth/v1/signup', {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password, data: { nickname: nick } }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    let msg = (data && (data.error_description || data.msg || data.error)) || ('登録失敗(' + resp.status + ')');
+    if (/already registered|already been registered|User already/i.test(msg)) msg = 'そのニックネームは既に使われています';
+    throw new Error(msg);
+  }
+  // サインアップ直後にトークンが返ればそのままログイン状態に
+  if (data.access_token) {
+    authState.token = data.access_token;
+    authState.refresh = data.refresh_token || null;
+    authState.email = email;
+    authState.userId = (data.user && data.user.id) ? data.user.id : ((data.id) ? data.id : null);
+    authState.nickname = nick;
+    authPersist();
+    // プロフィールにプレイヤー名を保存（トリガで作成済みの行を更新）
+    await saveMyProfile({ player_name: playerName || nick, nickname: nick }).catch(() => {});
+    await loadMyProfile().catch(() => {});
+    return { loggedIn: true };
+  }
+  // メール確認ON等でトークンが返らない場合
+  return { loggedIn: false };
 }
 async function authSignOut() {
   // ローカルのセッションを破棄（サーバ側 revoke は任意）
@@ -1599,8 +1724,38 @@ async function authSignOut() {
     }
   } finally {
     authState.token = null; authState.email = null; authState.refresh = null;
+    authState.userId = null; authState.nickname = null; authState.profile = null;
     authPersist();
   }
+}
+// 自分のプロフィールを取得
+async function loadMyProfile() {
+  if (!isLoggedIn() || !authState.userId) return null;
+  const url = SUPABASE_URL + '/rest/v1/profiles?select=*&id=eq.' + encodeURIComponent(authState.userId) + '&limit=1';
+  const resp = await fetch(url, { headers: supaHeaders() });
+  if (!resp.ok) return null;
+  const rows = (await resp.json()) || [];
+  authState.profile = rows.length ? rows[0] : null;
+  if (authState.profile && authState.profile.nickname) authState.nickname = authState.profile.nickname;
+  return authState.profile;
+}
+// 自分のプロフィールを保存（upsert）
+async function saveMyProfile(fields) {
+  if (!isLoggedIn() || !authState.userId) throw new Error('ログインが必要です');
+  const row = Object.assign({ id: authState.userId, updated_at: new Date().toISOString() }, fields || {});
+  const url = SUPABASE_URL + '/rest/v1/profiles?on_conflict=id';
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
+    body: JSON.stringify(row),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('プロフィール保存失敗(' + resp.status + '): ' + txt.slice(0, 160));
+  }
+  const out = (await resp.json().catch(() => []))[0] || null;
+  if (out) authState.profile = out;
+  return out;
 }
 
 // === DB ↔ App 変換 (snake_case ↔ camelCase) ===
@@ -1792,16 +1947,21 @@ function dbToDeck(r) {
     medaforce: Array.isArray(r.medaforce) ? r.medaforce : [],
     mainDeck: Array.isArray(r.main_deck) ? r.main_deck : [],
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
+    ownerId: r.owner_id || null,
   };
 }
 function deckToDb(d) {
-  return {
+  const row = {
     id: d.id, name: d.name || '無題', deck_code: d.deckCode || null,
     leader_id: d.leaderId || null, medal_id: d.medalId || null,
     parts_r: d.partsR || [], parts_l: d.partsL || [],
     medaforce: d.medaforce || [], main_deck: d.mainDeck || [],
     updated_at: new Date().toISOString(),
   };
+  // ログイン中なら所有者を自分に（RLSの owner_id = auth.uid() を満たすため）
+  if (typeof authState !== 'undefined' && authState.userId) row.owner_id = authState.userId;
+  else if (d.ownerId) row.owner_id = d.ownerId;
+  return row;
 }
 function genDeckCode() {
   const ch = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -2895,8 +3055,9 @@ async function doAuthSubmit() {
 // ログイン状態をUIに反映（メニュー文言・FAB表示・管理者専用メニュー）
 function syncAuthUI() {
   const admin = isAdmin();
+  const loggedIn = isLoggedIn();
   const label = document.getElementById('menuAuthLabel');
-  if (label) label.textContent = admin ? ('ログアウト（' + (authState.email || '管理者') + '）') : '管理者ログイン';
+  if (label) label.textContent = admin ? ('管理者ログアウト（' + (authState.email || '管理者') + '）') : '管理者ログイン';
   const fab = document.getElementById('fabAdd');
   if (fab) fab.style.display = admin ? '' : 'none';
   // 管理者専用メニュー項目（JSONインポート/エクスポート/最終更新日）
@@ -2904,12 +3065,113 @@ function syncAuthUI() {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });
+  // 一般ユーザー: ログイン/新規登録 ↔ マイページ
+  const userLabel = document.getElementById('menuUserLabel');
+  const myPageBtn = document.getElementById('menuMyPageBtn');
+  // 一般ユーザー（管理者でないログイン）のときだけマイページ表示
+  const isUser = loggedIn && !admin;
+  if (userLabel) userLabel.textContent = isUser ? ((authState.nickname || 'ユーザー') + ' さん') : 'ログイン / 新規登録';
+  if (myPageBtn) myPageBtn.style.display = isUser ? '' : 'none';
 }
 // 管理操作の前にログインを要求。ログイン済みなら fn() を実行、未ログインならログイン画面。
 function requireAdmin(fn) {
   if (isAdmin()) { fn(); return; }
   toast('管理者ログインが必要です', 'info', 1800);
   openAuthModal();
+}
+// ===== 一般ユーザー ログイン/新規登録 =====
+let userAuthMode = 'login'; // 'login' | 'signup'
+function openUserAuthModal(mode) {
+  userAuthMode = mode || 'login';
+  const msg = document.getElementById('userAuthMsg');
+  if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+  setUserAuthMode(userAuthMode);
+  document.getElementById('userAuthOverlay').classList.add('open');
+  const nk = document.getElementById('userNick');
+  if (nk) setTimeout(() => nk.focus(), 60);
+}
+function closeUserAuthModal() { document.getElementById('userAuthOverlay').classList.remove('open'); }
+function setUserAuthMode(mode) {
+  userAuthMode = mode;
+  const isSignup = mode === 'signup';
+  document.getElementById('userTabLogin').classList.toggle('active', !isSignup);
+  document.getElementById('userTabSignup').classList.toggle('active', isSignup);
+  document.getElementById('userAuthTitle').textContent = isSignup ? '新規登録' : 'ログイン';
+  document.getElementById('userAuthDesc').textContent = isSignup
+    ? 'ニックネームとパスワードでアカウントを作成します。メールアドレスは不要です。'
+    : 'ニックネームとパスワードでログインします。';
+  document.getElementById('userPlayerNameField').style.display = isSignup ? 'block' : 'none';
+  document.getElementById('userAuthSubmit').textContent = isSignup ? '登録する' : 'ログイン';
+  const pw = document.getElementById('userPassword');
+  if (pw) pw.setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
+}
+async function doUserAuthSubmit() {
+  const nick = (document.getElementById('userNick') || {}).value || '';
+  const pw = (document.getElementById('userPassword') || {}).value || '';
+  const pn = (document.getElementById('userPlayerName') || {}).value || '';
+  const msg = document.getElementById('userAuthMsg');
+  if (!nick.trim() || !pw) { if (msg) { msg.classList.remove('ok'); msg.textContent = 'ニックネームとパスワードを入力してください'; } return; }
+  if (msg) { msg.classList.remove('ok'); msg.textContent = (userAuthMode === 'signup' ? '登録中...' : 'ログイン中...'); }
+  try {
+    if (userAuthMode === 'signup') {
+      const r = await userSignUp(nick, pw, pn);
+      if (r && r.loggedIn) {
+        if (msg) { msg.classList.add('ok'); msg.textContent = '登録しました'; }
+        syncAuthUI();
+        setTimeout(async () => { closeUserAuthModal(); toast('登録してログインしました', 'success', 2000); await reloadDecksForUser(); }, 400);
+      } else {
+        if (msg) { msg.classList.add('ok'); msg.textContent = '登録しました。ログインしてください'; }
+        setUserAuthMode('login');
+      }
+    } else {
+      await userSignIn(nick, pw);
+      if (msg) { msg.classList.add('ok'); msg.textContent = 'ログインしました'; }
+      syncAuthUI();
+      setTimeout(async () => { closeUserAuthModal(); toast((authState.nickname || '') + ' さん、ログインしました', 'success', 2000); await reloadDecksForUser(); }, 400);
+    }
+  } catch (e) {
+    if (msg) { msg.classList.remove('ok'); msg.textContent = (e && e.message) ? e.message : '失敗しました'; }
+  }
+}
+// ログイン状態の変化に応じてデッキ一覧を読み直す（自分のデッキのみ表示するため）
+async function reloadDecksForUser() {
+  try {
+    if (typeof loadAllDecks === 'function' && SUPABASE_ENABLED) {
+      const decks = await loadAllDecks();
+      if (Array.isArray(decks)) deckState.decks = decks;
+    }
+  } catch (e) { /* ignore */ }
+}
+// ===== マイページ =====
+async function openMyPage() {
+  const msg = document.getElementById('myPageMsg');
+  if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+  // 最新プロフィール取得
+  let p = authState.profile;
+  try { p = await loadMyProfile() || p; } catch (e) {}
+  document.getElementById('mpPlayerName').value = (p && p.player_name) ? p.player_name : (authState.nickname || '');
+  document.getElementById('mpTwitterId').value = (p && p.twitter_id) ? p.twitter_id : '';
+  document.getElementById('mpTonamelId').value = (p && p.tonamel_id) ? p.tonamel_id : '';
+  document.getElementById('myPageOverlay').classList.add('open');
+}
+function closeMyPage() { document.getElementById('myPageOverlay').classList.remove('open'); }
+async function doMyPageSave() {
+  const msg = document.getElementById('myPageMsg');
+  const fields = {
+    player_name: (document.getElementById('mpPlayerName') || {}).value || '',
+    twitter_id: (document.getElementById('mpTwitterId') || {}).value || '',
+    tonamel_id: (document.getElementById('mpTonamelId') || {}).value || '',
+    nickname: authState.nickname || null,
+  };
+  if (msg) { msg.classList.remove('ok'); msg.textContent = '保存中...'; }
+  try {
+    await saveMyProfile(fields);
+    if (msg) { msg.classList.add('ok'); msg.textContent = '保存しました'; }
+    toast('プロフィールを保存しました', 'success', 1800);
+    setTimeout(closeMyPage, 500);
+  } catch (e) {
+    if (msg) { msg.classList.remove('ok'); msg.textContent = (e && e.message) ? e.message : '保存に失敗しました'; }
+  }
 }
 function syncCloudDot() {
   // Mirror #cloudIndicator's offline state into the in-menu dot.
@@ -2989,6 +3251,43 @@ function wireAppShell() {
   if (authSubmit) authSubmit.addEventListener('click', doAuthSubmit);
   const authPwd = document.getElementById('authPassword');
   if (authPwd) authPwd.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuthSubmit(); });
+  // 一般ユーザー: ログイン/新規登録 メニュー
+  const menuUserBtn = document.getElementById('menuUserBtn');
+  if (menuUserBtn) menuUserBtn.addEventListener('click', () => {
+    closeAppMenu();
+    if (isLoggedIn() && !isAdmin()) { openMyPage(); }
+    else { openUserAuthModal('login'); }
+  });
+  const menuMyPageBtn = document.getElementById('menuMyPageBtn');
+  if (menuMyPageBtn) menuMyPageBtn.addEventListener('click', () => { closeAppMenu(); openMyPage(); });
+  // ユーザー認証モーダル
+  const userTabLogin = document.getElementById('userTabLogin');
+  const userTabSignup = document.getElementById('userTabSignup');
+  if (userTabLogin) userTabLogin.addEventListener('click', () => setUserAuthMode('login'));
+  if (userTabSignup) userTabSignup.addEventListener('click', () => setUserAuthMode('signup'));
+  const userAuthClose = document.getElementById('userAuthClose');
+  const userAuthCancel = document.getElementById('userAuthCancel');
+  const userAuthSubmit = document.getElementById('userAuthSubmit');
+  if (userAuthClose) userAuthClose.addEventListener('click', closeUserAuthModal);
+  if (userAuthCancel) userAuthCancel.addEventListener('click', closeUserAuthModal);
+  const userAuthOv = document.getElementById('userAuthOverlay');
+  if (userAuthOv) userAuthOv.addEventListener('click', (e) => { if (e.target === userAuthOv) closeUserAuthModal(); });
+  if (userAuthSubmit) userAuthSubmit.addEventListener('click', doUserAuthSubmit);
+  const userPwd = document.getElementById('userPassword');
+  if (userPwd) userPwd.addEventListener('keydown', (e) => { if (e.key === 'Enter') doUserAuthSubmit(); });
+  // マイページ
+  const myPageClose = document.getElementById('myPageClose');
+  const myPageSave = document.getElementById('myPageSave');
+  const myPageLogout = document.getElementById('myPageLogout');
+  if (myPageClose) myPageClose.addEventListener('click', closeMyPage);
+  const myPageOv = document.getElementById('myPageOverlay');
+  if (myPageOv) myPageOv.addEventListener('click', (e) => { if (e.target === myPageOv) closeMyPage(); });
+  if (myPageSave) myPageSave.addEventListener('click', doMyPageSave);
+  if (myPageLogout) myPageLogout.addEventListener('click', () => {
+    if (confirm('ログアウトしますか？')) {
+      authSignOut().then(async () => { closeMyPage(); syncAuthUI(); toast('ログアウトしました', 'info', 1600); await reloadDecksForUser(); });
+    }
+  });
   // Deck filter (collapsible)
   const ft = document.getElementById('deckFilterToggle');
   if (ft) ft.addEventListener('click', () => {
@@ -4941,6 +5240,8 @@ async function init() {
   // 管理者ログイン状態を復元しUIに反映（FAB表示・メニュー文言）
   authRestore();
   syncAuthUI();
+  // 一般ユーザーならプロフィールを読み込んでニックネーム等を反映
+  if (isLoggedIn() && !isAdmin()) { loadMyProfile().then(() => syncAuthUI()).catch(() => {}); }
   // 最終更新日をメニューに表示（更新反映の目視確認用）
   const __bb = document.getElementById('menuUpdated');
   if (__bb) __bb.textContent = '最終更新日：' + BUILD_ID;
