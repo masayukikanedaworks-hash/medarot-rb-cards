@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-23 15:00 JST | LAYOUT=user-deck-pulldown-refresh-fix | cache=vercel.json+meta | rev=as -->
+<!-- BUILD 2026-05-23 17:00 JST | LAYOUT=stats-btn+tour-time-url+tour-info-section | cache=vercel.json+meta | rev=at -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -576,6 +576,13 @@ body{padding-top:0}
 .tour-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border-1)}
 .tour-detail-head h2{font-family:var(--f-display);font-size:16px;font-weight:700;color:var(--orange);margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tour-csv-box{background:var(--bg-1);border:1px dashed var(--cyan);padding:14px;margin-bottom:12px;clip-path:var(--clip-sm)}
+.tour-info-box{background:var(--bg-1);border:1px solid var(--border-1);padding:10px 14px;margin-bottom:12px;clip-path:var(--clip-sm)}
+.tour-info-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-family:var(--f-body);font-size:12px}
+.tour-info-row + .tour-info-row{border-top:1px dashed var(--border-1)}
+.tour-info-label{flex:0 0 70px;font-family:var(--f-display);font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;padding-top:2px}
+.tour-info-val{flex:1;color:var(--text-1);min-width:0;word-break:break-word}
+.tour-info-val a{color:var(--cyan);text-decoration:underline}
+.tour-info-val.tour-info-note{white-space:pre-wrap;line-height:1.5}
 .tour-csv-title{font-family:var(--f-display);font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:8px;letter-spacing:.04em}
 .tour-csv-desc{font-family:var(--f-body);font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:10px}
 .tour-csv-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -741,6 +748,10 @@ body{padding-top:0}
       <button class="opening-btn" id="openAnnBtn">
         <span class="opening-btn-ico">📢</span>
         <span class="opening-btn-label">お知らせ</span>
+      </button>
+      <button class="opening-btn" id="openStatsBtn">
+        <span class="opening-btn-ico">🏅</span>
+        <span class="opening-btn-label">戦績登録</span>
       </button>
     </div>
   </div>
@@ -1584,7 +1595,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-23 15:00 JST';
+const BUILD_ID = '2026-05-23 17:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2139,14 +2150,18 @@ const tournamentState = {
 };
 function dbToTournament(r) {
   return {
-    id: r.id, name: r.name || '無題', eventDate: r.event_date || null, note: r.note || '',
+    id: r.id, name: r.name || '無題', eventDate: r.event_date || null,
+    eventTime: r.event_time || '', tonamelUrl: r.tonamel_url || '',
+    note: r.note || '',
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   };
 }
 function tournamentToDb(t) {
   return {
-    id: t.id, name: t.name || '無題', event_date: t.eventDate || null, note: t.note || '',
+    id: t.id, name: t.name || '無題', event_date: t.eventDate || null,
+    event_time: t.eventTime || null, tonamel_url: t.tonamelUrl || null,
+    note: t.note || '',
     updated_at: new Date().toISOString(),
   };
 }
@@ -2534,12 +2549,19 @@ function renderTournamentList() {
     return;
   }
   body.innerHTML = list.map(t => {
-    const date = t.eventDate ? escapeHtml(t.eventDate) : '日付未設定';
+    const dateBits = [];
+    if (t.eventDate) dateBits.push(escapeHtml(t.eventDate));
+    if (t.eventTime) dateBits.push(escapeHtml(t.eventTime));
+    const date = dateBits.length ? dateBits.join(' ') : '日付未設定';
+    const url = t.tonamelUrl
+      ? '<div style="font-family:var(--f-mono);font-size:10px;margin-top:4px;"><a href="' + escapeAttr(String(t.tonamelUrl).replace(/[<>"]/g,'')) + '" target="_blank" rel="noopener noreferrer" style="color:var(--cyan);">🔗 Tonamel</a></div>'
+      : '';
     return '<div class="tour-list-item" data-tid="' + escapeAttr(t.id) + '">' +
       '<div class="tour-list-row">' +
       '<div class="tour-list-name">' + escapeHtml(t.name) + '</div>' +
       '<div class="tour-list-date">' + date + '</div>' +
       '</div>' +
+      url +
       (t.note ? '<div style="font-family:var(--f-body);font-size:11px;color:var(--text-3);margin-top:4px;">' + escapeHtml(t.note) + '</div>' : '') +
       '<div class="tour-list-actions">' +
       '<button class="btn btn-cyan" data-act="open">参加者管理</button>' +
@@ -2575,7 +2597,13 @@ function openTournamentForm(t) {
   body.innerHTML = '<div class="tour-form">' +
     '<div class="tour-form-row">' +
     '<div class="tour-form-field"><label>大会名 *</label><input type="text" id="tfName" maxlength="80" placeholder="第0回 メダロットカードロボトルRB"></div>' +
+    '</div>' +
+    '<div class="tour-form-row">' +
     '<div class="tour-form-field" style="flex:0 0 180px;"><label>開催日</label><input type="date" id="tfDate"></div>' +
+    '<div class="tour-form-field" style="flex:1 1 200px;"><label>開催時間</label><input type="text" id="tfTime" maxlength="40" placeholder="例: 19:00-22:00 / 21時開始"></div>' +
+    '</div>' +
+    '<div class="tour-form-row">' +
+    '<div class="tour-form-field" style="flex:1 1 100%;"><label>Tonamel URL</label><input type="url" id="tfUrl" maxlength="300" placeholder="https://tonamel.com/competition/XXXXX"></div>' +
     '</div>' +
     '<div class="tour-form-row">' +
     '<div class="tour-form-field" style="flex:1 1 100%;"><label>メモ</label><textarea id="tfNote" maxlength="500" placeholder="大会の概要・備考など"></textarea></div>' +
@@ -2587,16 +2615,25 @@ function openTournamentForm(t) {
   if (isEdit) {
     document.getElementById('tfName').value = t.name || '';
     document.getElementById('tfDate').value = t.eventDate || '';
+    document.getElementById('tfTime').value = t.eventTime || '';
+    document.getElementById('tfUrl').value = t.tonamelUrl || '';
     document.getElementById('tfNote').value = t.note || '';
   }
   document.getElementById('tfCancel').addEventListener('click', renderTournamentList);
   document.getElementById('tfSave').addEventListener('click', async () => {
     const name = document.getElementById('tfName').value.trim();
     if (!name) { toast('大会名を入力してください', 'error', 2200); return; }
+    const url = document.getElementById('tfUrl').value.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast('Tonamel URLは http:// または https:// で始まる必要があります', 'error', 3000);
+      return;
+    }
     const obj = {
       id: isEdit ? t.id : genTourId(),
       name: name,
       eventDate: document.getElementById('tfDate').value || null,
+      eventTime: document.getElementById('tfTime').value.trim() || '',
+      tonamelUrl: url || '',
       note: document.getElementById('tfNote').value.trim() || '',
     };
     try {
@@ -2613,11 +2650,30 @@ async function openTournamentDetail(t) {
   tournamentState.current = t;
   document.getElementById('tourTitle').textContent = t.name;
   const body = document.getElementById('tourBody');
+  // 大会情報セクション（開催日・時間・Tonamel URL・メモ）
+  const infoLines = [];
+  if (t.eventDate || t.eventTime) {
+    const d = t.eventDate ? escapeHtml(t.eventDate) : '';
+    const tm = t.eventTime ? escapeHtml(t.eventTime) : '';
+    const sep = d && tm ? ' ' : '';
+    infoLines.push('<div class="tour-info-row"><span class="tour-info-label">開催</span><span class="tour-info-val">' + d + sep + tm + '</span></div>');
+  }
+  if (t.tonamelUrl) {
+    const safeUrl = String(t.tonamelUrl).replace(/[<>"]/g, '');
+    infoLines.push('<div class="tour-info-row"><span class="tour-info-label">Tonamel</span><span class="tour-info-val"><a href="' + escapeAttr(safeUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(safeUrl) + '</a></span></div>');
+  }
+  if (t.note) {
+    infoLines.push('<div class="tour-info-row"><span class="tour-info-label">メモ</span><span class="tour-info-val tour-info-note">' + escapeHtml(t.note) + '</span></div>');
+  }
+  const infoBox = infoLines.length
+    ? '<div class="tour-info-box">' + infoLines.join('') + '</div>'
+    : '';
   body.innerHTML = '<div class="tour-detail-head">' +
     '<h2>' + escapeHtml(t.name) + '</h2>' +
     (t.eventDate ? '<div class="tour-list-date">' + escapeHtml(t.eventDate) + '</div>' : '') +
     '<button class="btn btn-ghost" id="tourBackBtn" style="font-size:11px;padding:5px 10px;min-height:0;">＜ 戻る</button>' +
     '</div>' +
+    infoBox +
     '<div class="tour-csv-box">' +
     '<div class="tour-csv-title">📥 Tonamel CSV取込（参加者一括登録）</div>' +
     '<div class="tour-csv-desc">TonamelのEntryInfo CSV（UTF-8）を選択してください。アカウントID・エントリー名・Twitter ID・デッキコード・参加都道府県・エントリー順を自動取込します。同じアカウントIDのデータは上書きされます。</div>' +
@@ -3992,6 +4048,17 @@ function wireAppShell() {
   if (openAnnBtn) openAnnBtn.addEventListener('click', () => {
     hideOpening();
     openAnnouncements();
+  });
+  // オープニング: 戦績登録（次段階で本実装。今は準備中toast＋ログイン誘導）
+  const openStatsBtn = document.getElementById('openStatsBtn');
+  if (openStatsBtn) openStatsBtn.addEventListener('click', () => {
+    if (!isLoggedIn()) {
+      toast('戦績登録にはログインが必要です', 'info', 2400);
+      hideOpening();
+      openUserAuthModal('login');
+      return;
+    }
+    toast('戦績登録は準備中です（次のアップデートで実装予定）', 'info', 2800);
   });
   // ページ更新ボタン
   const reloadBtn = document.getElementById('reloadBtn');
