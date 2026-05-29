@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-22 19:30 JST | LAYOUT=403fix+menu-unify+submenu+playername | cache=vercel.json+meta | rev=ao -->
+<!-- BUILD 2026-05-22 22:00 JST | LAYOUT=tournaments-stage1-csv-import | cache=vercel.json+meta | rev=ap -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -550,6 +550,46 @@ body{padding-top:0}
 .auth-tabs{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border-1);clip-path:var(--clip-sm)}
 .auth-tab{flex:1;font-family:var(--f-display);font-size:12px;font-weight:700;padding:8px 0;background:transparent;border:0;color:var(--text-3);cursor:pointer;transition:all .12s}
 .auth-tab.active{background:var(--cyan-soft);color:var(--cyan)}
+/* ===== 大会管理 ===== */
+.tour-overlay{position:fixed;inset:0;background:var(--bg-0);z-index:340;display:none;flex-direction:column}
+.tour-overlay.open{display:flex}
+.tour-bar{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-1);background:rgba(7,10,16,.92);backdrop-filter:blur(10px)}
+.tour-bar .btn{font-size:11px;padding:6px 12px;min-height:0}
+.tour-bar .spacer{flex:1 1 auto}
+.tour-title{font-family:var(--f-display);font-size:14px;font-weight:700;color:var(--orange);letter-spacing:.06em}
+.tour-body{flex:1 1 auto;overflow-y:auto;padding:14px}
+.tour-list-item{background:var(--bg-1);border:1px solid var(--border-1);padding:12px 14px;margin-bottom:10px;clip-path:var(--clip-sm)}
+.tour-list-row{display:flex;align-items:center;gap:8px}
+.tour-list-name{flex:1;font-family:var(--f-display);font-size:14px;font-weight:700;color:var(--text-1);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tour-list-date{font-family:var(--f-mono);font-size:11px;color:var(--text-3);flex:0 0 auto}
+.tour-list-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tour-list-actions .btn{font-size:11px;padding:5px 10px;min-height:0}
+.tour-form{background:var(--bg-1);border:1px solid var(--cyan);padding:14px;margin-bottom:14px;clip-path:var(--clip-sm)}
+.tour-form-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tour-form-field{display:flex;flex-direction:column;gap:4px;flex:1 1 220px;min-width:0}
+.tour-form-field label{font-family:var(--f-display);font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:.04em}
+.tour-form-field input,.tour-form-field textarea{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:8px 10px;font-family:var(--f-body);font-size:13px;outline:none;width:100%;box-sizing:border-box}
+.tour-form-field input:focus,.tour-form-field textarea:focus{border-color:var(--cyan)}
+.tour-form-field textarea{resize:vertical;min-height:60px}
+.tour-form-actions{display:flex;gap:8px;justify-content:flex-end}
+.tour-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border-1)}
+.tour-detail-head h2{font-family:var(--f-display);font-size:16px;font-weight:700;color:var(--orange);margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tour-csv-box{background:var(--bg-1);border:1px dashed var(--cyan);padding:14px;margin-bottom:12px;clip-path:var(--clip-sm)}
+.tour-csv-title{font-family:var(--f-display);font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:8px;letter-spacing:.04em}
+.tour-csv-desc{font-family:var(--f-body);font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:10px}
+.tour-csv-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tour-csv-actions input[type="file"]{font-family:var(--f-body);font-size:11px;color:var(--text-2)}
+.tour-csv-msg{font-family:var(--f-mono);font-size:11px;color:#34d399;margin-top:6px;min-height:14px}
+.tour-csv-msg.err{color:#f87171}
+.tour-entries-table{width:100%;border-collapse:collapse;font-size:11px;font-family:var(--f-body)}
+.tour-entries-table th,.tour-entries-table td{padding:6px 6px;border-bottom:1px solid var(--border-1);text-align:left;vertical-align:middle}
+.tour-entries-table th{font-family:var(--f-display);font-size:10px;color:var(--text-3);background:var(--bg-1);letter-spacing:.04em;position:sticky;top:0}
+.tour-entries-table input{background:var(--bg-0);border:1px solid var(--border-1);color:var(--text-1);padding:4px 6px;font-family:var(--f-body);font-size:11px;outline:none;width:100%;box-sizing:border-box;min-width:50px}
+.tour-entries-table input:focus{border-color:var(--cyan)}
+.tour-entries-table input.num{max-width:60px;text-align:center}
+.tour-entries-wrap{overflow-x:auto;background:var(--bg-1);border:1px solid var(--border-1);clip-path:var(--clip-sm)}
+.tour-entries-empty{padding:24px;text-align:center;font-family:var(--f-mono);font-size:12px;color:var(--text-3)}
+.tour-entries-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 /* ===== OPENING SCREEN ===== */
 .opening{position:fixed;inset:0;z-index:400;background:var(--bg-0);display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px 16px;background-image:radial-gradient(ellipse 80% 60% at top left,rgba(255,107,26,.1),transparent 60%),radial-gradient(ellipse 60% 60% at bottom right,rgba(34,211,238,.08),transparent 60%)}
 .opening.hidden{display:none}
@@ -728,6 +768,10 @@ body{padding-top:0}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     JSONエクスポート
   </button>
+  <button class="app-menu-item" id="menuTournamentBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+    大会管理
+  </button>
   <button class="app-menu-item" id="menuUserBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <span id="menuUserLabel">ログイン / 新規登録</span>
@@ -793,6 +837,17 @@ body{padding-top:0}
       <button class="btn btn-primary" id="myPageSave">保存</button>
     </div>
   </div>
+</div>
+
+<!-- 大会管理 オーバーレイ（管理者） -->
+<div class="tour-overlay" id="tourOverlay" role="dialog" aria-modal="true">
+  <div class="tour-bar">
+    <button class="btn btn-ghost" id="tourClose">✕ 閉じる</button>
+    <div class="tour-title" id="tourTitle">大会管理</div>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" id="tourNewBtn">＋ 新規大会</button>
+  </div>
+  <div class="tour-body" id="tourBody"></div>
 </div>
 
 <!-- 管理者ログイン モーダル -->
@@ -1482,7 +1537,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-22 19:30 JST';
+const BUILD_ID = '2026-05-22 22:00 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -2028,6 +2083,416 @@ async function deleteDeckFromStorage(id) {
     const txt = await resp.text().catch(() => '');
     throw new Error('デッキ削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
   }
+}
+// ===== 大会機能 (段階1: 大会作成・CSV取込・参加者登録) =====
+const tournamentState = {
+  list: [],          // 大会一覧
+  current: null,     // 現在管理中の大会
+  entries: [],       // 現在表示中の参加者リスト
+};
+function dbToTournament(r) {
+  return {
+    id: r.id, name: r.name || '無題', eventDate: r.event_date || null, note: r.note || '',
+    createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+    updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
+  };
+}
+function tournamentToDb(t) {
+  return {
+    id: t.id, name: t.name || '無題', event_date: t.eventDate || null, note: t.note || '',
+    updated_at: new Date().toISOString(),
+  };
+}
+function dbToEntry(r) {
+  return {
+    id: r.id, tournamentId: r.tournament_id,
+    tonamelAccountId: r.tonamel_account_id || '', playerName: r.player_name || '',
+    twitterId: r.twitter_id || '', deckCode: r.deck_code || '',
+    prefecture: r.prefecture || '', entryOrder: r.entry_order || null,
+    rank: r.rank, points: r.points, wins: r.wins, losses: r.losses, draws: r.draws,
+    userId: r.user_id || null,
+  };
+}
+function entryToDb(e) {
+  return {
+    id: e.id, tournament_id: e.tournamentId,
+    tonamel_account_id: e.tonamelAccountId || null,
+    player_name: e.playerName || null, twitter_id: e.twitterId || null,
+    deck_code: e.deckCode || null, prefecture: e.prefecture || null,
+    entry_order: (e.entryOrder == null || e.entryOrder === '') ? null : Number(e.entryOrder),
+    rank: (e.rank == null || e.rank === '') ? null : Number(e.rank),
+    points: (e.points == null || e.points === '') ? null : Number(e.points),
+    wins: (e.wins == null || e.wins === '') ? null : Number(e.wins),
+    losses: (e.losses == null || e.losses === '') ? null : Number(e.losses),
+    draws: (e.draws == null || e.draws === '') ? null : Number(e.draws),
+    user_id: e.userId || null,
+  };
+}
+async function loadAllTournaments() {
+  if (!SUPABASE_ENABLED) return [];
+  const url = SUPABASE_URL + '/rest/v1/tournaments?select=*&order=event_date.desc.nullslast,created_at.desc';
+  const resp = await fetch(url, { headers: supaHeaders() });
+  if (!resp.ok) throw new Error('大会一覧取得失敗(' + resp.status + ')');
+  return ((await resp.json()) || []).map(dbToTournament);
+}
+async function persistTournament(t) {
+  if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
+  const row = tournamentToDb(t);
+  const url = SUPABASE_URL + '/rest/v1/tournaments?on_conflict=id';
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
+    body: JSON.stringify(row),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('大会保存失敗(' + resp.status + '): ' + txt.slice(0, 160));
+  }
+}
+async function deleteTournamentFromStorage(id) {
+  if (!SUPABASE_ENABLED) return;
+  const url = SUPABASE_URL + '/rest/v1/tournaments?id=eq.' + encodeURIComponent(id);
+  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('大会削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
+  }
+}
+async function loadEntriesByTournament(tid) {
+  if (!SUPABASE_ENABLED) return [];
+  const url = SUPABASE_URL + '/rest/v1/tournament_entries?select=*&tournament_id=eq.' + encodeURIComponent(tid)
+    + '&order=rank.asc.nullslast,entry_order.asc.nullslast,player_name.asc';
+  const resp = await fetch(url, { headers: supaHeaders() });
+  if (!resp.ok) throw new Error('参加者一覧取得失敗(' + resp.status + ')');
+  return ((await resp.json()) || []).map(dbToEntry);
+}
+async function persistEntries(entries) {
+  if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
+  if (!entries || !entries.length) return;
+  const rows = entries.map(entryToDb);
+  const url = SUPABASE_URL + '/rest/v1/tournament_entries?on_conflict=id';
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
+    body: JSON.stringify(rows),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('参加者保存失敗(' + resp.status + '): ' + txt.slice(0, 160));
+  }
+}
+async function deleteEntryFromStorage(id) {
+  if (!SUPABASE_ENABLED) return;
+  const url = SUPABASE_URL + '/rest/v1/tournament_entries?id=eq.' + encodeURIComponent(id);
+  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error('参加者削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
+  }
+}
+// CSVパース（Tonamel形式）。UTF-8 BOM対応・引用符・改行内引用符対応の最小実装。
+function parseCSV(text) {
+  // BOM除去
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], cell = '', i = 0, inQ = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      cell += c; i++; continue;
+    }
+    if (c === '"') { inQ = true; i++; continue; }
+    if (c === ',') { row.push(cell); cell = ''; i++; continue; }
+    if (c === '\r') { i++; continue; }
+    if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++; continue; }
+    cell += c; i++;
+  }
+  if (cell.length > 0 || row.length > 0) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.length && !(r.length === 1 && r[0] === ''));
+}
+// Tonamel CSV のヘッダーから列インデックスを取得（順番変更にも耐性）
+function tonamelColumnMap(header) {
+  // 名前リストの先頭を優先（playerName は「エントリー名」を「アカウント名」より優先）
+  const find = (names) => {
+    for (const n of names) {
+      const norm = n.replace(/\s+/g, '');
+      for (let i = 0; i < header.length; i++) {
+        const h = String(header[i] || '').trim();
+        if (h === n || h.replace(/\s+/g, '') === norm) return i;
+      }
+    }
+    return -1;
+  };
+  return {
+    tonamelAccountId: find(['アカウントID']),
+    playerName: find(['エントリー名', 'アカウント名']),
+    twitterId: find(['Twitter ID', 'TwitterID']),
+    deckCode: find(['デッキコード']),
+    prefecture: find(['参加都道府県', '都道府県']),
+    entryOrder: find(['エントリー順']),
+  };
+}
+function tonamelCsvToEntries(text, tournamentId) {
+  const rows = parseCSV(text);
+  if (!rows.length) return [];
+  const header = rows[0];
+  const map = tonamelColumnMap(header);
+  if (map.playerName < 0 && map.tonamelAccountId < 0) {
+    throw new Error('CSVのヘッダーが認識できません（「エントリー名」または「アカウントID」列が必要）');
+  }
+  const get = (r, idx) => (idx >= 0 && idx < r.length) ? String(r[idx] || '').trim() : '';
+  return rows.slice(1).map(r => {
+    const order = get(r, map.entryOrder);
+    return {
+      id: 'ent_' + tournamentId + '_' + (get(r, map.tonamelAccountId) || (order || ('row' + Math.random().toString(36).slice(2, 8)))).replace(/[^A-Za-z0-9_:.-]/g, '_'),
+      tournamentId: tournamentId,
+      tonamelAccountId: get(r, map.tonamelAccountId),
+      playerName: get(r, map.playerName) || get(r, map.tonamelAccountId) || '(無名)',
+      twitterId: get(r, map.twitterId),
+      deckCode: get(r, map.deckCode),
+      prefecture: get(r, map.prefecture),
+      entryOrder: order ? Number(order) : null,
+    };
+  }).filter(e => e.tonamelAccountId || e.playerName);
+}
+// ===== 大会管理 UI =====
+function openTournamentAdmin() {
+  document.getElementById('tourOverlay').classList.add('open');
+  tournamentState.current = null;
+  tournamentState.entries = [];
+  loadAllTournaments().then(list => { tournamentState.list = list; renderTournamentList(); })
+    .catch(e => { document.getElementById('tourBody').innerHTML = '<div class="tour-entries-empty">読込失敗: ' + escapeHtml(e.message || '') + '</div>'; });
+}
+function closeTournamentAdmin() {
+  document.getElementById('tourOverlay').classList.remove('open');
+}
+function genTourId() { return 'tour_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function renderTournamentList() {
+  const body = document.getElementById('tourBody');
+  if (!body) return;
+  const list = tournamentState.list || [];
+  document.getElementById('tourTitle').textContent = '大会管理';
+  if (!list.length) {
+    body.innerHTML = '<div class="tour-entries-empty">登録された大会がありません。「＋ 新規大会」から作成してください。</div>';
+    return;
+  }
+  body.innerHTML = list.map(t => {
+    const date = t.eventDate ? escapeHtml(t.eventDate) : '日付未設定';
+    return '<div class="tour-list-item" data-tid="' + escapeAttr(t.id) + '">' +
+      '<div class="tour-list-row">' +
+      '<div class="tour-list-name">' + escapeHtml(t.name) + '</div>' +
+      '<div class="tour-list-date">' + date + '</div>' +
+      '</div>' +
+      (t.note ? '<div style="font-family:var(--f-body);font-size:11px;color:var(--text-3);margin-top:4px;">' + escapeHtml(t.note) + '</div>' : '') +
+      '<div class="tour-list-actions">' +
+      '<button class="btn btn-cyan" data-act="open">参加者管理</button>' +
+      '<button class="btn btn-ghost" data-act="edit">編集</button>' +
+      '<button class="btn btn-danger" data-act="del">削除</button>' +
+      '</div></div>';
+  }).join('');
+  body.querySelectorAll('.tour-list-item').forEach(item => {
+    const tid = item.dataset.tid;
+    item.querySelectorAll('[data-act]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const t = tournamentState.list.find(x => x.id === tid);
+        if (!t) return;
+        if (b.dataset.act === 'open') openTournamentDetail(t);
+        else if (b.dataset.act === 'edit') openTournamentForm(t);
+        else if (b.dataset.act === 'del') {
+          if (!confirm('大会「' + t.name + '」を削除しますか？\n参加者情報もすべて削除されます。\nこの操作は取り消せません。')) return;
+          try {
+            await deleteTournamentFromStorage(tid);
+            tournamentState.list = tournamentState.list.filter(x => x.id !== tid);
+            renderTournamentList();
+            toast('大会を削除しました', 'success', 1800);
+          } catch (e) { toast(e.message, 'error', 4000); }
+        }
+      });
+    });
+  });
+}
+function openTournamentForm(t) {
+  const body = document.getElementById('tourBody');
+  const isEdit = !!t;
+  document.getElementById('tourTitle').textContent = isEdit ? '大会編集' : '新規大会';
+  body.innerHTML = '<div class="tour-form">' +
+    '<div class="tour-form-row">' +
+    '<div class="tour-form-field"><label>大会名 *</label><input type="text" id="tfName" maxlength="80" placeholder="第0回 メダロットカードロボトルRB"></div>' +
+    '<div class="tour-form-field" style="flex:0 0 180px;"><label>開催日</label><input type="date" id="tfDate"></div>' +
+    '</div>' +
+    '<div class="tour-form-row">' +
+    '<div class="tour-form-field" style="flex:1 1 100%;"><label>メモ</label><textarea id="tfNote" maxlength="500" placeholder="大会の概要・備考など"></textarea></div>' +
+    '</div>' +
+    '<div class="tour-form-actions">' +
+    '<button class="btn btn-ghost" id="tfCancel">キャンセル</button>' +
+    '<button class="btn btn-primary" id="tfSave">保存</button>' +
+    '</div></div>';
+  if (isEdit) {
+    document.getElementById('tfName').value = t.name || '';
+    document.getElementById('tfDate').value = t.eventDate || '';
+    document.getElementById('tfNote').value = t.note || '';
+  }
+  document.getElementById('tfCancel').addEventListener('click', renderTournamentList);
+  document.getElementById('tfSave').addEventListener('click', async () => {
+    const name = document.getElementById('tfName').value.trim();
+    if (!name) { toast('大会名を入力してください', 'error', 2200); return; }
+    const obj = {
+      id: isEdit ? t.id : genTourId(),
+      name: name,
+      eventDate: document.getElementById('tfDate').value || null,
+      note: document.getElementById('tfNote').value.trim() || '',
+    };
+    try {
+      await persistTournament(obj);
+      const idx = tournamentState.list.findIndex(x => x.id === obj.id);
+      if (idx >= 0) tournamentState.list[idx] = Object.assign({}, tournamentState.list[idx], obj);
+      else tournamentState.list.unshift(Object.assign({ createdAt: Date.now(), updatedAt: Date.now() }, obj));
+      toast(isEdit ? '大会を更新しました' : '大会を作成しました', 'success', 1800);
+      renderTournamentList();
+    } catch (e) { toast(e.message, 'error', 4000); }
+  });
+}
+async function openTournamentDetail(t) {
+  tournamentState.current = t;
+  document.getElementById('tourTitle').textContent = t.name;
+  const body = document.getElementById('tourBody');
+  body.innerHTML = '<div class="tour-detail-head">' +
+    '<h2>' + escapeHtml(t.name) + '</h2>' +
+    (t.eventDate ? '<div class="tour-list-date">' + escapeHtml(t.eventDate) + '</div>' : '') +
+    '<button class="btn btn-ghost" id="tourBackBtn" style="font-size:11px;padding:5px 10px;min-height:0;">＜ 戻る</button>' +
+    '</div>' +
+    '<div class="tour-csv-box">' +
+    '<div class="tour-csv-title">📥 Tonamel CSV取込（参加者一括登録）</div>' +
+    '<div class="tour-csv-desc">TonamelのEntryInfo CSV（UTF-8）を選択してください。アカウントID・エントリー名・Twitter ID・デッキコード・参加都道府県・エントリー順を自動取込します。同じアカウントIDのデータは上書きされます。</div>' +
+    '<div class="tour-csv-actions">' +
+    '<input type="file" id="tourCsvFile" accept=".csv,text/csv">' +
+    '<button class="btn btn-cyan" id="tourCsvImportBtn">取込実行</button>' +
+    '</div>' +
+    '<div class="tour-csv-msg" id="tourCsvMsg"></div>' +
+    '</div>' +
+    '<div id="tourEntriesArea">読込中...</div>';
+  document.getElementById('tourBackBtn').addEventListener('click', renderTournamentList);
+  document.getElementById('tourCsvImportBtn').addEventListener('click', () => doTournamentCsvImport(t.id));
+  try {
+    tournamentState.entries = await loadEntriesByTournament(t.id);
+    renderTournamentEntries();
+  } catch (e) {
+    document.getElementById('tourEntriesArea').innerHTML = '<div class="tour-entries-empty">参加者読込失敗: ' + escapeHtml(e.message || '') + '</div>';
+  }
+}
+async function doTournamentCsvImport(tid) {
+  const fileEl = document.getElementById('tourCsvFile');
+  const msg = document.getElementById('tourCsvMsg');
+  if (msg) { msg.classList.remove('err'); msg.textContent = ''; }
+  const f = fileEl && fileEl.files && fileEl.files[0];
+  if (!f) { if (msg) { msg.classList.add('err'); msg.textContent = 'CSVファイルを選択してください'; } return; }
+  try {
+    const text = await f.text();
+    const parsed = tonamelCsvToEntries(text, tid);
+    if (!parsed.length) { if (msg) { msg.classList.add('err'); msg.textContent = '取込可能な行がありません'; } return; }
+    if (msg) { msg.textContent = parsed.length + '件を取込中...'; }
+    await persistEntries(parsed);
+    // 既存と統合（同じID=上書き、新規=追加）
+    const cur = tournamentState.entries || [];
+    const byId = {};
+    cur.forEach(e => { byId[e.id] = e; });
+    parsed.forEach(e => { byId[e.id] = Object.assign({}, byId[e.id] || {}, e); });
+    tournamentState.entries = Object.values(byId);
+    renderTournamentEntries();
+    if (msg) { msg.classList.remove('err'); msg.textContent = parsed.length + '件を取込しました'; }
+    toast(parsed.length + '件の参加者を取込しました', 'success', 2200);
+    if (fileEl) fileEl.value = '';
+  } catch (e) {
+    if (msg) { msg.classList.add('err'); msg.textContent = (e && e.message) || '取込失敗'; }
+  }
+}
+function renderTournamentEntries() {
+  const area = document.getElementById('tourEntriesArea');
+  if (!area) return;
+  const list = (tournamentState.entries || []).slice()
+    .sort((a, b) => {
+      const ra = a.rank == null ? 9999 : a.rank, rb = b.rank == null ? 9999 : b.rank;
+      if (ra !== rb) return ra - rb;
+      const oa = a.entryOrder == null ? 9999 : a.entryOrder, ob = b.entryOrder == null ? 9999 : b.entryOrder;
+      return oa - ob;
+    });
+  if (!list.length) {
+    area.innerHTML = '<div class="tour-entries-empty">参加者がいません。CSV取込で一括登録してください。</div>';
+    return;
+  }
+  area.innerHTML = '<div class="tour-entries-wrap"><table class="tour-entries-table">' +
+    '<thead><tr>' +
+    '<th>順位</th><th>エントリー順</th><th>プレイヤー名</th><th>Twitter ID</th><th>Tonamel ID</th>' +
+    '<th>デッキコード</th><th>都道府県</th>' +
+    '<th>勝</th><th>負</th><th>分</th><th>P</th><th></th>' +
+    '</tr></thead><tbody>' +
+    list.map(e =>
+      '<tr data-eid="' + escapeAttr(e.id) + '">' +
+      '<td><input class="num" type="number" data-f="rank" value="' + (e.rank == null ? '' : e.rank) + '"></td>' +
+      '<td>' + (e.entryOrder == null ? '' : e.entryOrder) + '</td>' +
+      '<td>' + escapeHtml(e.playerName) + '</td>' +
+      '<td>' + escapeHtml(e.twitterId) + '</td>' +
+      '<td>' + escapeHtml(e.tonamelAccountId) + '</td>' +
+      '<td>' + escapeHtml(e.deckCode) + '</td>' +
+      '<td>' + escapeHtml(e.prefecture) + '</td>' +
+      '<td><input class="num" type="number" data-f="wins" value="' + (e.wins == null ? '' : e.wins) + '"></td>' +
+      '<td><input class="num" type="number" data-f="losses" value="' + (e.losses == null ? '' : e.losses) + '"></td>' +
+      '<td><input class="num" type="number" data-f="draws" value="' + (e.draws == null ? '' : e.draws) + '"></td>' +
+      '<td><input class="num" type="number" data-f="points" value="' + (e.points == null ? '' : e.points) + '"></td>' +
+      '<td><button class="btn btn-danger" data-act="del" style="font-size:10px;padding:3px 7px;min-height:0;">削除</button></td>' +
+      '</tr>'
+    ).join('') +
+    '</tbody></table></div>' +
+    '<div class="tour-entries-foot">' +
+    '<button class="btn btn-primary" id="tourEntriesSave">変更を保存</button>' +
+    '</div>';
+  // 入力変更を一時保持
+  const dirty = {};
+  area.querySelectorAll('tr[data-eid]').forEach(tr => {
+    const eid = tr.dataset.eid;
+    tr.querySelectorAll('input[data-f]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        dirty[eid] = dirty[eid] || {};
+        const v = inp.value.trim();
+        dirty[eid][inp.dataset.f] = v === '' ? null : Number(v);
+      });
+    });
+    const delBtn = tr.querySelector('[data-act="del"]');
+    if (delBtn) delBtn.addEventListener('click', async () => {
+      const e = (tournamentState.entries || []).find(x => x.id === eid);
+      if (!e) return;
+      if (!confirm('参加者「' + (e.playerName || '無名') + '」を削除しますか？')) return;
+      try {
+        await deleteEntryFromStorage(eid);
+        tournamentState.entries = tournamentState.entries.filter(x => x.id !== eid);
+        renderTournamentEntries();
+        toast('削除しました', 'success', 1600);
+      } catch (e2) { toast(e2.message, 'error', 4000); }
+    });
+  });
+  const saveBtn = document.getElementById('tourEntriesSave');
+  if (saveBtn) saveBtn.addEventListener('click', async () => {
+    const changed = Object.keys(dirty);
+    if (!changed.length) { toast('変更がありません', 'info', 1600); return; }
+    const updated = changed.map(eid => {
+      const e = tournamentState.entries.find(x => x.id === eid);
+      return Object.assign({}, e, dirty[eid]);
+    });
+    try {
+      await persistEntries(updated);
+      // ローカル反映
+      updated.forEach(u => {
+        const idx = tournamentState.entries.findIndex(x => x.id === u.id);
+        if (idx >= 0) tournamentState.entries[idx] = u;
+      });
+      toast(changed.length + '件の順位・成績を更新しました', 'success', 2000);
+      renderTournamentEntries();
+    } catch (e) { toast(e.message, 'error', 4000); }
+  });
 }
 const __deckCollator = new Intl.Collator('ja');
 const __ELEM_ORDER = { '格闘': 0, '射撃': 1, '支援': 2, '設置': 3, '回復': 4, '防御': 5 };
@@ -3093,7 +3558,7 @@ function syncAuthUI() {
   const fab = document.getElementById('fabAdd');
   if (fab) fab.style.display = admin ? '' : 'none';
   // 管理者専用メニュー項目（JSONインポート/エクスポート/最終更新日）
-  ['menuImportBtn', 'menuExportBtn', 'menuUpdated'].forEach(id => {
+  ['menuImportBtn', 'menuExportBtn', 'menuUpdated', 'menuTournamentBtn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = admin ? '' : 'none';
   });
@@ -3285,6 +3750,16 @@ function wireAppShell() {
   document.getElementById('menuExportBtn').addEventListener('click', () => {
     closeAppMenu(); document.getElementById('exportBtn').click();
   });
+  // 大会管理（管理者のみ）
+  const menuTournamentBtn = document.getElementById('menuTournamentBtn');
+  if (menuTournamentBtn) menuTournamentBtn.addEventListener('click', () => {
+    closeAppMenu();
+    requireAdmin(openTournamentAdmin);
+  });
+  const tourClose = document.getElementById('tourClose');
+  if (tourClose) tourClose.addEventListener('click', closeTournamentAdmin);
+  const tourNewBtn = document.getElementById('tourNewBtn');
+  if (tourNewBtn) tourNewBtn.addEventListener('click', () => openTournamentForm(null));
   // 管理者ログイン/ログアウト
   const menuAuthBtn = document.getElementById('menuAuthBtn');
   if (menuAuthBtn) menuAuthBtn.addEventListener('click', () => {
