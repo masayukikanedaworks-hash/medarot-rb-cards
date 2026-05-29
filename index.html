@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD 2026-05-23 17:00 JST | LAYOUT=stats-btn+tour-time-url+tour-info-section | cache=vercel.json+meta | rev=at -->
+<!-- BUILD 2026-05-23 19:30 JST | LAYOUT=401-token-refresh-retry | cache=vercel.json+meta | rev=au -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1595,7 +1595,7 @@ const ELEMENT_COLORS = {
 };
 const SCHEMA_VERSION = 3;
 // ビルド識別子（更新反映の目視確認用）。デプロイ毎にこの行が変わる。
-const BUILD_ID = '2026-05-23 17:00 JST';
+const BUILD_ID = '2026-05-23 19:30 JST';
 // Normalize an elementType value to an array of valid type names.
 // Accepts a single string ("防御"), a comma-separated string ("防御,格闘"),
 // or an array. Invalid/empty entries are dropped. Existing single-type
@@ -1854,11 +1854,73 @@ async function authSignOut() {
     authPersist();
   }
 }
+// アクセストークンが期限切れになった場合、refresh_token を使って新しいトークンを取得
+let __authRefreshing = null;
+async function authRefreshToken() {
+  if (!authState || !authState.refresh) return false;
+  // 並行リクエストが同時に refresh を呼び出さないよう、in-flight Promise を共有
+  if (__authRefreshing) return __authRefreshing;
+  __authRefreshing = (async () => {
+    try {
+      const resp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: authState.refresh }),
+      });
+      if (!resp.ok) {
+        // refresh が無効ならログアウト状態にする（ユーザーに再ログインを促す）
+        if (resp.status === 400 || resp.status === 401) {
+          authState.token = null; authState.refresh = null;
+          authState.userId = null; authState.email = null;
+          authPersist();
+        }
+        return false;
+      }
+      const data = await resp.json().catch(() => ({}));
+      if (data.access_token) {
+        authState.token = data.access_token;
+        if (data.refresh_token) authState.refresh = data.refresh_token;
+        if (data.user) {
+          if (data.user.id) authState.userId = data.user.id;
+          if (data.user.email) authState.email = data.user.email;
+        }
+        authPersist();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    } finally {
+      __authRefreshing = null;
+    }
+  })();
+  return __authRefreshing;
+}
+// 401（トークン期限切れ）の場合はリフレッシュして1回だけ再試行する fetch ラッパ
+async function supaFetchAuth(url, init) {
+  init = init || {};
+  let resp = await fetch(url, init);
+  if (resp.status === 401 && authState && authState.refresh) {
+    const ok = await authRefreshToken();
+    if (ok) {
+      // ヘッダーの Authorization を新トークンで差し替えて再試行
+      const newInit = Object.assign({}, init);
+      if (newInit.headers) {
+        // headers がオブジェクトの場合に対応（このアプリは常にオブジェクト）
+        const h = Object.assign({}, newInit.headers);
+        if (h.Authorization || h.authorization) h.Authorization = 'Bearer ' + authState.token;
+        newInit.headers = h;
+      }
+      resp = await fetch(url, newInit);
+    }
+  }
+  return resp;
+}
 // 自分のプロフィールを取得
 async function loadMyProfile() {
   if (!isLoggedIn() || !authState.userId) return null;
   const url = SUPABASE_URL + '/rest/v1/profiles?select=*&id=eq.' + encodeURIComponent(authState.userId) + '&limit=1';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) return null;
   const rows = (await resp.json()) || [];
   authState.profile = rows.length ? rows[0] : null;
@@ -1870,7 +1932,7 @@ async function saveMyProfile(fields) {
   if (!isLoggedIn() || !authState.userId) throw new Error('ログインが必要です');
   const row = Object.assign({ id: authState.userId, updated_at: new Date().toISOString() }, fields || {});
   const url = SUPABASE_URL + '/rest/v1/profiles?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
     body: JSON.stringify(row),
@@ -1982,7 +2044,7 @@ async function deleteCardImage(path) {
 async function loadAllCards() {
   if (!SUPABASE_ENABLED) return [];
   const url = SUPABASE_URL + '/rest/v1/cards?select=*&order=updated_at.desc';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('読み込み失敗(' + resp.status + '): ' + txt.slice(0, 200));
@@ -1995,7 +2057,7 @@ async function persistCard(card) {
   if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
   const row = cardToDb(card);
   const url = SUPABASE_URL + '/rest/v1/cards?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({
       'Prefer': 'resolution=merge-duplicates,return=minimal',
@@ -2013,7 +2075,7 @@ async function deleteCardFromStorage(id) {
   const card = state.cards.find(c => c.id === id);
   if (card && card.imagePath) await deleteCardImage(card.imagePath);
   const url = SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id);
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'DELETE',
     headers: supaHeaders(),
   });
@@ -2098,7 +2160,7 @@ function genDeckCode() {
 async function loadAllDecks() {
   if (!SUPABASE_ENABLED) return [];
   const url = SUPABASE_URL + '/rest/v1/decks?select=*&order=updated_at.desc';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('デッキ読込失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -2111,7 +2173,7 @@ async function loadDeckByCode(code) {
   const c = String(code || '').trim();
   if (!c) throw new Error('コードを入力してください');
   const url = SUPABASE_URL + '/rest/v1/decks?select=*&deck_code=eq.' + encodeURIComponent(c) + '&limit=1';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('デッキ読込失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -2123,7 +2185,7 @@ async function loadDeckByCode(code) {
 async function persistDeck(d) {
   if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
   const url = SUPABASE_URL + '/rest/v1/decks?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
     body: JSON.stringify(deckToDb(d)),
@@ -2136,7 +2198,7 @@ async function persistDeck(d) {
 async function deleteDeckFromStorage(id) {
   if (!SUPABASE_ENABLED) return;
   const url = SUPABASE_URL + '/rest/v1/decks?id=eq.' + encodeURIComponent(id);
-  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { method: 'DELETE', headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('デッキ削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -2193,7 +2255,7 @@ function entryToDb(e) {
 async function loadAllTournaments() {
   if (!SUPABASE_ENABLED) return [];
   const url = SUPABASE_URL + '/rest/v1/tournaments?select=*&order=event_date.desc.nullslast,created_at.desc';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) throw new Error('大会一覧取得失敗(' + resp.status + ')');
   return ((await resp.json()) || []).map(dbToTournament);
 }
@@ -2201,7 +2263,7 @@ async function persistTournament(t) {
   if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
   const row = tournamentToDb(t);
   const url = SUPABASE_URL + '/rest/v1/tournaments?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
     body: JSON.stringify(row),
@@ -2214,7 +2276,7 @@ async function persistTournament(t) {
 async function deleteTournamentFromStorage(id) {
   if (!SUPABASE_ENABLED) return;
   const url = SUPABASE_URL + '/rest/v1/tournaments?id=eq.' + encodeURIComponent(id);
-  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { method: 'DELETE', headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('大会削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -2224,7 +2286,7 @@ async function loadEntriesByTournament(tid) {
   if (!SUPABASE_ENABLED) return [];
   const url = SUPABASE_URL + '/rest/v1/tournament_entries?select=*&tournament_id=eq.' + encodeURIComponent(tid)
     + '&order=rank.asc.nullslast,entry_order.asc.nullslast,player_name.asc';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) throw new Error('参加者一覧取得失敗(' + resp.status + ')');
   return ((await resp.json()) || []).map(dbToEntry);
 }
@@ -2233,7 +2295,7 @@ async function persistEntries(entries) {
   if (!entries || !entries.length) return;
   const rows = entries.map(entryToDb);
   const url = SUPABASE_URL + '/rest/v1/tournament_entries?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
     body: JSON.stringify(rows),
@@ -2246,7 +2308,7 @@ async function persistEntries(entries) {
 async function deleteEntryFromStorage(id) {
   if (!SUPABASE_ENABLED) return;
   const url = SUPABASE_URL + '/rest/v1/tournament_entries?id=eq.' + encodeURIComponent(id);
-  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { method: 'DELETE', headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('参加者削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -2358,7 +2420,7 @@ async function loadAllAnnouncements(opts) {
   const filter = adminMode ? '' : '&published=eq.true';
   const url = SUPABASE_URL + '/rest/v1/announcements?select=*' + filter +
     '&order=posted_at.desc.nullslast,created_at.desc';
-  const resp = await fetch(url, { headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { headers: supaHeaders() });
   if (!resp.ok) throw new Error('お知らせ取得失敗(' + resp.status + ')');
   return ((await resp.json()) || []).map(dbToAnnouncement);
 }
@@ -2366,7 +2428,7 @@ async function persistAnnouncement(a) {
   if (!SUPABASE_ENABLED) throw new Error('Supabase未接続');
   const row = announcementToDb(a);
   const url = SUPABASE_URL + '/rest/v1/announcements?on_conflict=id';
-  const resp = await fetch(url, {
+  const resp = await supaFetchAuth(url, {
     method: 'POST',
     headers: supaHeaders({ 'Prefer': 'resolution=merge-duplicates,return=representation' }),
     body: JSON.stringify(row),
@@ -2379,7 +2441,7 @@ async function persistAnnouncement(a) {
 async function deleteAnnouncementFromStorage(id) {
   if (!SUPABASE_ENABLED) return;
   const url = SUPABASE_URL + '/rest/v1/announcements?id=eq.' + encodeURIComponent(id);
-  const resp = await fetch(url, { method: 'DELETE', headers: supaHeaders() });
+  const resp = await supaFetchAuth(url, { method: 'DELETE', headers: supaHeaders() });
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
     throw new Error('お知らせ削除失敗(' + resp.status + '): ' + txt.slice(0, 160));
@@ -6142,6 +6204,12 @@ async function init() {
   // 管理者ログイン状態を復元しUIに反映（FAB表示・メニュー文言）
   authRestore();
   syncAuthUI();
+  // 起動時にトークンが期限切れの可能性があるため、refresh_token があればバックグラウンドで更新
+  if (authState && authState.refresh) {
+    authRefreshToken().then(ok => {
+      if (ok) syncAuthUI();
+    }).catch(() => {});
+  }
   // 一般ユーザーならプロフィールを読み込んでニックネーム等を反映
   if (isLoggedIn() && !isAdmin()) { loadMyProfile().then(() => syncAuthUI()).catch(() => {}); }
   // 最終更新日をメニューに表示（更新反映の目視確認用）
