@@ -95,7 +95,10 @@
 
   function fmtMm(v, digits) {
     if (v == null || !isFinite(v)) return "—";
-    return v.toFixed(digits === undefined ? 1 : digits);
+    const d = digits === undefined ? 1 : digits;
+    const k = 10 ** d;
+    const r = Math.round(v * k) / k;
+    return (Object.is(r, -0) ? 0 : r).toFixed(d); // "-0.0" を出さない
   }
 
   ZC.util = { normalizeLabel, parseDimNumber, isAxisLabel, median, MAT, latin1, indexOfBytes, fmtMm };

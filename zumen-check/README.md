@@ -18,6 +18,10 @@
 ```bash
 npm test          # 回帰テスト
 npm run build     # dist/zumen-check.html を再生成
+
+# 取り込み・測定結果をCLIで確認（UIと同じロジック）
+npm run inspect -- 図面.pdf
+npm run inspect -- 基準.pdf 比較.pdf   # 2枚を照合（--json / --texts / --scale 等あり）
 ```
 
 ビルドは `src/js/_order.json` の順にファイルを連結するだけです。

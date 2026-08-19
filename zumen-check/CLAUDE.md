@@ -31,6 +31,7 @@ src/js/22_compare.js  2図面の照合（符号・芯々寸法・全体寸法・
 src/js/30_ui.js     UI（DOMを触るのはここと31のみ）
 src/js/31_app.js    起動（ブラウザ判定）
 tools/build.js      連結ビルド
+tools/inspect.js    検査CLI（取り込み・測定・照合をターミナルで確認。npm run inspect）
 test/run.js         連結ソースをグローバルに eval してから *.test.js を実行
 test/make_pdf.js    テスト用の合成ベクターPDF生成器（2系統のPDF構造）
 ```
