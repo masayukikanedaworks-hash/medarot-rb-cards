@@ -51,6 +51,8 @@
       this.sides = null;
       this.enabled = new Set();
       this.fileName = "";
+      this.pdfBytes = null; // AI解析に送るPDFの実体
+      this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.showDims = true;
@@ -83,6 +85,13 @@
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
         '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><pre class="pickup-text"></pre></div>' +
+        '<div class="ai-box">' +
+        '<div class="ai-head">' +
+        '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
+        '<span class="ai-note">図面PDFが外部（Anthropic API）に送信されます</span>' +
+        "</div>" +
+        '<div class="ai-result"></div>' +
+        "</div>" +
         '<div class="axis-list"></div>';
       this.$file = this.root.querySelector('input[type="file"]');
       this.$fname = this.root.querySelector(".fname");
@@ -94,6 +103,8 @@
       this.$list = this.root.querySelector(".axis-list");
       this.$pickup = this.root.querySelector(".pickup-text");
       this.$copy = this.root.querySelector(".copy-btn");
+      this.$aiRun = this.root.querySelector(".ai-run");
+      this.$aiResult = this.root.querySelector(".ai-result");
       this.$zoom = this.root.querySelector(".zoom-label");
       this.$fit = this.root.querySelector(".vb-fit");
       this.$measureBtn = this.root.querySelector(".vb-measure");
@@ -110,6 +121,7 @@
         this.showDims = this.$dims.checked;
         this.requestRender();
       });
+      this.$aiRun.addEventListener("click", () => this.runAi());
       this.$copy.addEventListener("click", () => {
         const txt = this.$pickup.textContent || "";
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
@@ -167,6 +179,7 @@
       this._reset();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
+        this.pdfBytes = buf;
         this.doc = await ZC.pdf.PDFDocument.load(buf);
         this.pages = await this.doc.getPages();
         this.$page.innerHTML = "";
@@ -188,6 +201,9 @@
     _reset() {
       this.doc = null;
       this.pages = [];
+      this.pdfBytes = null;
+      this.aiSides = null;
+      if (this.$aiResult) this.$aiResult.innerHTML = "";
       this.extract = null;
       this.axes = { v: [], h: [] };
       this.det = { v: [], h: [] };
@@ -240,7 +256,78 @@
       this.requestRender();
       this.renderList();
       this.renderPickup();
+      if (this.$aiRun) this.$aiRun.disabled = !this.pdfBytes;
+      if (this.$aiResult) this.$aiResult.innerHTML = "";
+      this.aiSides = null;
       ZC.ui.updateRunButton();
+    }
+
+    // AIに図面を読ませ、自動読み取りの結果と突き合わせる
+    async runAi() {
+      if (!this.pdfBytes) return;
+      const page = Number(this.$page.value || 0) + 1;
+      this.$aiRun.disabled = true;
+      this.$aiRun.textContent = "AI解析中…";
+      this.$aiResult.innerHTML = "";
+      this.$aiResult.appendChild(el("p", { class: "ai-msg", text: "AIが図面を読んでいます（1〜2分かかることがあります）…" }));
+      try {
+        const data = await ZC.ai.analyze(this.pdfBytes, page);
+        this.aiSides = ZC.ai.normalize(data.result);
+        const tol = Number(document.getElementById("tol").value) || 1;
+        this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
+      } catch (e) {
+        this.$aiResult.innerHTML = "";
+        this.$aiResult.appendChild(
+          el("p", { class: "ai-msg error", text: "AI解析に失敗しました: " + (e && e.message ? e.message : e) })
+        );
+      } finally {
+        this.$aiRun.disabled = false;
+        this.$aiRun.textContent = "AIで総ざらい";
+      }
+    }
+
+    renderAi(diff, data) {
+      const wrap = this.$aiResult;
+      wrap.innerHTML = "";
+      const s = diff.summary;
+      wrap.appendChild(
+        el("div", {
+          class: "ai-summary" + (s.differ || s.aiOnly ? " warn" : ""),
+          text:
+            "一致 " + s.same + " / 相違 " + s.differ +
+            " / 自動のみ " + s.localOnly + " / AIのみ " + s.aiOnly +
+            (data && data.model ? "（" + data.model + "）" : ""),
+        })
+      );
+      const notes = data && data.result && data.result.notes;
+      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
+
+      const rows = diff.rows.filter((r) => r.status !== "一致");
+      if (!rows.length) {
+        wrap.appendChild(el("p", { class: "ai-msg", text: "自動読み取りとAIの結果は一致しました。" }));
+      } else {
+        const table = el("table", { class: "ai-table" });
+        const thead = el("thead");
+        thead.innerHTML = "<tr><th>判定</th><th>辺</th><th>種別</th><th>対象</th><th>自動読み取り</th><th>AI</th></tr>";
+        table.appendChild(thead);
+        const tbody = el("tbody");
+        for (const r of rows) {
+          const tr = el("tr", { class: r.status === "相違" ? "differ" : "only" });
+          tr.appendChild(el("td", { text: r.status, class: "st" }));
+          tr.appendChild(el("td", { text: r.side }));
+          tr.appendChild(el("td", { text: r.kind }));
+          tr.appendChild(el("td", { text: r.item }));
+          tr.appendChild(el("td", { text: String(r.local) }));
+          tr.appendChild(el("td", { text: String(r.ai) }));
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+      }
+      const det = el("details", { class: "ai-detail" });
+      det.appendChild(el("summary", { text: "AIの拾い出し結果（全文）" }));
+      det.appendChild(el("pre", { class: "pickup-text", text: ZC.ai.formatText(this.aiSides) }));
+      wrap.appendChild(det);
     }
 
     rebuildSides() {
