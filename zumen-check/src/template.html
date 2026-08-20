@@ -114,19 +114,46 @@
     font-size: 12px;
     cursor: pointer;
   }
-  .pickup-text {
-    margin: 0;
-    padding: 8px 10px;
+  /* 拾い出し結果: 上辺・右辺・下辺・左辺を横並びのブロックで表示（縦スクロールなし） */
+  .pickup-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .side-block {
+    flex: 1 1 170px;
+    min-width: 160px;
     background: #fbfcfd;
     border: 1px solid var(--border);
     border-radius: 4px;
-    font-size: 12px;
-    line-height: 1.7;
-    max-height: 260px;
-    overflow: auto;
-    white-space: pre-wrap;
-    font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+    padding: 6px 8px 7px;
   }
+  .side-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 3px;
+    margin-bottom: 4px;
+  }
+  .side-empty { font-size: 11px; color: var(--sub); }
+  table.span-table { width: auto; border-collapse: collapse; background: none; }
+  table.span-table td {
+    border: none;
+    padding: 1px 0;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  table.span-table td.k { padding-right: 2px; }
+  table.span-table td.c { color: var(--sub); padding: 1px 2px; }
+  table.span-table td.v { text-align: right; font-weight: 600; }
+  table.span-table td.v.none { font-weight: 400; color: #9a6b00; font-size: 11px; }
+  table.span-table td.p { padding-left: 4px; color: var(--sub); font-size: 11px; }
+  table.span-table tr.conflict td.v { color: #9a6b00; }
+  table.span-table tr.conflict td.p::after { content: " ※"; color: #9a6b00; }
   .ai-box { margin-top: 10px; }
   .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ai-head .ai-run {
