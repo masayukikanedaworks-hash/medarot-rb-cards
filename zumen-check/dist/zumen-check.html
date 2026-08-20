@@ -127,6 +127,32 @@
     white-space: pre-wrap;
     font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
   }
+  .ai-box { margin-top: 10px; }
+  .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ai-head .ai-run {
+    background: #0a7a3d;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ai-head .ai-run:disabled { background: #b9c4ce; cursor: not-allowed; }
+  .ai-note { color: #9a6b00; font-size: 11px; }
+  .ai-result { margin-top: 6px; }
+  .ai-summary { font-size: 12px; font-weight: 600; color: #0a7a3d; margin-bottom: 4px; }
+  .ai-summary.warn { color: #9a6b00; }
+  .ai-msg { font-size: 12px; color: var(--sub); margin: 4px 0; }
+  .ai-msg.error { color: #b30021; }
+  table.ai-table { font-size: 12px; }
+  table.ai-table td.st { font-weight: 700; text-align: center; }
+  table.ai-table tr.differ { background: #fdebee; }
+  table.ai-table tr.differ td.st { color: #b30021; }
+  table.ai-table tr.only { background: #fdf6e3; }
+  table.ai-table tr.only td.st { color: #9a6b00; }
+  .ai-detail { margin-top: 6px; font-size: 12px; }
+  .ai-detail summary { cursor: pointer; color: var(--sub); }
   .axis-list { max-height: 240px; overflow: auto; margin-top: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
@@ -180,7 +206,7 @@
 <header>
   <h1>通り芯照合ツール</h1>
   <span class="ver"></span>
-  <span class="privacy">図面はブラウザ内でのみ処理され、外部には送信されません</span>
+  <span class="privacy">図面の解析はブラウザ内で完結します（「AIで総ざらい」を押したときだけPDFが外部APIに送信されます）</span>
 </header>
 <main>
   <div class="panels">
@@ -207,6 +233,7 @@
   </section>
   <footer>
     <p>ベクターPDF専用（スキャンPDFは読み取れません）。通り芯は円で囲まれた X○○・Y○○ のみ、寸法は図面に記載された数字（黒ドット間の直線の上）のみを拾います。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
+    <p>「AIで総ざらい」を使うと、その図面PDFがAnthropicのAPIに送信されAIが読み取ります。押さない限り外部送信は行われません。AIの読み取りも誤りうるため、自動読み取りとの相違は図面でご確認ください。</p>
   </footer>
 </main>
 <script>
@@ -216,7 +243,7 @@
 (function (g) {
   "use strict";
   g.ZC = g.ZC || {};
-  g.ZC.VERSION = "1.3.0";
+  g.ZC.VERSION = "1.4.0";
 })(globalThis);
 
 /* ===== 01_util.js ===== */
@@ -2695,6 +2722,162 @@
   ZC.compare = { compare };
 })(globalThis.ZC = globalThis.ZC || {});
 
+/* ===== 25_ai.js ===== */
+// AI解析（任意機能）: PDFをサーバ関数 /api/analyze に送り、Claude に通り芯と寸法を
+// 総ざらいさせて、自動読み取り（このツールのパーサ）の結果と突き合わせる。
+//
+// 注意: この機能を使うときだけ図面PDFが外部（Anthropic API）に送信される。
+// 使わなければ従来どおりブラウザ内で完結する。
+(function (ZC) {
+  "use strict";
+
+  const ENDPOINT = "/api/analyze";
+  const SIDE_ORDER = ["top", "right", "bottom", "left"];
+  const SIDE_NAME = { top: "上辺", right: "右辺", bottom: "下辺", left: "左辺" };
+
+  // Uint8Array → base64（大きなPDFでもスタックを溢れさせないよう分割する）
+  function toBase64(bytes) {
+    const CHUNK = 0x8000;
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+  }
+
+  async function analyze(pdfBytes, page) {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdfBase64: toBase64(pdfBytes), page: page || 1 }),
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = null;
+    }
+    if (!res.ok) {
+      const msg = data && data.error ? data.error : "AI解析に失敗しました（" + res.status + "）";
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function num(v) {
+    return typeof v === "number" && isFinite(v) ? v : null;
+  }
+
+  // AIの応答を辺→{axes, spans} の形に正規化する（欠けている辺は空で埋める）
+  function normalize(result) {
+    const src = (result && result.sides) || {};
+    const out = {};
+    for (const key of SIDE_ORDER) {
+      const s = src[key] || {};
+      out[key] = {
+        axes: Array.isArray(s.axes) ? s.axes.map((a) => ZC.util.normalizeLabel(String(a))) : [],
+        spans: Array.isArray(s.spans)
+          ? s.spans
+              .filter((sp) => sp && sp.from != null && sp.to != null)
+              .map((sp) => ({
+                from: ZC.util.normalizeLabel(String(sp.from)),
+                to: ZC.util.normalizeLabel(String(sp.to)),
+                value: num(sp.value),
+                parts: Array.isArray(sp.parts) ? sp.parts.map(num).filter((v) => v != null) : [],
+              }))
+          : [],
+      };
+    }
+    return out;
+  }
+
+  // 自動読み取り（ZC.sides.build の結果）とAIの結果を突き合わせる
+  // tol: 値の一致とみなす差(mm)
+  function diff(localSides, aiSides, tol) {
+    const t = tol > 0 ? tol : 1;
+    const rows = [];
+    const summary = { same: 0, differ: 0, localOnly: 0, aiOnly: 0 };
+    const add = (side, kind, item, local, ai, status) => {
+      rows.push({ side: SIDE_NAME[side], sideKey: side, kind, item, local, ai, status });
+      if (status === "一致") summary.same++;
+      else if (status === "相違") summary.differ++;
+      else if (status === "自動のみ") summary.localOnly++;
+      else summary.aiOnly++;
+    };
+
+    for (const key of SIDE_ORDER) {
+      const L = (localSides && localSides[key]) || { axes: [], spans: [] };
+      const A = (aiSides && aiSides[key]) || { axes: [], spans: [] };
+      const lAxes = (L.axes || []).map((a) => (typeof a === "string" ? a : a.label));
+      const aAxes = A.axes || [];
+
+      // 通り芯の突き合わせ
+      const lSet = new Set(lAxes);
+      const aSet = new Set(aAxes);
+      for (const label of lAxes) {
+        if (!aSet.has(label)) add(key, "通り芯", label, "あり", "なし", "自動のみ");
+      }
+      for (const label of aAxes) {
+        if (!lSet.has(label)) add(key, "通り芯", label, "なし", "あり", "AIのみ");
+      }
+      if (lAxes.length && aAxes.length && lAxes.join(",") === aAxes.join(",")) {
+        add(key, "通り芯", "全" + lAxes.length + "本", lAxes.join(" "), "同じ並び", "一致");
+      }
+
+      // 寸法の突き合わせ（区間 from~to をキーにする）
+      const aByKey = new Map(A.spans.map((s) => [s.from + "~" + s.to, s]));
+      const seen = new Set();
+      for (const ls of L.spans || []) {
+        const k = ls.from + "~" + ls.to;
+        seen.add(k);
+        const as = aByKey.get(k);
+        const lv = num(ls.value);
+        const av = as ? num(as.value) : null;
+        if (!as) {
+          add(key, "寸法", k, fmt(lv), "—", "自動のみ");
+        } else if (lv == null && av == null) {
+          add(key, "寸法", k, "記載なし", "記載なし", "一致");
+        } else if (lv == null || av == null) {
+          add(key, "寸法", k, fmt(lv), fmt(av), "相違");
+        } else {
+          add(key, "寸法", k, fmt(lv), fmt(av), Math.abs(lv - av) <= t ? "一致" : "相違");
+        }
+      }
+      for (const as of A.spans || []) {
+        const k = as.from + "~" + as.to;
+        if (seen.has(k)) continue;
+        add(key, "寸法", k, "—", fmt(num(as.value)), "AIのみ");
+      }
+    }
+    return { rows, summary };
+  }
+
+  function fmt(v) {
+    return v == null ? "記載なし" : ZC.sides.fmtVal(v);
+  }
+
+  // AIの結果を拾い出し表記のテキストにする
+  function formatText(aiSides) {
+    const lines = [];
+    for (const key of SIDE_ORDER) {
+      const s = aiSides[key] || { axes: [], spans: [] };
+      lines.push(SIDE_NAME[key]);
+      if (!s.spans.length) {
+        lines.push(s.axes.length ? "  " + s.axes.join(" ") + "（区間なし）" : "  （通り芯なし）");
+      } else {
+        for (const sp of s.spans) {
+          const parts = sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "";
+          lines.push(sp.from + "~" + sp.to + "：" + (sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value)) + parts);
+        }
+      }
+      lines.push("");
+    }
+    return lines.join("\n").trim();
+  }
+
+  ZC.ai = { analyze, normalize, diff, formatText, toBase64, SIDE_ORDER, SIDE_NAME, ENDPOINT };
+})(globalThis.ZC = globalThis.ZC || {});
+
 /* ===== 30_ui.js ===== */
 // UI 層: ファイル読み込み・対話ビュワー（ズーム/パン/測定）・辺別の拾い出し・照合結果表示
 // DOM を触るのはこのファイルと 31_app.js のみ（テストは 2x系までのロジックを対象とする）
@@ -2749,6 +2932,8 @@
       this.sides = null;
       this.enabled = new Set();
       this.fileName = "";
+      this.pdfBytes = null; // AI解析に送るPDFの実体
+      this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.showDims = true;
@@ -2781,6 +2966,13 @@
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
         '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><pre class="pickup-text"></pre></div>' +
+        '<div class="ai-box">' +
+        '<div class="ai-head">' +
+        '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
+        '<span class="ai-note">図面PDFが外部（Anthropic API）に送信されます</span>' +
+        "</div>" +
+        '<div class="ai-result"></div>' +
+        "</div>" +
         '<div class="axis-list"></div>';
       this.$file = this.root.querySelector('input[type="file"]');
       this.$fname = this.root.querySelector(".fname");
@@ -2792,6 +2984,8 @@
       this.$list = this.root.querySelector(".axis-list");
       this.$pickup = this.root.querySelector(".pickup-text");
       this.$copy = this.root.querySelector(".copy-btn");
+      this.$aiRun = this.root.querySelector(".ai-run");
+      this.$aiResult = this.root.querySelector(".ai-result");
       this.$zoom = this.root.querySelector(".zoom-label");
       this.$fit = this.root.querySelector(".vb-fit");
       this.$measureBtn = this.root.querySelector(".vb-measure");
@@ -2808,6 +3002,7 @@
         this.showDims = this.$dims.checked;
         this.requestRender();
       });
+      this.$aiRun.addEventListener("click", () => this.runAi());
       this.$copy.addEventListener("click", () => {
         const txt = this.$pickup.textContent || "";
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
@@ -2865,6 +3060,7 @@
       this._reset();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
+        this.pdfBytes = buf;
         this.doc = await ZC.pdf.PDFDocument.load(buf);
         this.pages = await this.doc.getPages();
         this.$page.innerHTML = "";
@@ -2886,6 +3082,9 @@
     _reset() {
       this.doc = null;
       this.pages = [];
+      this.pdfBytes = null;
+      this.aiSides = null;
+      if (this.$aiResult) this.$aiResult.innerHTML = "";
       this.extract = null;
       this.axes = { v: [], h: [] };
       this.det = { v: [], h: [] };
@@ -2938,7 +3137,78 @@
       this.requestRender();
       this.renderList();
       this.renderPickup();
+      if (this.$aiRun) this.$aiRun.disabled = !this.pdfBytes;
+      if (this.$aiResult) this.$aiResult.innerHTML = "";
+      this.aiSides = null;
       ZC.ui.updateRunButton();
+    }
+
+    // AIに図面を読ませ、自動読み取りの結果と突き合わせる
+    async runAi() {
+      if (!this.pdfBytes) return;
+      const page = Number(this.$page.value || 0) + 1;
+      this.$aiRun.disabled = true;
+      this.$aiRun.textContent = "AI解析中…";
+      this.$aiResult.innerHTML = "";
+      this.$aiResult.appendChild(el("p", { class: "ai-msg", text: "AIが図面を読んでいます（1〜2分かかることがあります）…" }));
+      try {
+        const data = await ZC.ai.analyze(this.pdfBytes, page);
+        this.aiSides = ZC.ai.normalize(data.result);
+        const tol = Number(document.getElementById("tol").value) || 1;
+        this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
+      } catch (e) {
+        this.$aiResult.innerHTML = "";
+        this.$aiResult.appendChild(
+          el("p", { class: "ai-msg error", text: "AI解析に失敗しました: " + (e && e.message ? e.message : e) })
+        );
+      } finally {
+        this.$aiRun.disabled = false;
+        this.$aiRun.textContent = "AIで総ざらい";
+      }
+    }
+
+    renderAi(diff, data) {
+      const wrap = this.$aiResult;
+      wrap.innerHTML = "";
+      const s = diff.summary;
+      wrap.appendChild(
+        el("div", {
+          class: "ai-summary" + (s.differ || s.aiOnly ? " warn" : ""),
+          text:
+            "一致 " + s.same + " / 相違 " + s.differ +
+            " / 自動のみ " + s.localOnly + " / AIのみ " + s.aiOnly +
+            (data && data.model ? "（" + data.model + "）" : ""),
+        })
+      );
+      const notes = data && data.result && data.result.notes;
+      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
+
+      const rows = diff.rows.filter((r) => r.status !== "一致");
+      if (!rows.length) {
+        wrap.appendChild(el("p", { class: "ai-msg", text: "自動読み取りとAIの結果は一致しました。" }));
+      } else {
+        const table = el("table", { class: "ai-table" });
+        const thead = el("thead");
+        thead.innerHTML = "<tr><th>判定</th><th>辺</th><th>種別</th><th>対象</th><th>自動読み取り</th><th>AI</th></tr>";
+        table.appendChild(thead);
+        const tbody = el("tbody");
+        for (const r of rows) {
+          const tr = el("tr", { class: r.status === "相違" ? "differ" : "only" });
+          tr.appendChild(el("td", { text: r.status, class: "st" }));
+          tr.appendChild(el("td", { text: r.side }));
+          tr.appendChild(el("td", { text: r.kind }));
+          tr.appendChild(el("td", { text: r.item }));
+          tr.appendChild(el("td", { text: String(r.local) }));
+          tr.appendChild(el("td", { text: String(r.ai) }));
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+      }
+      const det = el("details", { class: "ai-detail" });
+      det.appendChild(el("summary", { text: "AIの拾い出し結果（全文）" }));
+      det.appendChild(el("pre", { class: "pickup-text", text: ZC.ai.formatText(this.aiSides) }));
+      wrap.appendChild(det);
     }
 
     rebuildSides() {

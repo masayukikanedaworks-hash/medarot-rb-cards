@@ -1,0 +1,8 @@
+{
+  "name": "medarot-rb-cards",
+  "private": true,
+  "description": "静的サイト + 通り芯照合ツール（zumen-check）のAI解析用サーバ関数",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
+  }
+}

@@ -29,6 +29,7 @@ src/js/20_axis.js   通り芯検出（クラスタリング・鎖線連結・円
 src/js/22_dims.js   記載寸法の読み取り（黒ドット間の直線の上の数字・分割合計）
 src/js/23_sides.js  辺別（上辺/右辺/下辺/左辺）の拾い出しと表記整形
 src/js/24_compare.js  2図面の照合（辺ごとに通り芯・芯々寸法・全体寸法）
+src/js/25_ai.js     AI解析（任意）: /api/analyze への送信と自動読み取りとの突き合わせ
 src/js/30_ui.js     UI（DOMを触るのはここと31のみ）
 src/js/31_app.js    起動（ブラウザ判定）
 tools/build.js      連結ビルド
@@ -42,7 +43,9 @@ test/make_pdf.js    テスト用の合成ベクターPDF生成器（2系統のPD
 - **import/export 禁止**。ファイルは `_order.json` の順に連結されるため、
   各ファイルは `(function (ZC) { ... })(globalThis.ZC = globalThis.ZC || {})`
   で名前空間 `ZC` にぶら下げる。
-- 実行時依存・CDN・fetch は追加しない（オフライン動作と「外部送信しない」が要件）。
+- 実行時依存・CDN は追加しない（オフライン動作が要件）。外部通信は
+  **任意機能のAI解析（25_ai.js → /api/analyze）だけ**で、利用者がボタンを
+  押したときにのみ発生する。他の経路で fetch を足さないこと。
 - ビルド時依存も追加しない（Node 標準モジュールのみ）。
 - DOM 操作は `30_ui.js` / `31_app.js` に閉じ込める。それ以外のモジュールは
   Node のテストから直接呼べる純粋ロジックに保つ。
@@ -135,6 +138,25 @@ test/make_pdf.js    テスト用の合成ベクターPDF生成器（2系統のPD
 - 照合結果の行は `row.refs = {b:[芯...], c:[芯...]}`（列挙不可プロパティ）を持ち、
   行ホバーで両パネルの `setHighlight()` を呼んで該当箇所を強調する。
   refs は enumerable:false なので JSON/CSV には出ない（テストで担保）。
+
+## AI解析（任意機能・25_ai.js + ルートの api/analyze.js）
+
+自動読み取りの取りこぼしを確認するための**任意**機能。押したときだけ図面PDFが
+Anthropic API に送られる（押さなければ従来どおりブラウザ内で完結）。
+
+- **APIキーはサーバ側だけ**。`api/analyze.js`（Vercel サーバレス関数、リポジトリの
+  ルート）が `ANTHROPIC_API_KEY` を読む。ブラウザにキーを持たせない。
+  ルートの `package.json` はこの関数の依存（`@anthropic-ai/sdk`）専用で、
+  zumen-check 本体は従来どおり依存ゼロ。
+- モデルは `claude-opus-5`、`output_config.format` の json_schema で
+  「辺→axes/spans」の形に固定して返させる。プロンプトは 20_axis/22_dims と同じ
+  拾い出しルール（円囲みの X○○/Y○○ のみ・記載寸法・分割は合計と内訳・縮尺不使用）。
+- 安全性判定の拒否に備えてサーバ側フォールバック（`fallbacks: "default"`）を付け、
+  使えない環境では通常リクエストに落とす。
+- ブラウザ側 `ZC.ai` は純粋関数（`normalize` / `diff` / `formatText` / `toBase64`）
+  として書き、テストから直接呼べるようにしてある（`test/12_ai.test.js`）。
+  API 呼び出し自体はテストしない。
+- リクエスト上限（Vercel 4.5MB）に対して 3.5MB でガードしている。
 
 ## PDF パーサの対応範囲と既知の制限
 
