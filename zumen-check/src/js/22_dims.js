@@ -17,7 +17,7 @@
     AXIS_SNAP: 1.6,       // ドットと通り芯位置の一致判定(pt)
     CHAIN_TOL: 1.2,       // 分割寸法の連続性の許容(pt)
     CONFLICT_MM: 0.6,     // 寸法段どうしの食い違い検出(mm)
-    MERGE_GAP: 0.9,       // 数字ランの結合: 文字サイズ×この値までの隙間
+    MERGE_GAP: 0.25,      // 数字ランの結合: 文字サイズ×この値までの隙間（TJ分割を壊さない値に）
     SCALE_MIN_GAP: 8,     // 縮尺推定に使うスパンの最小(pt)
     SCALE_MIN_VALUE: 100, // 縮尺推定に使う寸法値の最小(mm)
   };
@@ -119,23 +119,30 @@
           (l) => l.a <= p1 + PARAMS.LINE_COVER_TOL && l.b >= p2 - PARAMS.LINE_COVER_TOL
         );
         if (!covered) continue;
-        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す
+        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す。
+        // 狭い区間では数字が90度回転で書かれることがあるため、両方の向きを受け付ける
         let best = null;
         let bestScore = Infinity;
         const mid = (p1 + p2) / 2;
         for (let ti = 0; ti < texts.length; ti++) {
           if (usedTexts.has(ti)) continue;
           const t = texts[ti];
-          if (dir === "v" ? !t.horizontal : t.horizontal) continue;
           const value = U.parseDimNumber(t.str);
           if (value == null) continue;
-          const tm = dir === "v" ? (t.x + t.ex) / 2 : (t.y + t.ey) / 2;
-          const tc = dir === "v" ? (t.y + t.ey) / 2 : (t.x + t.ex) / 2;
-          const off = dir === "v" ? tc - r.c : r.c - tc; // 上側/左側が正
+          let tm; // 測る方向の中心
+          let off; // 線からの浮き（上側/左側が正）。回転文字は線に近い側の端で測る
+          if (dir === "v") {
+            tm = (t.x + t.ex) / 2;
+            off = t.horizontal ? (t.y + t.ey) / 2 - r.c : Math.min(t.y, t.ey) - r.c;
+          } else {
+            tm = (t.y + t.ey) / 2;
+            off = !t.horizontal ? r.c - (t.x + t.ex) / 2 : r.c - Math.max(t.x, t.ex);
+          }
           const lift = Math.abs(off);
           if (lift < PARAMS.TEXT_NEAR_MIN || lift > t.size * PARAMS.TEXT_NEAR_MAX) continue;
           if (Math.abs(tm - mid) > (p2 - p1) * PARAMS.TEXT_CENTER) continue;
-          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0); // 反対側は減点
+          const rotated = dir === "v" ? !t.horizontal : t.horizontal;
+          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0) + (rotated ? 1 : 0);
           if (score < bestScore) {
             bestScore = score;
             best = { ti, value };

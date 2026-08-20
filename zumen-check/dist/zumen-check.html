@@ -1406,6 +1406,9 @@
 
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
+  // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
+  // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
+  const TJ_SPLIT = 400;
 
   const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
   const DOT_MIN = 0.15;
@@ -1775,18 +1778,28 @@
           case "TJ": {
             const arr = ops[ops.length - 1];
             if (Array.isArray(arr)) {
-              // 1 つの TJ を 1 つのテキストランとして扱うため、開始位置を保存して連結する
-              const parts = [];
-              const startTm = tm.slice();
-              const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
-              const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+              // カーニングが小さい間は 1 つのランとして連結し、
+              // 大きなジャンプ（別のラベルへの移動）で分割する
               let str = "";
+              let startTm = null;
+              const flush = () => {
+                if (startTm && str.trim().length) {
+                  const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
+                  const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+                  const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+                  this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
+                }
+                str = "";
+                startTm = null;
+              };
               for (const el of arr) {
                 if (typeof el === "number") {
+                  if (Math.abs(el) > TJ_SPLIT) flush();
                   tm = MAT.mul(MAT.translate((-el / 1000) * tfs * th, 0), tm);
                 } else if (el instanceof PStr) {
                   const glyphs = font ? font.decode(el.bytes) : fallbackDecode(el.bytes);
                   for (const gph of glyphs) {
+                    if (!startTm) startTm = tm.slice();
                     str += gph.str;
                     const isSpace = !font || !font.isType0 ? gph.code === 32 : false;
                     const adv = ((gph.w0 / 1000) * tfs + tc + (isSpace ? tw : 0)) * th;
@@ -1794,10 +1807,7 @@
                   }
                 }
               }
-              const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
-              if (str.trim().length) {
-                this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
-              }
+              flush();
             }
             break;
           }
@@ -1969,7 +1979,9 @@
       list.sort((p, q) => p.pos - q.pos);
       list.forEach((ax, i) => {
         ax.index = i;
-        ax.defaultOn = !ax.frameSuspect && (ax.label != null || ax.dashed);
+        // 照合対象の既定は「X○○/Y○○の符号が付いた芯」のみ。
+        // 符号なしの鎖線などは候補一覧に出すが既定OFF（利用者がONにできる）
+        ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
     return { v: vAxes, h: hAxes, bbox };
@@ -2076,16 +2088,24 @@
         if (lateral > PARAMS.LABEL_LATERAL) continue;
         for (const [ex, ey] of ends) {
           const d = Math.hypot(t.x - ex, t.y - ey);
-          if (d <= PARAMS.LABEL_RADIUS + t.size) pairs.push({ ax, t, d });
+          if (d <= PARAMS.LABEL_RADIUS + t.size) {
+            // 符号バブルは芯の延長線上に載るため、横ずれの小ささを最優先にする
+            // （壁線などが少し離れた符号を横取りしないように）
+            pairs.push({ ax, t, lateral, score: lateral * 3 + d });
+          }
         }
       }
     }
-    pairs.sort((p, q) => p.d - q.d);
+    pairs.sort((p, q) => p.score - q.score);
+    // 同じ符号（X2 など）は上下両端に2回書かれることがあるため、
+    // 方向ごとに同一符号は1本の芯にのみ割り当てる
+    const usedLabels = new Set();
     for (const p of pairs) {
-      if (p.ax.label != null || p.t.used) continue;
+      const key = p.ax.dir + ":" + p.t.norm;
+      if (p.ax.label != null || usedLabels.has(key)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      p.t.used = true;
+      usedLabels.add(key);
     }
   }
 
@@ -2231,7 +2251,7 @@
     AXIS_SNAP: 1.6,       // ドットと通り芯位置の一致判定(pt)
     CHAIN_TOL: 1.2,       // 分割寸法の連続性の許容(pt)
     CONFLICT_MM: 0.6,     // 寸法段どうしの食い違い検出(mm)
-    MERGE_GAP: 0.9,       // 数字ランの結合: 文字サイズ×この値までの隙間
+    MERGE_GAP: 0.25,      // 数字ランの結合: 文字サイズ×この値までの隙間（TJ分割を壊さない値に）
     SCALE_MIN_GAP: 8,     // 縮尺推定に使うスパンの最小(pt)
     SCALE_MIN_VALUE: 100, // 縮尺推定に使う寸法値の最小(mm)
   };
@@ -2333,23 +2353,30 @@
           (l) => l.a <= p1 + PARAMS.LINE_COVER_TOL && l.b >= p2 - PARAMS.LINE_COVER_TOL
         );
         if (!covered) continue;
-        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す
+        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す。
+        // 狭い区間では数字が90度回転で書かれることがあるため、両方の向きを受け付ける
         let best = null;
         let bestScore = Infinity;
         const mid = (p1 + p2) / 2;
         for (let ti = 0; ti < texts.length; ti++) {
           if (usedTexts.has(ti)) continue;
           const t = texts[ti];
-          if (dir === "v" ? !t.horizontal : t.horizontal) continue;
           const value = U.parseDimNumber(t.str);
           if (value == null) continue;
-          const tm = dir === "v" ? (t.x + t.ex) / 2 : (t.y + t.ey) / 2;
-          const tc = dir === "v" ? (t.y + t.ey) / 2 : (t.x + t.ex) / 2;
-          const off = dir === "v" ? tc - r.c : r.c - tc; // 上側/左側が正
+          let tm; // 測る方向の中心
+          let off; // 線からの浮き（上側/左側が正）。回転文字は線に近い側の端で測る
+          if (dir === "v") {
+            tm = (t.x + t.ex) / 2;
+            off = t.horizontal ? (t.y + t.ey) / 2 - r.c : Math.min(t.y, t.ey) - r.c;
+          } else {
+            tm = (t.y + t.ey) / 2;
+            off = !t.horizontal ? r.c - (t.x + t.ex) / 2 : r.c - Math.max(t.x, t.ex);
+          }
           const lift = Math.abs(off);
           if (lift < PARAMS.TEXT_NEAR_MIN || lift > t.size * PARAMS.TEXT_NEAR_MAX) continue;
           if (Math.abs(tm - mid) > (p2 - p1) * PARAMS.TEXT_CENTER) continue;
-          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0); // 反対側は減点
+          const rotated = dir === "v" ? !t.horizontal : t.horizontal;
+          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0) + (rotated ? 1 : 0);
           if (score < bestScore) {
             bestScore = score;
             best = { ti, value };

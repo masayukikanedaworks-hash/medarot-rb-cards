@@ -8,6 +8,9 @@
 
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
+  // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
+  // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
+  const TJ_SPLIT = 400;
 
   const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
   const DOT_MIN = 0.15;
@@ -377,18 +380,28 @@
           case "TJ": {
             const arr = ops[ops.length - 1];
             if (Array.isArray(arr)) {
-              // 1 つの TJ を 1 つのテキストランとして扱うため、開始位置を保存して連結する
-              const parts = [];
-              const startTm = tm.slice();
-              const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
-              const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+              // カーニングが小さい間は 1 つのランとして連結し、
+              // 大きなジャンプ（別のラベルへの移動）で分割する
               let str = "";
+              let startTm = null;
+              const flush = () => {
+                if (startTm && str.trim().length) {
+                  const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
+                  const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+                  const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+                  this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
+                }
+                str = "";
+                startTm = null;
+              };
               for (const el of arr) {
                 if (typeof el === "number") {
+                  if (Math.abs(el) > TJ_SPLIT) flush();
                   tm = MAT.mul(MAT.translate((-el / 1000) * tfs * th, 0), tm);
                 } else if (el instanceof PStr) {
                   const glyphs = font ? font.decode(el.bytes) : fallbackDecode(el.bytes);
                   for (const gph of glyphs) {
+                    if (!startTm) startTm = tm.slice();
                     str += gph.str;
                     const isSpace = !font || !font.isType0 ? gph.code === 32 : false;
                     const adv = ((gph.w0 / 1000) * tfs + tc + (isSpace ? tw : 0)) * th;
@@ -396,10 +409,7 @@
                   }
                 }
               }
-              const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
-              if (str.trim().length) {
-                this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
-              }
+              flush();
             }
             break;
           }

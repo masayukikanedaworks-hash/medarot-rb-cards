@@ -79,7 +79,9 @@
       list.sort((p, q) => p.pos - q.pos);
       list.forEach((ax, i) => {
         ax.index = i;
-        ax.defaultOn = !ax.frameSuspect && (ax.label != null || ax.dashed);
+        // 照合対象の既定は「X○○/Y○○の符号が付いた芯」のみ。
+        // 符号なしの鎖線などは候補一覧に出すが既定OFF（利用者がONにできる）
+        ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
     return { v: vAxes, h: hAxes, bbox };
@@ -186,16 +188,24 @@
         if (lateral > PARAMS.LABEL_LATERAL) continue;
         for (const [ex, ey] of ends) {
           const d = Math.hypot(t.x - ex, t.y - ey);
-          if (d <= PARAMS.LABEL_RADIUS + t.size) pairs.push({ ax, t, d });
+          if (d <= PARAMS.LABEL_RADIUS + t.size) {
+            // 符号バブルは芯の延長線上に載るため、横ずれの小ささを最優先にする
+            // （壁線などが少し離れた符号を横取りしないように）
+            pairs.push({ ax, t, lateral, score: lateral * 3 + d });
+          }
         }
       }
     }
-    pairs.sort((p, q) => p.d - q.d);
+    pairs.sort((p, q) => p.score - q.score);
+    // 同じ符号（X2 など）は上下両端に2回書かれることがあるため、
+    // 方向ごとに同一符号は1本の芯にのみ割り当てる
+    const usedLabels = new Set();
     for (const p of pairs) {
-      if (p.ax.label != null || p.t.used) continue;
+      const key = p.ax.dir + ":" + p.t.norm;
+      if (p.ax.label != null || usedLabels.has(key)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      p.t.used = true;
+      usedLabels.add(key);
     }
   }
 
