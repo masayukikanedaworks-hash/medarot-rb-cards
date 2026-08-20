@@ -26,35 +26,36 @@ function tmpPdf(name, bytes) {
   return p;
 }
 
-exports.単体の測定レポート = () => {
+exports.辺別の拾い出しレポート = () => {
   const p = tmpPdf("base.pdf", mk.makeBasicPdf());
   const out = run([p]);
-  assert.ok(out.includes("1/100"), "縮尺の自動推定が表示される");
-  assert.ok(out.includes("黒ドット 8 点"), "ドット読取数が表示される: \n" + out);
-  assert.ok(out.includes("X1"), "符号が表示される");
-  assert.ok(out.includes("X1〜X2: 記載 6000"), "記載寸法が表示される: \n" + out);
-  assert.ok(out.includes("作図 6000.0 mm"), "作図距離も併記される");
+  for (const side of ["上辺", "右辺", "下辺", "左辺"]) {
+    assert.ok(out.includes(side), side + "が表示される: \n" + out);
+  }
+  assert.ok(out.includes("X1~X2：6000（2730.5+3269.5）"), "分割の内訳付きで表示: \n" + out);
+  assert.ok(out.includes("Y1~Y2：6000"), "横方向の寸法");
+  assert.ok(out.includes("符号バブル(円) 10 個"));
+  assert.ok(out.includes("円で囲まれた符号 5 本"));
 };
 
 exports.JSON出力 = () => {
   const p = tmpPdf("base.pdf", mk.makeBasicPdf());
   const j = JSON.parse(run([p, "--json"]));
-  assert.equal(j.scaleDen, 100);
-  assert.equal(j.dots, 8);
-  assert.equal(j.dimEntries, 5);
-  assert.equal(j.axes.v.filter((a) => a.defaultOn).length, 3);
-  assert.equal(j.axes.h.filter((a) => a.defaultOn).length, 2);
-  assert.equal(j.spacings.v[0].gapMm, 6000);
-  assert.equal(j.spacings.v[0].annot, 6000);
+  assert.equal(j.circles, 10);
+  assert.equal(j.dots, 13);
+  assert.deepEqual(j.sides.top.axes, ["X1", "X2", "X3"]);
+  assert.deepEqual(j.sides.right.axes, ["Y1", "Y2"]);
+  assert.equal(j.sides.bottom.spans[0].value, 6000);
+  assert.deepEqual(j.sides.bottom.spans[0].parts, [2730.5, 3269.5]);
+  assert.equal(j.sides.top.total.value, 11000);
 };
 
 exports.照合モードはNG検出で終了コード2 = () => {
-  const spec2 = mk.makeSpec();
-  spec2.vAxes[2].mm = 11020;
+  const spec = mk.makeSpec();
+  spec.dimsTop = ["6020", "5000"];
   const p1 = tmpPdf("base.pdf", mk.makeBasicPdf());
-  const p2 = tmpPdf("cmp.pdf", mk.makeBasicPdf(spec2));
+  const p2 = tmpPdf("cmp.pdf", mk.makeBasicPdf(spec));
   const out = run([p1, p2], 2);
   assert.ok(out.includes("照合結果"), out);
-  assert.ok(out.includes("NG 2 件"), "X2〜X3と全体寸法のNG: \n" + out);
-  assert.ok(out.includes("X2〜X3: 5000.0 → 5020.0"), out);
+  assert.ok(out.includes("上辺 / 芯々寸法 / X1~X2: 6000 → 6020"), out);
 };

@@ -97,7 +97,37 @@
     display: none;
     z-index: 5;
   }
-  .axis-list { max-height: 260px; overflow: auto; margin-top: 8px; }
+  .pickup { margin-top: 10px; }
+  .pickup-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .pickup-head .copy-btn {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pickup-text {
+    margin: 0;
+    padding: 8px 10px;
+    background: #fbfcfd;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.7;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  }
+  .axis-list { max-height: 240px; overflow: auto; margin-top: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
   th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
@@ -166,10 +196,9 @@
   <section id="check">
     <h2>3. チェック項目を選んで照合</h2>
     <div class="check-row">
-      <label><input type="checkbox" id="ck-labels" checked> 通り芯符号の対応</label>
-      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法</label>
-      <label><input type="checkbox" id="ck-total" checked> 全体寸法</label>
-      <label><input type="checkbox" id="ck-dims"> 寸法注記と作図位置の整合（各図面内）</label>
+      <label><input type="checkbox" id="ck-labels" checked> 通り芯（X○○・Y○○）の対応</label>
+      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法（記載値）</label>
+      <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
     </div>
     <button id="run-check" disabled>照合する</button>
@@ -177,7 +206,7 @@
     <div id="result"></div>
   </section>
   <footer>
-    <p>ベクターPDF専用（スキャンPDFは読み取れません）。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
+    <p>ベクターPDF専用（スキャンPDFは読み取れません）。通り芯は円で囲まれた X○○・Y○○ のみ、寸法は図面に記載された数字（黒ドット間の直線の上）のみを拾います。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
   </footer>
 </main>
 <!--@SCRIPTS-->

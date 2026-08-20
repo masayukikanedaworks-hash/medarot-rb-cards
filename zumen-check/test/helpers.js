@@ -11,29 +11,22 @@ async function loadFirstPage(bytes) {
   return { doc, pages, extract };
 }
 
-async function detectAxes(bytes) {
+// UI と同じ手順: 抽出 → 通り芯検出 → 記載寸法 → 辺別の拾い出し
+async function analyze(bytes) {
   const { extract } = await loadFirstPage(bytes);
   const det = ZC.axis.detect(extract);
-  return { extract, det };
-}
-
-function onAxes(det) {
-  return {
-    v: det.v.filter((a) => a.defaultOn),
-    h: det.h.filter((a) => a.defaultOn),
-  };
-}
-
-// UI と同じ手順で照合入力を組み立てる（既定ONの芯 + 記載寸法 + 自動推定縮尺）
-async function sideOf(bytes, name) {
-  const { extract, det } = await detectAxes(bytes);
-  const on = onAxes(det);
   const dims = ZC.dims.extract(extract);
-  let samples = ZC.dims.scaleSamples(dims.entries);
-  if (!samples.length) samples = ZC.scale.collectDimSamples(on.v, on.h, extract.texts);
-  const inf = ZC.scale.infer(samples);
-  const mmPerPt = ZC.scale.mmPerPtFromDen(inf.den != null ? inf.den : 100);
-  return { v: on.v, h: on.h, mmPerPt, entries: dims.entries, name, inf, det, extract, dims };
+  const sides = ZC.sides.build(det, dims.entries);
+  return { extract, det, dims, sides };
+}
+
+async function sideOf(bytes, name) {
+  const a = await analyze(bytes);
+  return Object.assign({ name }, a, { sides: a.sides });
+}
+
+function labels(det, dir) {
+  return det[dir].filter((a) => a.label != null).map((a) => a.label);
 }
 
 function near(actual, expected, tol, msg) {
@@ -43,4 +36,9 @@ function near(actual, expected, tol, msg) {
   );
 }
 
-module.exports = { loadFirstPage, detectAxes, onAxes, sideOf, near, assert };
+// 辺の区間を "X1~X2:6000" の配列にする
+function spansOf(sides, key) {
+  return sides[key].spans.map((s) => s.from + "~" + s.to + ":" + (s.value == null ? "なし" : s.value));
+}
+
+module.exports = { loadFirstPage, analyze, sideOf, labels, spansOf, near, assert };

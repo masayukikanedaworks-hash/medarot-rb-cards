@@ -1,42 +1,32 @@
-// 記載寸法と作図位置の整合チェック、記載寸法どうしの照合のテスト
+// 寸法段の食い違い・記載なしの扱いのテスト
 "use strict";
 
 const mk = require("./make_pdf");
-const { sideOf, near, assert } = require("./helpers");
+const { analyze, sideOf, assert } = require("./helpers");
 
-exports.記載寸法と作図距離の食い違いを検出 = async () => {
+exports.寸法段どうしの食い違いを注記する = async () => {
   const spec = mk.makeSpec();
-  spec.dims.v = ["6100", null]; // 実際は6000mmで作図されているのに記載は6100
-  const base = await sideOf(mk.makeBasicPdf(), "基準");
-  const cmp = await sideOf(mk.makeBasicPdf(spec), "比較");
-  // 多数決により縮尺推定は 1/100 のまま
-  assert.equal(cmp.inf.den, 100);
-  const r = ZC.compare.compare(base, cmp, {
-    tol: 1,
-    checks: { labels: false, spacing: false, total: false, dims: true },
-  });
-  const ngs = r.rows.filter((x) => x.status === "NG");
-  assert.equal(ngs.length, 1, JSON.stringify(r.rows));
-  const row = ngs[0];
-  assert.ok(row.check.includes("比較"), "比較図面側の指摘であること");
-  assert.equal(row.item, "X1〜X2");
-  near(row.diff, -100, 1, "記載6100に対し作図6000 → 差 -100mm");
-  assert.ok(r.rows.filter((x) => x.check.includes("基準")).every((x) => x.status === "OK"));
+  spec.dims.v = ["6100", null]; // 下辺の通り段を6100に（分割段の合計6000と食い違い）
+  const { sides } = await analyze(mk.makeBasicPdf(spec));
+  const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
+  assert.equal(sp.value, 6100, "通り段の値を採用");
+  assert.equal(sp.conflict, true, "分割段の合計との食い違いを検出");
+  assert.ok(ZC.sides.formatSpan(sp).includes("食い違い"));
 };
 
-exports.記載寸法どうしで照合されNGと段内食い違いが出る = async () => {
+exports.記載寸法が無い区間は要確認になる = async () => {
   const spec = mk.makeSpec();
-  spec.dims.v = ["6100", null]; // 作図は動かさず記載だけ 6100 に
+  spec.dimsRight = [null]; // 右辺の寸法注記を消す
   const base = await sideOf(mk.makeBasicPdf(), "基準");
   const cmp = await sideOf(mk.makeBasicPdf(spec), "比較");
-  const r = ZC.compare.compare(base, cmp, {
-    tol: 1,
-    checks: { labels: false, spacing: true, total: false, dims: false },
-  });
-  const sp = r.rows.find((x) => x.check === "芯々寸法" && x.item === "X1〜X2");
-  assert.equal(sp.status, "NG", "記載寸法どうしの比較でNGになる");
-  assert.equal(sp.base, "6000.0");
-  assert.equal(sp.cmp, "6100.0");
-  near(sp.diff, 100, 0.2);
-  assert.ok(sp.note.includes("食い違"), "段内の食い違い（6100 vs 分割合計6000）が注記される: " + sp.note);
+  const r = ZC.compare.compare(
+    { sides: base.sides, name: "基準" },
+    { sides: cmp.sides, name: "比較" },
+    { tol: 1, checks: { labels: true, spacing: true, total: true } }
+  );
+  const warn = r.rows.filter((x) => x.status === "WARN");
+  assert.ok(warn.length >= 1, "要確認が出ること");
+  assert.ok(warn.every((x) => x.side === "右辺"), "右辺のみ要確認: " + JSON.stringify(warn.map((x) => x.side)));
+  assert.ok(warn[0].note.includes("記載寸法が見つかりません"));
+  assert.equal(r.summary.ng, 0, "値が読めない区間はNGにしない");
 };

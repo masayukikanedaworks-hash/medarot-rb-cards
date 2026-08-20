@@ -1,4 +1,5 @@
-// 通り芯検出: 軸平行の線分を束ねて長い「芯」を推定し、符号ラベルを対応付ける
+// 通り芯検出: 軸平行の線分を束ねて長い「芯」を推定し、
+// 「円（バブル）で囲まれた X○○ / Y○○」の符号だけを対応付ける。
 (function (ZC) {
   "use strict";
 
@@ -13,12 +14,16 @@
     MIN_LEN_RATIO: 0.28,   // 内容範囲に対する最小長さ比
     MIN_LEN_ABS: 80,       // 最小長さの絶対値
     FRAME_EDGE_TOL: 3,     // 内容範囲の端からこの距離以内なら図枠の疑い
-    LABEL_RADIUS: 40,      // 端点から符号ラベルを探す半径
-    LABEL_LATERAL: 30,     // 芯の位置とラベルの横ずれの許容
+    LABEL_LATERAL: 30,     // 芯の位置とバブル中心の横ずれの許容
+    BUBBLE_REACH: 120,     // 芯の端点からバブル中心までの最大距離
+    BUBBLE_TEXT_IN: 1.15,  // 文字がバブル内にあるとみなす半径倍率
     CHAIN_MIN_PIECES: 4,   // 分割描画の鎖線とみなす最小の線分本数
     CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
   };
+
+  const SIDES = ["top", "bottom", "left", "right"];
+  const SIDE_NAME = { top: "上辺", bottom: "下辺", left: "左辺", right: "右辺" };
 
   // extract: ContentExtractor.run() の結果
   function detect(extract) {
@@ -72,15 +77,14 @@
     const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1);
     const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1);
 
-    // 符号ラベルの対応付け（縦横まとめて貪欲法で最短距離から割り当て）
-    assignLabels(vAxes.concat(hAxes), extract.texts);
+    // 符号（円で囲まれた X○○/Y○○）の対応付け
+    assignLabels(vAxes.concat(hAxes), extract.texts, extract.circles || []);
 
     for (const list of [vAxes, hAxes]) {
       list.sort((p, q) => p.pos - q.pos);
       list.forEach((ax, i) => {
         ax.index = i;
-        // 照合対象の既定は「X○○/Y○○の符号が付いた芯」のみ。
-        // 符号なしの鎖線などは候補一覧に出すが既定OFF（利用者がONにできる）
+        // 照合対象は「円で囲まれた符号が付いた芯」のみ
         ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
@@ -148,72 +152,76 @@
           Math.abs(pos - edge1) <= PARAMS.FRAME_EDGE_TOL,
         label: null,
         labelXY: null,
+        bubbles: [], // {label, x, y, side}
       });
     }
     return axes;
   }
 
-  // 符号は「縦芯 = X○○ / 横芯 = Y○○」の記載のみを対象にする（小数点付きも可）。
-  // 方向が一致しない符号（縦芯に Y1 など）は割り当てない。
-  function assignLabels(axes, texts) {
+  // 符号は「円で囲まれた X○○（縦芯）/ Y○○（横芯）」のみを採用する。
+  // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
+  function assignLabels(axes, texts, circles) {
+    if (!circles.length) return;
+    // 円 → その中にある符号テキスト
     const cands = [];
     for (const t of texts) {
       const lab = U.axisLabelOf(t.str);
       if (!lab) continue;
-      cands.push({
-        norm: lab.label,
-        dir: lab.dir,
-        x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
-        y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
-        size: t.size || 10,
-        used: false,
-      });
+      const tx = (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2;
+      const ty = (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2;
+      let host = null;
+      let hostD = Infinity;
+      for (const c of circles) {
+        const d = Math.hypot(tx - c.x, ty - c.y);
+        if (d <= c.r * PARAMS.BUBBLE_TEXT_IN && d < hostD) {
+          hostD = d;
+          host = c;
+        }
+      }
+      if (!host) continue; // 円で囲まれていない符号は拾わない
+      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, used: false });
     }
     if (!cands.length) return;
+
     const pairs = [];
     for (const ax of axes) {
-      const ends =
-        ax.dir === "v"
-          ? [
-              [ax.pos, ax.from],
-              [ax.pos, ax.to],
-            ]
-          : [
-              [ax.from, ax.pos],
-              [ax.to, ax.pos],
-            ];
       for (const t of cands) {
         if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
         if (lateral > PARAMS.LABEL_LATERAL) continue;
-        for (const [ex, ey] of ends) {
-          const d = Math.hypot(t.x - ex, t.y - ey);
-          if (d <= PARAMS.LABEL_RADIUS + t.size) {
-            // 符号バブルは芯の延長線上に載るため、横ずれの小ささを最優先にする
-            // （壁線などが少し離れた符号を横取りしないように）
-            pairs.push({ ax, t, lateral, score: lateral * 3 + d });
-          }
-        }
+        const along = ax.dir === "v" ? t.y : t.x;
+        // 芯の延長線上（端点から BUBBLE_REACH 以内）にあること
+        const dFrom = ax.from - along; // 正なら from より外側
+        const dTo = along - ax.to; // 正なら to より外側
+        const outside = Math.max(dFrom, dTo);
+        if (outside > PARAMS.BUBBLE_REACH) continue;
+        const side =
+          ax.dir === "v"
+            ? along >= (ax.from + ax.to) / 2 ? "top" : "bottom"
+            : along >= (ax.from + ax.to) / 2 ? "right" : "left";
+        pairs.push({ ax, t, side, score: lateral * 3 + Math.max(0, outside) });
       }
     }
     pairs.sort((p, q) => p.score - q.score);
-    // 同じ符号（X2 など）は上下両端に2回書かれることがあるため、
-    // 方向ごとに同一符号は1本の芯にのみ割り当てる
-    const usedLabels = new Set();
+    const usedSide = new Set(); // 「符号+辺」は1つの芯にのみ
     for (const p of pairs) {
-      const key = p.ax.dir + ":" + p.t.norm;
-      if (p.ax.label != null || usedLabels.has(key)) continue;
+      const key = p.t.norm + ":" + p.side;
+      if (usedSide.has(key) || p.t.used) continue;
+      if (p.ax.label != null && p.ax.label !== p.t.norm) continue; // 別符号は割り当てない
+      if (p.ax.bubbles.some((b) => b.side === p.side)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      usedLabels.add(key);
+      p.ax.bubbles.push({ label: p.t.norm, x: p.t.x, y: p.t.y, side: p.side });
+      usedSide.add(key);
+      p.t.used = true;
     }
   }
 
-  // 表示名（符号が無い芯は方向+連番）
+  // 表示名（符号のみ。符号なしの芯は方向+連番）
   function displayName(ax) {
     if (ax.label != null) return ax.label;
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, PARAMS };
+  ZC.axis = { detect, displayName, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});

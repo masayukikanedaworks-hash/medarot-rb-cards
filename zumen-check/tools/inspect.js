@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// 検査CLI: PDFの取り込み内容と通り芯の測定結果をコマンドラインで確認する。
-// ブラウザUIと同じ抽出・検出・縮尺推定・照合ロジック（連結ソース）をそのまま使う。
+// 検査CLI: PDFの取り込み内容と辺別（上辺/右辺/下辺/左辺）の拾い出し結果を確認する。
+// ブラウザUIと同じ抽出・検出・寸法読取・照合ロジック（連結ソース）をそのまま使う。
 "use strict";
 
 const fs = require("node:fs");
@@ -14,29 +14,27 @@ const order = JSON.parse(fs.readFileSync(path.join(srcJs, "_order.json"), "utf8"
 
 function usage() {
   console.log(`使い方:
-  node tools/inspect.js <図面.pdf> [オプション]             取り込み・測定結果を表示
+  node tools/inspect.js <図面.pdf> [オプション]             辺別の拾い出し結果を表示
   node tools/inspect.js <基準.pdf> <比較.pdf> [オプション]  2枚を照合
 
 オプション:
   --page N / --page2 N    対象ページ（1始まり、既定 1）
-  --scale D / --scale2 D  縮尺分母の手動指定（例: 100）。省略時は寸法値から自動推定
   --tol T                 照合の許容差 mm（既定 1）
-  --all                   既定OFFの芯候補も測定対象に含める
-  --texts                 抽出テキストを一覧表示
-  --json                  JSONで出力`);
+  --axes                  通り芯の一覧も表示
+  --json                  JSONで出力
+
+通り芯は「円で囲まれた X○○ / Y○○」のみを拾います。寸法は図面に記載された
+数字（黒いドット間の直線の上）を読み、分割記載は合計します。縮尺は使いません。`);
 }
 
 function parseArgs(argv) {
-  const opt = { files: [], page: 1, page2: 1, scale: null, scale2: null, tol: 1, all: false, texts: false, json: false };
+  const opt = { files: [], page: 1, page2: 1, tol: 1, axes: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--page") opt.page = Number(argv[++i]);
     else if (a === "--page2") opt.page2 = Number(argv[++i]);
-    else if (a === "--scale") opt.scale = Number(argv[++i]);
-    else if (a === "--scale2") opt.scale2 = Number(argv[++i]);
     else if (a === "--tol") opt.tol = Number(argv[++i]);
-    else if (a === "--all") opt.all = true;
-    else if (a === "--texts") opt.texts = true;
+    else if (a === "--axes") opt.axes = true;
     else if (a === "--json") opt.json = true;
     else if (a === "--help" || a === "-h") return null;
     else if (a.startsWith("--")) throw new Error("不明なオプション: " + a);
@@ -46,9 +44,9 @@ function parseArgs(argv) {
   return opt;
 }
 
-const mm = (v, d) => ZC.util.fmtMm(v, d === undefined ? 1 : d);
+const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
-async function analyze(file, pageNo, scaleDen, includeAll) {
+async function analyze(file, pageNo) {
   const bytes = new Uint8Array(fs.readFileSync(file));
   const doc = await ZC.pdf.PDFDocument.load(bytes);
   const pages = await doc.getPages();
@@ -57,72 +55,9 @@ async function analyze(file, pageNo, scaleDen, includeAll) {
   }
   const extract = await new ZC.content.ContentExtractor(doc).run(pages[pageNo - 1]);
   const det = ZC.axis.detect(extract);
-  const pick = (list) => list.filter((a) => includeAll || a.defaultOn);
-  const onV = pick(det.v);
-  const onH = pick(det.h);
   const dims = ZC.dims.extract(extract);
-  let samples = ZC.dims.scaleSamples(dims.entries);
-  let sampleSrc = "記載寸法";
-  if (!samples.length) {
-    samples = ZC.scale.collectDimSamples(onV, onH, extract.texts);
-    sampleSrc = "寸法値（近似）";
-  }
-  const inf = ZC.scale.infer(samples);
-  let den;
-  let scaleSrc;
-  if (scaleDen) {
-    den = scaleDen;
-    scaleSrc = "手動指定";
-  } else if (inf.den != null) {
-    den = inf.den;
-    scaleSrc = `${sampleSrc}${inf.count}件から自動推定`;
-  } else {
-    den = 100;
-    scaleSrc = "推定不能のため既定値 1/100";
-  }
-  const mmPerPt = ZC.scale.mmPerPtFromDen(den);
-  return { file, pageNo, pageCount: pages.length, extract, det, onV, onH, dims, den, scaleSrc, mmPerPt };
-}
-
-// 隣接ペアの芯々寸法: 記載寸法（黒ドット間の注記、分割は合計）を第一に、作図距離も併記
-function spacings(list, mmPerPt, entries, dir) {
-  const sorted = list.slice().sort((a, b) => a.pos - b.pos);
-  const out = [];
-  for (let i = 0; i + 1 < sorted.length; i++) {
-    const a = sorted[i];
-    const b = sorted[i + 1];
-    const annot = ZC.dims.spanValue(entries, dir, a.pos, b.pos);
-    out.push({
-      from: ZC.axis.displayName(a),
-      to: ZC.axis.displayName(b),
-      gapPt: b.pos - a.pos,
-      gapMm: (b.pos - a.pos) * mmPerPt,
-      annot: annot ? annot.value : null,
-      parts: annot && annot.parts.length > 1 ? annot.parts : null,
-      conflict: annot ? annot.conflict : false,
-    });
-  }
-  return out;
-}
-
-function axisJson(a, mmPerPt) {
-  return {
-    name: ZC.axis.displayName(a),
-    label: a.label,
-    dir: a.dir,
-    posPt: round(a.pos, 3),
-    posMm: round(a.pos * mmPerPt, 1),
-    lengthMm: round(a.extent * mmPerPt, 0),
-    dashed: a.dashed,
-    frameSuspect: a.frameSuspect,
-    defaultOn: a.defaultOn,
-    pieces: a.pieces,
-  };
-}
-
-function round(v, d) {
-  const k = 10 ** d;
-  return Math.round(v * k) / k;
+  const sides = ZC.sides.build(det, dims.entries);
+  return { file, pageNo, pageCount: pages.length, extract, det, dims, sides };
 }
 
 function reportOne(r, opt) {
@@ -130,94 +65,77 @@ function reportOne(r, opt) {
   const lines = [];
   lines.push(`━━━ ${r.file}`);
   lines.push(
-    `取り込み : ページ ${r.pageNo}/${r.pageCount}  ${mm(e.width, 0)} x ${mm(e.height, 0)} pt` +
+    `取り込み : ページ ${r.pageNo}/${r.pageCount}  ${e.width.toFixed(0)} x ${e.height.toFixed(0)} pt` +
       (e.rotate ? `（回転 ${e.rotate}° 補正済み）` : "")
   );
   lines.push(
-    `抽出     : 線分 ${e.segments.length} 本（うち曲線近似 ${e.segments.filter((s) => s.curve).length}） / ` +
-      `テキスト ${e.texts.length} 件 / 画像 ${e.imageCount} 個`
+    `抽出     : 線分 ${e.segments.length} 本 / テキスト ${e.texts.length} 件 / ` +
+      `符号バブル(円) ${(e.circles || []).length} 個 / 画像 ${e.imageCount} 個`
   );
   lines.push(`寸法読取 : 黒ドット ${r.dims.dots.length} 点 / 記載寸法 ${r.dims.entries.length} 区間`);
-  lines.push(`縮尺     : 1/${r.den}（${r.scaleSrc}） mm/pt = ${round(r.mmPerPt, 4)}`);
-  for (const [dir, all, on, label] of [
-    ["v", r.det.v, r.onV, "縦（X方向の並び）"],
-    ["h", r.det.h, r.onH, "横（Y方向の並び）"],
-  ]) {
-    lines.push(`\n■ 通り芯 ${label} — 候補 ${all.length} 本、測定対象 ${on.length} 本`);
-    for (const a of all) {
-      const used = on.includes(a);
-      lines.push(
-        `  [${used ? "✓" : " "}] ${ZC.axis.displayName(a).padEnd(6)} ` +
-          `位置 ${mm(a.pos * r.mmPerPt).padStart(9)} mm (${round(a.pos, 3)} pt)  ` +
-          `長さ ${mm(a.extent * r.mmPerPt, 0).padStart(6)} mm  ` +
-          (a.dashed ? "鎖線/破線" : "実線") +
-          (a.frameSuspect ? "・図枠?" : "") +
-          (a.label == null ? "・符号なし" : "")
-      );
-    }
-    const sp = spacings(on, r.mmPerPt, r.dims.entries, dir);
-    if (sp.length) {
-      lines.push(`  芯々寸法（記載値優先 / 参考として作図距離×縮尺も表示）:`);
-      for (const s of sp) {
-        if (s.annot != null) {
-          const dv = mm(s.gapMm - s.annot);
-          const split = s.parts ? ` = ${s.parts.join("+")}` : "";
-          const conf = s.conflict ? " ※寸法段で値が食い違い" : "";
-          lines.push(
-            `    ${s.from}〜${s.to}: 記載 ${s.annot}${split} mm  [作図 ${mm(s.gapMm)} mm / 差 ${dv.startsWith("-") ? "" : "+"}${dv}]${conf}`
-          );
-        } else {
-          lines.push(`    ${s.from}〜${s.to}: 記載なし  [作図 ${mm(s.gapMm)} mm (${round(s.gapPt, 3)} pt)]`);
-        }
-      }
-      if (on.length >= 2) {
-        const sorted = on.slice().sort((a, b) => a.pos - b.pos);
-        const first = sorted[0];
-        const last = sorted[sorted.length - 1];
-        const annot = ZC.dims.spanValue(r.dims.entries, dir, first.pos, last.pos);
-        const geom = (last.pos - first.pos) * r.mmPerPt;
+  const labeled = r.det.v.concat(r.det.h).filter((a) => a.label != null);
+  lines.push(
+    `通り芯   : 円で囲まれた符号 ${labeled.length} 本` +
+      `（縦X ${r.det.v.filter((a) => a.label != null).length} / 横Y ${r.det.h.filter((a) => a.label != null).length}）`
+  );
+  lines.push("");
+  for (const key of SIDE_ORDER) {
+    const s = r.sides[key];
+    lines.push(s.name);
+    if (!s.axes.length) {
+      lines.push("  （通り芯なし）");
+    } else if (!s.spans.length) {
+      lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
+    } else {
+      for (const sp of s.spans) lines.push(ZC.sides.formatSpan(sp));
+      if (s.total) {
         lines.push(
-          `    全体 ${ZC.axis.displayName(first)}〜${ZC.axis.displayName(last)}: ` +
-            (annot ? `記載 ${annot.value}${annot.parts.length > 1 ? " = " + annot.parts.join("+") : ""} mm  [作図 ${mm(geom)} mm]` : `${mm(geom)} mm（作図距離）`)
+          "  全体 " + s.total.from + "~" + s.total.to + "：" +
+            (s.total.value == null ? "記載なし" : ZC.sides.fmtVal(s.total.value))
         );
       }
     }
+    lines.push("");
   }
-  if (opt.texts) {
-    lines.push(`\n■ 抽出テキスト`);
-    for (const t of e.texts) {
-      lines.push(`  "${t.str}" @ (${round(t.x, 1)}, ${round(t.y, 1)}) size ${round(t.size, 1)}`);
+  if (opt.axes) {
+    lines.push("■ 通り芯一覧");
+    for (const ax of r.det.v.concat(r.det.h)) {
+      if (ax.label == null) continue;
+      lines.push(
+        `  ${ax.label.padEnd(6)} ${ax.dir === "v" ? "縦(X)" : "横(Y)"} ` +
+          `符号の辺: ${ax.bubbles.map((b) => ZC.axis.SIDE_NAME[b.side]).join("・")} ` +
+          `${ax.dashed ? "鎖線" : "実線"}`
+      );
     }
   }
-  return lines.join("\n");
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 function jsonOne(r) {
   const e = r.extract;
+  const sides = {};
+  for (const key of SIDE_ORDER) {
+    const s = r.sides[key];
+    sides[key] = {
+      name: s.name,
+      axes: s.axes.map((a) => a.label),
+      spans: s.spans.map((sp) => ({ from: sp.from, to: sp.to, value: sp.value, parts: sp.parts, conflict: sp.conflict })),
+      total: s.total ? { from: s.total.from, to: s.total.to, value: s.total.value } : null,
+    };
+  }
   return {
     file: r.file,
     page: r.pageNo,
     pageCount: r.pageCount,
-    widthPt: round(e.width, 2),
-    heightPt: round(e.height, 2),
+    widthPt: Math.round(e.width * 100) / 100,
+    heightPt: Math.round(e.height * 100) / 100,
     rotate: e.rotate,
     segments: e.segments.length,
-    curveSegments: e.segments.filter((s) => s.curve).length,
     texts: e.texts.length,
-    images: e.imageCount,
+    circles: (e.circles || []).length,
     dots: r.dims.dots.length,
     dimEntries: r.dims.entries.length,
-    scaleDen: r.den,
-    scaleSource: r.scaleSrc,
-    mmPerPt: round(r.mmPerPt, 6),
-    axes: {
-      v: r.det.v.map((a) => axisJson(a, r.mmPerPt)),
-      h: r.det.h.map((a) => axisJson(a, r.mmPerPt)),
-    },
-    spacings: {
-      v: spacings(r.onV, r.mmPerPt, r.dims.entries, "v").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
-      h: spacings(r.onH, r.mmPerPt, r.dims.entries, "h").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
-    },
+    sides,
   };
 }
 
@@ -227,19 +145,18 @@ function jsonOne(r) {
     usage();
     process.exit(process.argv.length > 2 ? 1 : 0);
   }
-  const base = await analyze(opt.files[0], opt.page, opt.scale, opt.all);
+  const base = await analyze(opt.files[0], opt.page);
   if (opt.files.length === 1) {
     if (opt.json) console.log(JSON.stringify(jsonOne(base), null, 2));
     else console.log(reportOne(base, opt));
     return;
   }
-  // 照合モード
-  const cmp = await analyze(opt.files[1], opt.page2, opt.scale2, opt.all);
-  const sideOf = (r, name) => ({ v: r.onV, h: r.onH, mmPerPt: r.mmPerPt, entries: r.dims.entries, name });
-  const result = ZC.compare.compare(sideOf(base, "基準"), sideOf(cmp, "比較"), {
-    tol: opt.tol,
-    checks: { labels: true, spacing: true, total: true, dims: true },
-  });
+  const cmp = await analyze(opt.files[1], opt.page2);
+  const result = ZC.compare.compare(
+    { sides: base.sides, name: "基準" },
+    { sides: cmp.sides, name: "比較" },
+    { tol: opt.tol, checks: { labels: true, spacing: true, total: true } }
+  );
   if (opt.json) {
     console.log(JSON.stringify({ base: jsonOne(base), cmp: jsonOne(cmp), tolMm: opt.tol, result }, null, 2));
     return;
@@ -247,15 +164,15 @@ function jsonOne(r) {
   console.log(reportOne(base, opt));
   console.log("");
   console.log(reportOne(cmp, opt));
-  console.log(`\n━━━ 照合結果（許容差 ±${opt.tol}mm）`);
+  console.log(`━━━ 照合結果（許容差 ±${opt.tol}mm）`);
   const s = result.summary;
   console.log(`NG ${s.ng} 件 / 要確認 ${s.warn} 件 / OK ${s.ok} 件`);
   for (const row of result.rows) {
     const st = row.status === "WARN" ? "要確認" : row.status;
-    const dv = row.diff == null ? null : mm(row.diff);
+    const dv = row.diff == null ? null : ZC.sides.fmtVal(row.diff);
     const diff = dv == null ? "" : `  (差 ${dv.startsWith("-") ? "" : "+"}${dv}mm)`;
     console.log(
-      `  [${st.padEnd(3)}] ${row.check} / ${row.dir} / ${row.item}: ${row.base} → ${row.cmp}${diff}` +
+      `  [${st.padEnd(3)}] ${row.side} / ${row.check} / ${row.item}: ${row.base} → ${row.cmp}${diff}` +
         (row.note ? `  ※${row.note}` : "")
     );
   }
