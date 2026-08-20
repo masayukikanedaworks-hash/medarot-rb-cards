@@ -46,6 +46,7 @@
       this.pages = [];
       this.extract = null;
       this.axes = { v: [], h: [] };
+      this.dimsInfo = { dots: [], entries: [] };
       this.enabled = new Set();
       this.fileName = "";
       // ビュワー状態
@@ -169,6 +170,7 @@
       this.pages = [];
       this.extract = null;
       this.axes = { v: [], h: [] };
+      this.dimsInfo = { dots: [], entries: [] };
       this.enabled.clear();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
@@ -205,15 +207,22 @@
         this.measure = null;
         this.measureTemp = null;
         this.highlightAxes = null;
-        // 縮尺の自動推定（既定ONの芯のみを対象）
-        const onV = det.v.filter((a) => this.enabled.has(a));
-        const onH = det.h.filter((a) => this.enabled.has(a));
-        const samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
+        // 記載寸法（黒ドット間の注記）の抽出
+        this.dimsInfo = ZC.dims.extract(this.extract);
+        // 縮尺の自動推定: ドット基準の寸法があればそれを、無ければ近似（芯間中央の数字）で
+        let samples = ZC.dims.scaleSamples(this.dimsInfo.entries);
+        let src = "記載寸法" + samples.length + "件より";
+        if (!samples.length) {
+          const onV = det.v.filter((a) => this.enabled.has(a));
+          const onH = det.h.filter((a) => this.enabled.has(a));
+          samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
+          src = "寸法値" + samples.length + "件より（近似）";
+        }
         const inf = ZC.scale.infer(samples);
         if (inf.den != null) {
           const den = inf.snapped ? inf.den : Math.round(inf.den * 10) / 10;
           this.$scale.value = String(den);
-          this.$scaleNote.textContent = "自動推定 1/" + den + "（寸法値" + inf.count + "件より）";
+          this.$scaleNote.textContent = "自動推定 1/" + den + "（" + src + "）";
         } else {
           this.$scaleNote.textContent = "縮尺を推定できません。手入力してください。";
         }
@@ -228,12 +237,14 @@
         } else {
           const on = this.enabled.size;
           this.setStatus(
-            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）。誤検出はチェックを外してください。"
+            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）" +
+              " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取。誤検出はチェックを外してください。"
           );
         }
       } catch (e) {
         this.extract = null;
         this.axes = { v: [], h: [] };
+        this.dimsInfo = { dots: [], entries: [] };
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
       this.requestRender();
@@ -628,10 +639,20 @@
       }
     }
 
-    // 芯々寸法のオーバーレイ（チェック中の芯のみ）
+    // 隣接ペアの表示値: 記載寸法（分割は合計）を優先、無ければ作図距離×縮尺に「≈」を付ける
+    _pairText(dir, a, b, mmp) {
+      const annot = ZC.dims.spanValue(this.dimsInfo.entries, dir, a.pos, b.pos);
+      if (annot) {
+        const v = annot.value;
+        return U.fmtMm(v, Number.isInteger(v) ? 0 : 1) + (annot.parts.length > 1 ? "*" : "");
+      }
+      if (!mmp) return "";
+      return "≈" + U.fmtMm(Math.abs(b.pos - a.pos) * mmp, 0);
+    }
+
+    // 芯々寸法のオーバーレイ（チェック中の芯のみ・値は図面の記載寸法を優先）
     _drawDims(ctx) {
       const mmp = this.mmPerPt();
-      if (!mmp) return;
       const en = this.enabledAxes();
       ctx.font = "11px sans-serif";
       ctx.strokeStyle = COLORS.dim;
@@ -660,8 +681,8 @@
           const [x1] = this.toScreen(vs[i].pos, 0);
           const [x2] = this.toScreen(vs[i + 1].pos, 0);
           if (x2 - x1 < 34) continue; // 狭すぎる区間は省略
-          const val = U.fmtMm((vs[i + 1].pos - vs[i].pos) * mmp, 0);
-          haloText(ctx, val, (x1 + x2) / 2, y - 4);
+          const val = this._pairText("v", vs[i], vs[i + 1], mmp);
+          if (val) haloText(ctx, val, (x1 + x2) / 2, y - 4);
         }
       }
 
@@ -686,7 +707,8 @@
           const [, y1] = this.toScreen(0, hs[i].pos);
           const [, y2] = this.toScreen(0, hs[i + 1].pos);
           if (y1 - y2 < 34) continue;
-          const val = U.fmtMm((hs[i + 1].pos - hs[i].pos) * mmp, 0);
+          const val = this._pairText("h", hs[i], hs[i + 1], mmp);
+          if (!val) continue;
           ctx.save();
           ctx.translate(x - 4, (y1 + y2) / 2);
           ctx.rotate(-Math.PI / 2);
@@ -825,7 +847,7 @@
         v: en.v,
         h: en.h,
         mmPerPt,
-        dimSamples: ZC.scale.collectDimSamples(en.v, en.h, panel.extract.texts),
+        entries: panel.dimsInfo.entries,
         name,
       };
     },

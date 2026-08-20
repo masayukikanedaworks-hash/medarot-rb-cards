@@ -25,6 +25,13 @@ exports.線分とテキストの抽出 = async () => {
   // 曲線（バブル円）は curve フラグ付きで折れ線化される
   assert.ok(extract.segments.some((s) => s.curve), "曲線が折れ線として抽出されること");
 
+  // 寸法線端点の黒ドット（塗り潰し円）: 段1=3点 / 段2=3点 / 縦列=2点
+  assert.equal(extract.dots.length, 8, "黒ドットの数");
+  assert.ok(
+    extract.dots.some((d) => Math.abs(d.x - 150) < 0.3 && Math.abs(d.y - mk.ROW2_Y) < 0.3),
+    "X1位置の黒ドットが拾えること"
+  );
+
   // ラベルテキストの位置
   const tX1 = extract.texts.find((t) => t.str === "X1");
   assert.ok(tX1, "X1ラベルが読めること");
@@ -34,6 +41,11 @@ exports.線分とテキストの抽出 = async () => {
   // TJ 配列（カーニング付き）が 1 つのランに連結される
   const t6000 = extract.texts.filter((t) => t.str === "6000");
   assert.ok(t6000.length >= 2, "TJで書いた6000が1ランで読めること");
+
+  // 90度回転した寸法文字（縦書き方向）も向き付きで抽出される
+  const rot = extract.texts.find((t) => t.str === "6000" && Math.abs(t.ey - t.y) > Math.abs(t.ex - t.x));
+  assert.ok(rot, "回転テキストが抽出されること");
+  near(rot.x, mk.COL_X - 2.5, 0.5, "回転テキストのx位置");
 };
 
 exports.回転ページは表示向きに補正される = async () => {

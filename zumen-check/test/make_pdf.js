@@ -1,7 +1,8 @@
 // テスト用の合成ベクターPDF生成器
-// 通り芯・寸法・図枠・ノイズを含む簡易平面図を、2系統のPDF構造で書き出す:
+// 通り芯・寸法線（黒ドット+分割記載）・図枠・ノイズを含む簡易平面図を、2系統のPDF構造で書き出す:
 //   makeBasicPdf    … クラシック xref 表 + Type1(WinAnsi) フォント
 //   makeAdvancedPdf … xref ストリーム(Predictor 12) + ObjStm + Type0(Identity-H)+ToUnicode + Form XObject
+// 寸法は実図面と同様に「黒ドット間の直線の上の数字」で表現する（dots:false で旧式の浮き数字）。
 "use strict";
 
 const zlib = require("node:zlib");
@@ -9,6 +10,9 @@ const zlib = require("node:zlib");
 const PT_PER_MM_PAPER = 72 / 25.4; // 紙上mm → pt
 const X0 = 150; // X1(基準)の紙上位置 pt
 const Y0 = 120; // Y1(基準)の紙上位置 pt
+const ROW1_Y = 85; // 分割寸法の段
+const ROW2_Y = 97; // 通り芯間寸法の段
+const COL_X = 95; // 縦向き寸法線（横芯用）
 
 function makeSpec() {
   return {
@@ -22,7 +26,9 @@ function makeSpec() {
       { label: "Y1", mm: 0 },
       { label: "Y2", mm: 6000 },
     ],
-    dims: {}, // {v:["6100",...], h:[...]} 寸法注記の上書き（省略時は実距離）
+    dims: {}, // {v:[...], h:[...]} 通り芯間寸法（row2/列）の注記上書き（省略時は実距離）
+    splitsV0: [2730.5, 3269.5], // X1〜X2 の分割寸法（row1）。null で分割段なし
+    dots: true, // false で黒ドット無しの旧式注記（フォールバック検証用）
   };
 }
 
@@ -42,6 +48,24 @@ function fmt(n) {
   return String(Math.round(n * 10000) / 10000);
 }
 
+function fmtDim(mm) {
+  const r = Math.round(mm * 10) / 10;
+  return Number.isInteger(r) ? String(r) : String(r);
+}
+
+// 黒ドット（塗り潰し円 r=0.9）
+function dotOps(cx, cy) {
+  const r = 0.9;
+  const k = r * 0.5523;
+  return (
+    `${fmt(cx + r)} ${fmt(cy)} m ` +
+    `${fmt(cx + r)} ${fmt(cy + k)} ${fmt(cx + k)} ${fmt(cy + r)} ${fmt(cx)} ${fmt(cy + r)} c ` +
+    `${fmt(cx - k)} ${fmt(cy + r)} ${fmt(cx - r)} ${fmt(cy + k)} ${fmt(cx - r)} ${fmt(cy)} c ` +
+    `${fmt(cx - r)} ${fmt(cy - k)} ${fmt(cx - k)} ${fmt(cy - r)} ${fmt(cx)} ${fmt(cy - r)} c ` +
+    `${fmt(cx + k)} ${fmt(cy - r)} ${fmt(cx + r)} ${fmt(cy - k)} ${fmt(cx + r)} ${fmt(cy)} c f`
+  );
+}
+
 // 図の描画オペレータ列を作る。textEnc は文字列→表示オペランドの変換
 function drawingOps(spec, textEnc, useTJ) {
   const pos = axisPositions(spec);
@@ -59,11 +83,8 @@ function drawingOps(spec, textEnc, useTJ) {
   ops.push(`${fmt(pos.v[0].pos - 5.5)} 120 m ${fmt(pos.v[0].pos - 5.5)} 320 l S`);
   ops.push(`${fmt(pos.v[0].pos + 5.5)} 120 m ${fmt(pos.v[0].pos + 5.5)} 320 l S`);
 
-  // 寸法線（横・長い実線 → 誤検出候補・既定OFF）
-  ops.push("0.4 w");
-  ops.push("140 85 m 470 85 l S");
-
   // ノイズ: 斜線・ドア円弧・短い破線
+  ops.push("0.4 w");
   ops.push("80 60 m 200 110 l S");
   ops.push("540 200 m 540 222.09 522.09 240 500 240 c S");
   ops.push("[3 3] 0 d 600 200 m 600 260 l S [] 0 d");
@@ -73,7 +94,6 @@ function drawingOps(spec, textEnc, useTJ) {
     const specAx = spec.vAxes[pos.v.indexOf(a)];
     ops.push("0.5 w");
     if (specAx.pieces) {
-      // 鎖線を線分の連なりで表現（dパターン無し）
       ops.push("[] 0 d");
       for (let y = 60; y < 530; y += 23.5) {
         const y2 = Math.min(y + 18, 530);
@@ -108,36 +128,88 @@ function drawingOps(spec, textEnc, useTJ) {
     );
   }
 
-  // テキスト
-  ops.push("BT /F1 10 Tf");
-  for (const a of pos.v) ops.push(`1 0 0 1 ${fmt(a.pos - 7)} 540 Tm ${textEnc(a.label)} Tj`);
-  for (const a of pos.h) ops.push(`1 0 0 1 44 ${fmt(a.pos - 4)} Tm ${textEnc(a.label)} Tj`);
-  // 芯々寸法の注記（縦ペア: y=75 / 横ペア: x=92）
-  for (let i = 0; i + 1 < pos.v.length; i++) {
-    const mid = (pos.v[i].pos + pos.v[i + 1].pos) / 2;
-    const str =
-      (spec.dims.v && spec.dims.v[i] != null)
-        ? spec.dims.v[i]
-        : String(Math.round(spec.vAxes[i + 1].mm - spec.vAxes[i].mm));
-    if (i === 0 && useTJ) {
-      // TJ 配列（カーニング付き）を 1 つのランとして読めることのテスト
-      ops.push(
-        `1 0 0 1 ${fmt(mid - 11)} 75 Tm [${textEnc(str.slice(0, 2))} -20 ${textEnc(str.slice(2))}] TJ`
-      );
+  // ---- 寸法 ----
+  const texts = []; // {op} BTブロック内に入れるテキストオペレータ
+  const textAt = (x, y, str, tj) => {
+    if (tj && useTJ && str.length > 2) {
+      texts.push(`1 0 0 1 ${fmt(x)} ${fmt(y)} Tm [${textEnc(str.slice(0, 2))} -20 ${textEnc(str.slice(2))}] TJ`);
     } else {
-      ops.push(`1 0 0 1 ${fmt(mid - 11)} 75 Tm ${textEnc(str)} Tj`);
+      texts.push(`1 0 0 1 ${fmt(x)} ${fmt(y)} Tm ${textEnc(str)} Tj`);
+    }
+  };
+  const textRotAt = (x, y, str) => {
+    texts.push(`0 1 -1 0 ${fmt(x)} ${fmt(y)} Tm ${textEnc(str)} Tj`);
+  };
+
+  if (spec.dots) {
+    ops.push("0.4 w [] 0 d");
+    // 横向き寸法線を1段描くヘルパ（points: x座標列 / values: 各区間の注記）
+    const hDimRow = (rowY, points, values, tjFirst) => {
+      ops.push(`${fmt(points[0])} ${fmt(rowY)} m ${fmt(points[points.length - 1])} ${fmt(rowY)} l S`);
+      for (const p of points) ops.push(dotOps(p, rowY));
+      for (let i = 0; i + 1 < points.length; i++) {
+        const str = values[i];
+        if (str == null) continue;
+        const mid = (points[i] + points[i + 1]) / 2;
+        textAt(mid - str.length * 2.5, rowY + 1.5, str, tjFirst && i === 0);
+      }
+    };
+    // 段1: X1〜X2 の分割寸法
+    if (spec.splitsV0 && pos.v.length >= 2) {
+      const pts = [pos.v[0].pos];
+      let acc = 0;
+      for (const s of spec.splitsV0) {
+        acc += s;
+        pts.push(pos.v[0].pos + toPt(spec, acc));
+      }
+      hDimRow(ROW1_Y, pts, spec.splitsV0.map(fmtDim), false);
+    }
+    // 段2: 通り芯間の寸法（全縦芯）。noRow2 で分割段のみにできる（合計読み取りのテスト用）
+    if (pos.v.length >= 2 && !spec.noRow2) {
+      const pts = pos.v.map((a) => a.pos);
+      const values = [];
+      for (let i = 0; i + 1 < spec.vAxes.length; i++) {
+        const ov = spec.dims.v && spec.dims.v[i] != null ? spec.dims.v[i] : fmtDim(spec.vAxes[i + 1].mm - spec.vAxes[i].mm);
+        values.push(ov);
+      }
+      hDimRow(ROW2_Y, pts, values, true);
+    }
+    // 縦向き寸法線（横芯用・数字は90度回転で線の左）
+    if (pos.h.length >= 2) {
+      const pts = pos.h.map((a) => a.pos);
+      ops.push(`${fmt(COL_X)} ${fmt(pts[0])} m ${fmt(COL_X)} ${fmt(pts[pts.length - 1])} l S`);
+      for (const p of pts) ops.push(dotOps(COL_X, p));
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const str =
+          spec.dims.h && spec.dims.h[i] != null ? spec.dims.h[i] : fmtDim(spec.hAxes[i + 1].mm - spec.hAxes[i].mm);
+        const mid = (pts[i] + pts[i + 1]) / 2;
+        textRotAt(COL_X - 2.5, mid - str.length * 2.5, str);
+      }
+    }
+  } else {
+    // 旧式: ドット無しの浮き注記（フォールバック経路の検証用）
+    for (let i = 0; i + 1 < pos.v.length; i++) {
+      const mid = (pos.v[i].pos + pos.v[i + 1].pos) / 2;
+      const str =
+        spec.dims.v && spec.dims.v[i] != null ? spec.dims.v[i] : fmtDim(spec.vAxes[i + 1].mm - spec.vAxes[i].mm);
+      textAt(mid - str.length * 2.5, 75, str, i === 0);
+    }
+    for (let i = 0; i + 1 < pos.h.length; i++) {
+      const mid = (pos.h[i].pos + pos.h[i + 1].pos) / 2;
+      const str =
+        spec.dims.h && spec.dims.h[i] != null ? spec.dims.h[i] : fmtDim(spec.hAxes[i + 1].mm - spec.hAxes[i].mm);
+      textAt(92, mid - 3, str, false);
     }
   }
-  for (let i = 0; i + 1 < pos.h.length; i++) {
-    const mid = (pos.h[i].pos + pos.h[i + 1].pos) / 2;
-    const str =
-      (spec.dims.h && spec.dims.h[i] != null)
-        ? spec.dims.h[i]
-        : String(Math.round(spec.hAxes[i + 1].mm - spec.hAxes[i].mm));
-    ops.push(`1 0 0 1 92 ${fmt(mid - 3)} Tm ${textEnc(str)} Tj`);
-  }
-  ops.push(`1 0 0 1 648 42 Tm ${textEnc("S=1/" + spec.den)} Tj`);
-  ops.push("ET");
+
+  // 符号ラベルとタイトル
+  const T = ["BT /F1 10 Tf"];
+  for (const a of pos.v) T.push(`1 0 0 1 ${fmt(a.pos - 7)} 540 Tm ${textEnc(a.label)} Tj`);
+  for (const a of pos.h) T.push(`1 0 0 1 44 ${fmt(a.pos - 4)} Tm ${textEnc(a.label)} Tj`);
+  T.push(...texts);
+  T.push(`1 0 0 1 648 42 Tm ${textEnc("S=1/" + spec.den)} Tj`);
+  T.push("ET");
+  ops.push(T.join("\n"));
   return ops.join("\n");
 }
 
@@ -225,14 +297,14 @@ function makeBasicPdf(spec, opts) {
 // xref ストリーム + ObjStm + Type0 版
 function makeAdvancedPdf(spec) {
   spec = spec || makeSpec();
-  // 文字集合 → 2バイトコード割り当て
+  // 使う文字の収集 → 2バイトコード割り当て
   const chars = new Set();
   const collect = (s) => {
     for (const ch of s) chars.add(ch);
   };
   for (const a of spec.vAxes) collect(a.label);
   for (const a of spec.hAxes) collect(a.label);
-  collect("0123456789S=/");
+  collect("0123456789.S=/");
   if (spec.dims.v) spec.dims.v.forEach((d) => d && collect(d));
   if (spec.dims.h) spec.dims.h.forEach((d) => d && collect(d));
   const codeOf = new Map();
@@ -271,7 +343,6 @@ function makeAdvancedPdf(spec) {
   };
   push("%PDF-1.6\n%\xE2\xE3\xCF\xD3\n");
 
-  // ObjStm に入れる辞書オブジェクト
   const inObj = {
     1: "<< /Type /Catalog /Pages 2 0 R >>",
     2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -342,4 +413,4 @@ function makeAdvancedPdf(spec) {
   return new Uint8Array(Buffer.concat(chunks));
 }
 
-module.exports = { makeSpec, makeBasicPdf, makeAdvancedPdf, axisPositions, toPt, X0, Y0 };
+module.exports = { makeSpec, makeBasicPdf, makeAdvancedPdf, axisPositions, toPt, X0, Y0, ROW1_Y, ROW2_Y, COL_X };

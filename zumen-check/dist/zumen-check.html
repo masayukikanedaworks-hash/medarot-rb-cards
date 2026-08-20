@@ -187,7 +187,7 @@
 (function (g) {
   "use strict";
   g.ZC = g.ZC || {};
-  g.ZC.VERSION = "1.1.0";
+  g.ZC.VERSION = "1.2.0";
 })(globalThis);
 
 /* ===== 01_util.js ===== */
@@ -210,19 +210,22 @@
     return out.toUpperCase();
   }
 
-  // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000）。該当しなければ null
+  // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000、"2730.5" → 2730.5）。該当しなければ null
+  // 小数点付きの寸法にも対応する。判定は寸法線（黒ドット間の直線）への位置付けと併用する前提。
   function parseDimNumber(s) {
     const t = normalizeLabel(s).replace(/,/g, "");
-    if (!/^\d{3,5}$/.test(t)) return null;
+    if (!/^\d{2,5}(\.\d{1,3})?$/.test(t)) return null;
     const v = Number(t);
-    return v >= 100 && v <= 99999 ? v : null;
+    return v >= 10 && v <= 99999 ? v : null;
   }
 
-  // 通り芯符号らしい文字列か（X1 / Y10 / A / 3 など。3桁以上の純数字は寸法値とみなし除外）
-  function isAxisLabel(norm) {
-    if (!norm || norm.length > 4) return false;
-    if (/^[0-9]{1,2}$/.test(norm)) return true;
-    return /^[A-Z]{1,2}[0-9]{0,3}$/.test(norm);
+  // 通り芯符号: 縦方向（X方向）= X○○ / 横方向（Y方向）= Y○○ の記載のみを符号として拾う。
+  // 番号は小数点付き（X2.5 など）も許容。該当すれば {dir:"v"|"h", label} を返す。
+  function axisLabelOf(s) {
+    const t = normalizeLabel(s);
+    const m = /^([XY])(\d{1,3}(\.\d{1,2})?)$/.exec(t);
+    if (!m) return null;
+    return { dir: m[1] === "X" ? "v" : "h", label: t };
   }
 
   function median(arr) {
@@ -294,7 +297,7 @@
     return (Object.is(r, -0) ? 0 : r).toFixed(d); // "-0.0" を出さない
   }
 
-  ZC.util = { normalizeLabel, parseDimNumber, isAxisLabel, median, MAT, latin1, indexOfBytes, fmtMm };
+  ZC.util = { normalizeLabel, parseDimNumber, axisLabelOf, median, MAT, latin1, indexOfBytes, fmtMm };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 10_filters.js ===== */
@@ -1404,11 +1407,15 @@
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
 
+  const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
+  const DOT_MIN = 0.15;
+
   class ContentExtractor {
     constructor(doc) {
       this.doc = doc;
       this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
       this.texts = []; // {str,x,y,ex,ey,size}
+      this.dots = []; // {x,y} 小さな塗り潰し図形（寸法線端点の黒丸など）
       this.imageCount = 0;
       this._fontCache = new Map();
     }
@@ -1450,6 +1457,7 @@
       return {
         segments: this.segments,
         texts: this.texts,
+        dots: this.dots,
         width: outW,
         height: outH,
         rotate: rot,
@@ -1521,6 +1529,17 @@
       const strokePath = () => {
         const wDev = gs.w * MAT.scaleOf(gs.ctm);
         for (const sp of subpaths) {
+          // 太線での極小ストローク（丸キャップのドット表現）も黒ドットとして拾う
+          if (wDev >= 1.2 && sp.length >= 1 && this.dots.length < 20000) {
+            let dx0 = Infinity, dy0 = Infinity, dx1 = -Infinity, dy1 = -Infinity;
+            for (const p of sp) {
+              dx0 = Math.min(dx0, p.x); dx1 = Math.max(dx1, p.x);
+              dy0 = Math.min(dy0, p.y); dy1 = Math.max(dy1, p.y);
+            }
+            if (dx1 - dx0 <= 1.3 && dy1 - dy0 <= 1.3) {
+              this.dots.push({ x: (dx0 + dx1) / 2, y: (dy0 + dy1) / 2 });
+            }
+          }
           for (let i = 1; i < sp.length; i++) {
             const a = sp[i - 1];
             const b = sp[i];
@@ -1532,6 +1551,24 @@
           }
         }
         clearPath();
+      };
+
+      // 塗り潰し時に極小の閉図形（寸法線端点の黒丸など）をドットとして記録する
+      const scanFillDots = () => {
+        if (this.dots.length >= 20000) return;
+        for (const sp of subpaths) {
+          if (sp.length < 3) continue;
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of sp) {
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+            y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+          }
+          const w = x1 - x0;
+          const h = y1 - y0;
+          if (w <= DOT_MAX && h <= DOT_MAX && w >= DOT_MIN && h >= DOT_MIN) {
+            this.dots.push({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 });
+          }
+        }
       };
 
       const showText = (strObj) => {
@@ -1643,11 +1680,15 @@
           case "b":
           case "b*":
             if (op === "b" || op === "b*") closePath();
+            scanFillDots();
             strokePath();
             break;
           case "f":
           case "F":
           case "f*":
+            scanFillDots();
+            clearPath();
+            break;
           case "n":
             clearPath();
             break;
@@ -2000,13 +2041,16 @@
     return axes;
   }
 
+  // 符号は「縦芯 = X○○ / 横芯 = Y○○」の記載のみを対象にする（小数点付きも可）。
+  // 方向が一致しない符号（縦芯に Y1 など）は割り当てない。
   function assignLabels(axes, texts) {
     const cands = [];
     for (const t of texts) {
-      const norm = U.normalizeLabel(t.str);
-      if (!U.isAxisLabel(norm)) continue;
+      const lab = U.axisLabelOf(t.str);
+      if (!lab) continue;
       cands.push({
-        norm,
+        norm: lab.label,
+        dir: lab.dir,
         x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
         y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
         size: t.size || 10,
@@ -2027,6 +2071,7 @@
               [ax.to, ax.pos],
             ];
       for (const t of cands) {
+        if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
         if (lateral > PARAMS.LABEL_LATERAL) continue;
         for (const [ex, ey] of ends) {
@@ -2054,7 +2099,9 @@
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 21_scale.js ===== */
-// 縮尺推定: 隣り合う通り芯の間に書かれた寸法値から mm/pt を求める
+// 縮尺推定: 寸法値と紙上距離から mm/pt を求める。
+// 通常は 22_dims.js の黒ドット基準のサンプルを使い、ドットが無い図面では
+// collectDimSamples（芯間の中央付近にある数字を拾う近似）にフォールバックする。
 (function (ZC) {
   "use strict";
 
@@ -2077,7 +2124,7 @@
     const dims = [];
     for (const t of texts) {
       const value = U.parseDimNumber(t.str);
-      if (value == null) continue;
+      if (value == null || value < 100) continue; // 位置アンカーが無いため小さい値は使わない
       dims.push({
         value,
         x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
@@ -2164,8 +2211,227 @@
   ZC.scale = { collectDimSamples, infer, mmPerPtFromDen, PT_PER_MM, PARAMS, STD_SCALES };
 })(globalThis.ZC = globalThis.ZC || {});
 
-/* ===== 22_compare.js ===== */
-// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す
+/* ===== 22_dims.js ===== */
+// 寸法注記の読み取り: 「黒いドット間にある直線の上の数字」を寸法値として拾う。
+// 寸法線は通り芯間で分割記載されることがあるため、芯々の値はチェーンの合計で求める。
+(function (ZC) {
+  "use strict";
+
+  const U = ZC.util;
+
+  const PARAMS = {
+    DOT_MERGE: 0.6,       // 重複ドットの統合距離(pt)
+    ROW_TOL: 0.7,         // 同一寸法線とみなすドット位置の揃い(pt)
+    LINE_TOL: 0.8,        // ドット間の直線を探すときの線位置の許容(pt)
+    LINE_COVER_TOL: 1.6,  // 直線がドット間を覆っているかの端の許容(pt)
+    MIN_SPAN: 2.5,        // ドット間隔の最小(pt)
+    TEXT_NEAR_MIN: 0.15,  // 数字は線から少し浮いている（最小 pt）
+    TEXT_NEAR_MAX: 2.2,   // 数字と線の距離の最大（文字サイズ×この値）
+    TEXT_CENTER: 0.48,    // 数字の中心はスパン中央からこの比率以内
+    AXIS_SNAP: 1.6,       // ドットと通り芯位置の一致判定(pt)
+    CHAIN_TOL: 1.2,       // 分割寸法の連続性の許容(pt)
+    CONFLICT_MM: 0.6,     // 寸法段どうしの食い違い検出(mm)
+    MERGE_GAP: 0.9,       // 数字ランの結合: 文字サイズ×この値までの隙間
+    SCALE_MIN_GAP: 8,     // 縮尺推定に使うスパンの最小(pt)
+    SCALE_MIN_VALUE: 100, // 縮尺推定に使う寸法値の最小(mm)
+  };
+
+  // 近接する数字ラン（"3" "000" など）を同一ベースラインで結合する
+  function mergeTexts(texts) {
+    const runs = texts.map((t) => {
+      const ex = t.ex !== undefined ? t.ex : t.x;
+      const ey = t.ey !== undefined ? t.ey : t.y;
+      return {
+        str: t.str,
+        x: t.x,
+        y: t.y,
+        ex,
+        ey,
+        size: t.size || 10,
+        horizontal: Math.abs(ex - t.x) >= Math.abs(ey - t.y),
+      };
+    });
+    const out = [];
+    for (const horiz of [true, false]) {
+      const list = runs.filter((r) => r.horizontal === horiz);
+      if (horiz) list.sort((a, b) => (Math.abs(a.y - b.y) > 0.6 ? a.y - b.y : a.x - b.x));
+      else list.sort((a, b) => (Math.abs(a.x - b.x) > 0.6 ? a.x - b.x : a.y - b.y));
+      let cur = null;
+      for (const r of list) {
+        if (cur) {
+          const sameLine = horiz ? Math.abs(r.y - cur.y) <= 0.6 : Math.abs(r.x - cur.x) <= 0.6;
+          const gap = horiz ? r.x - cur.ex : r.y - cur.ey;
+          if (sameLine && gap >= -0.6 && gap <= cur.size * PARAMS.MERGE_GAP) {
+            cur.str += r.str;
+            cur.ex = r.ex;
+            cur.ey = r.ey;
+            continue;
+          }
+        }
+        cur = { str: r.str, x: r.x, y: r.y, ex: r.ex, ey: r.ey, size: r.size, horizontal: r.horizontal };
+        out.push(cur);
+      }
+    }
+    return out;
+  }
+
+  function clusterDots(dots) {
+    const sorted = dots.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+    const out = [];
+    for (const d of sorted) {
+      const prev = out.find(
+        (o) => Math.abs(o.x - d.x) <= PARAMS.DOT_MERGE && Math.abs(o.y - d.y) <= PARAMS.DOT_MERGE
+      );
+      if (!prev) out.push({ x: d.x, y: d.y });
+    }
+    return out;
+  }
+
+  // dir="v": 横向きの寸法線（縦芯の間隔を測る） / dir="h": 縦向きの寸法線
+  function buildEntries(dir, dots, texts, segments, entries) {
+    const along = dir === "v" ? (p) => p.x : (p) => p.y; // 測る方向の座標
+    const cross = dir === "v" ? (p) => p.y : (p) => p.x; // 寸法線の位置
+
+    // 寸法線になり得る直線（測る方向に伸びる線）を前抽出
+    const lines = [];
+    for (const s of segments) {
+      if (s.curve) continue;
+      const c1 = dir === "v" ? s.y1 : s.x1;
+      const c2 = dir === "v" ? s.y2 : s.x2;
+      if (Math.abs(c1 - c2) > 0.3) continue;
+      const a1 = dir === "v" ? s.x1 : s.y1;
+      const a2 = dir === "v" ? s.x2 : s.y2;
+      lines.push({ c: (c1 + c2) / 2, a: Math.min(a1, a2), b: Math.max(a1, a2) });
+    }
+
+    // ドットを寸法線の位置（cross座標）でグループ化して「段」を作る
+    const sorted = dots.slice().sort((p, q) => cross(p) - cross(q));
+    const rows = [];
+    let row = null;
+    for (const d of sorted) {
+      if (row && cross(d) - row.c <= PARAMS.ROW_TOL) {
+        row.items.push(d);
+        row.c = (row.c * (row.items.length - 1) + cross(d)) / row.items.length;
+      } else {
+        row = { c: cross(d), items: [d] };
+        rows.push(row);
+      }
+    }
+
+    const usedTexts = new Set();
+    for (const r of rows) {
+      if (r.items.length < 2) continue;
+      const pts = r.items.map(along).sort((a, b) => a - b);
+      const rowLines = lines.filter((l) => Math.abs(l.c - r.c) <= PARAMS.LINE_TOL);
+      if (!rowLines.length) continue;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        if (p2 - p1 < PARAMS.MIN_SPAN) continue;
+        // ドット間に直線があること
+        const covered = rowLines.some(
+          (l) => l.a <= p1 + PARAMS.LINE_COVER_TOL && l.b >= p2 - PARAMS.LINE_COVER_TOL
+        );
+        if (!covered) continue;
+        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す
+        let best = null;
+        let bestScore = Infinity;
+        const mid = (p1 + p2) / 2;
+        for (let ti = 0; ti < texts.length; ti++) {
+          if (usedTexts.has(ti)) continue;
+          const t = texts[ti];
+          if (dir === "v" ? !t.horizontal : t.horizontal) continue;
+          const value = U.parseDimNumber(t.str);
+          if (value == null) continue;
+          const tm = dir === "v" ? (t.x + t.ex) / 2 : (t.y + t.ey) / 2;
+          const tc = dir === "v" ? (t.y + t.ey) / 2 : (t.x + t.ex) / 2;
+          const off = dir === "v" ? tc - r.c : r.c - tc; // 上側/左側が正
+          const lift = Math.abs(off);
+          if (lift < PARAMS.TEXT_NEAR_MIN || lift > t.size * PARAMS.TEXT_NEAR_MAX) continue;
+          if (Math.abs(tm - mid) > (p2 - p1) * PARAMS.TEXT_CENTER) continue;
+          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0); // 反対側は減点
+          if (score < bestScore) {
+            bestScore = score;
+            best = { ti, value };
+          }
+        }
+        if (best) {
+          usedTexts.add(best.ti);
+          entries.push({ dir, row: r.c, p1, p2, value: best.value });
+        }
+      }
+    }
+  }
+
+  // 抽出結果から寸法注記エントリを組み立てる
+  function extract(ex) {
+    const dots = clusterDots(ex.dots || []);
+    const entries = [];
+    if (dots.length >= 2) {
+      const texts = mergeTexts(ex.texts || []);
+      buildEntries("v", dots, texts, ex.segments || [], entries);
+      buildEntries("h", dots, texts, ex.segments || [], entries);
+    }
+    return { dots, entries };
+  }
+
+  // 2つの通り芯位置の間の「記載寸法」を求める。分割記載はチェーンの合計。
+  // 複数の寸法段が該当する場合は分割数の少ない段を採用し、食い違いは conflict で知らせる。
+  function spanValue(entries, dir, posA, posB) {
+    const lo = Math.min(posA, posB);
+    const hi = Math.max(posA, posB);
+    const AX = PARAMS.AXIS_SNAP;
+    const byRow = new Map();
+    for (const e of entries) {
+      if (e.dir !== dir) continue;
+      if (e.p1 < lo - AX || e.p2 > hi + AX) continue;
+      const key = Math.round(e.row * 4);
+      if (!byRow.has(key)) byRow.set(key, []);
+      byRow.get(key).push(e);
+    }
+    const candidates = [];
+    for (const list of byRow.values()) {
+      list.sort((a, b) => a.p1 - b.p1);
+      if (Math.abs(list[0].p1 - lo) > AX) continue;
+      if (Math.abs(list[list.length - 1].p2 - hi) > AX) continue;
+      let ok = true;
+      let sum = 0;
+      const parts = [];
+      for (let i = 0; i < list.length; i++) {
+        if (i > 0 && Math.abs(list[i].p1 - list[i - 1].p2) > PARAMS.CHAIN_TOL) {
+          ok = false;
+          break;
+        }
+        sum += list[i].value;
+        parts.push(list[i].value);
+      }
+      if (ok) candidates.push({ sum, parts });
+    }
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.parts.length - b.parts.length);
+    const best = candidates[0];
+    const conflict = candidates.some((c) => Math.abs(c.sum - best.sum) > PARAMS.CONFLICT_MM);
+    return { value: best.sum, parts: best.parts, conflict };
+  }
+
+  // 縮尺推定用サンプル: 各エントリの 記載値 ÷ ドット間隔
+  function scaleSamples(entries) {
+    const out = [];
+    for (const e of entries) {
+      const gap = e.p2 - e.p1;
+      if (gap < PARAMS.SCALE_MIN_GAP || e.value < PARAMS.SCALE_MIN_VALUE) continue;
+      out.push({ dir: e.dir, gapPt: gap, value: e.value, mmPerPt: e.value / gap });
+    }
+    return out;
+  }
+
+  ZC.dims = { extract, spanValue, scaleSamples, mergeTexts, PARAMS };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 23_compare.js ===== */
+// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す。
+// 芯々寸法・全体寸法は「図面に記載された寸法値（黒ドット間の注記、分割は合計）」を第一に使い、
+// 注記が見つからない側だけ作図距離×縮尺で補う。
 (function (ZC) {
   "use strict";
 
@@ -2177,7 +2443,7 @@
 
   const DIR_NAME = { v: "縦(X方向の並び)", h: "横(Y方向の並び)" };
 
-  // side: {v:[axes], h:[axes], mmPerPt, dimSamples, name}
+  // side: {v:[axes], h:[axes], mmPerPt, entries, name}
   // opts: {tol, checks:{labels, spacing, total, dims}}
   function compare(base, cmp, opts) {
     const tol = opts.tol > 0 ? opts.tol : 1;
@@ -2234,67 +2500,48 @@
         for (let i = 0; i + 1 < matches.length; i++) {
           const p = matches[i];
           const q = matches[i + 1];
-          const dB = q.b.mm - p.b.mm;
-          const dC = q.c.mm - p.c.mm;
-          const diff = dC - dB;
-          rows.push(
-            row(
-              "芯々寸法",
-              dir,
-              p.b.name + "〜" + q.b.name,
-              U.fmtMm(dB),
-              U.fmtMm(dC),
-              diff,
-              Math.abs(diff) <= tol ? "OK" : "NG",
-              "",
-              { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
-            )
-          );
+          const bv = pairValue(base, dir, p.b, q.b);
+          const cv = pairValue(cmp, dir, p.c, q.c);
+          pushValueRow(rows, "芯々寸法", dir, p, q, bv, cv, tol);
         }
       }
 
       if (checks.total !== false && matches.length >= 2) {
         const p = matches[0];
         const q = matches[matches.length - 1];
-        const dB = q.b.mm - p.b.mm;
-        const dC = q.c.mm - p.c.mm;
-        const diff = dC - dB;
-        rows.push(
-          row(
-            "全体寸法",
-            dir,
-            p.b.name + "〜" + q.b.name,
-            U.fmtMm(dB),
-            U.fmtMm(dC),
-            diff,
-            Math.abs(diff) <= tol ? "OK" : "NG",
-            "",
-            { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
-          )
-        );
+        const bv = pairValue(base, dir, p.b, q.b);
+        const cv = pairValue(cmp, dir, p.c, q.c);
+        pushValueRow(rows, "全体寸法", dir, p, q, bv, cv, tol);
       }
     }
 
-    // 図面内の寸法注記と作図位置の食い違い（各図面ごと）
+    // 記載寸法と作図位置の食い違い（各図面ごと・注記が読めた区間のみ）
     if (checks.dims) {
       for (const side of [base, cmp]) {
         const isBase = side === base;
-        for (const s of side.dimSamples || []) {
-          const geomMm = s.gapPt * side.mmPerPt;
-          const diff = geomMm - s.value;
-          rows.push(
-            row(
-              "寸法値整合(" + side.name + ")",
-              s.dir,
-              nameOf(s.a) + "〜" + nameOf(s.b),
-              U.fmtMm(s.value, 0),
-              U.fmtMm(geomMm),
-              diff,
-              Math.abs(diff) <= tol ? "OK" : "NG",
-              "注記寸法と作図上の芯々距離の比較",
-              { b: isBase ? [s.a, s.b] : [], c: isBase ? [] : [s.a, s.b] }
-            )
-          );
+        for (const dir of ["v", "h"]) {
+          const list = prep(side[dir], side.mmPerPt);
+          for (let i = 0; i + 1 < list.length; i++) {
+            const a = list[i];
+            const b = list[i + 1];
+            const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
+            if (!annot) continue;
+            const geom = b.mm - a.mm;
+            const diff = geom - annot.value;
+            rows.push(
+              row(
+                "寸法値整合(" + side.name + ")",
+                dir,
+                a.name + "〜" + b.name,
+                U.fmtMm(annot.value),
+                U.fmtMm(geom),
+                diff,
+                Math.abs(diff) <= tol ? "OK" : "NG",
+                "記載寸法" + partsNote(annot) + "と作図上の距離×縮尺の比較",
+                { b: isBase ? [a.ax, b.ax] : [], c: isBase ? [] : [a.ax, b.ax] }
+              )
+            );
+          }
         }
       }
     }
@@ -2306,6 +2553,43 @@
       else summary.warn++;
     }
     return { rows, summary };
+  }
+
+  // 芯ペア間の値: 記載寸法（分割は合計）を優先し、無ければ作図距離×縮尺
+  function pairValue(side, dir, a, b) {
+    const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
+    if (annot) {
+      return { value: annot.value, parts: annot.parts, conflict: annot.conflict, annotated: true };
+    }
+    return { value: Math.abs(b.mm - a.mm), parts: null, conflict: false, annotated: false };
+  }
+
+  function pushValueRow(rows, check, dir, p, q, bv, cv, tol) {
+    const diff = cv.value - bv.value;
+    const notes = [];
+    if (bv.parts && bv.parts.length > 1) notes.push("基準=" + bv.parts.join("+"));
+    if (cv.parts && cv.parts.length > 1) notes.push("比較=" + cv.parts.join("+"));
+    if (!bv.annotated && !cv.annotated) notes.push("記載寸法が見つからないため作図距離×縮尺で比較");
+    else if (!bv.annotated) notes.push("基準は記載寸法が見つからず作図距離×縮尺");
+    else if (!cv.annotated) notes.push("比較は記載寸法が見つからず作図距離×縮尺");
+    if (bv.conflict || cv.conflict) notes.push("図面内の寸法段で値が食い違っています（要確認）");
+    rows.push(
+      row(
+        check,
+        dir,
+        p.b.name + "〜" + q.b.name,
+        U.fmtMm(bv.value),
+        U.fmtMm(cv.value),
+        diff,
+        Math.abs(diff) <= tol ? "OK" : "NG",
+        notes.join(" / "),
+        { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
+      )
+    );
+  }
+
+  function partsNote(annot) {
+    return annot.parts && annot.parts.length > 1 ? "（" + annot.parts.join("+") + "）" : "";
   }
 
   function prep(axes, mmPerPt) {
@@ -2341,7 +2625,6 @@
         bRest.push(b);
       }
     }
-    // 位置合わせ用オフセット: 符号一致ペアの中央値、なければ先頭同士
     let offset = 0;
     if (matches.length) {
       offset = U.median(matches.map((m) => m.c.mm - m.b.mm));
@@ -2441,6 +2724,7 @@
       this.pages = [];
       this.extract = null;
       this.axes = { v: [], h: [] };
+      this.dimsInfo = { dots: [], entries: [] };
       this.enabled = new Set();
       this.fileName = "";
       // ビュワー状態
@@ -2564,6 +2848,7 @@
       this.pages = [];
       this.extract = null;
       this.axes = { v: [], h: [] };
+      this.dimsInfo = { dots: [], entries: [] };
       this.enabled.clear();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
@@ -2600,15 +2885,22 @@
         this.measure = null;
         this.measureTemp = null;
         this.highlightAxes = null;
-        // 縮尺の自動推定（既定ONの芯のみを対象）
-        const onV = det.v.filter((a) => this.enabled.has(a));
-        const onH = det.h.filter((a) => this.enabled.has(a));
-        const samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
+        // 記載寸法（黒ドット間の注記）の抽出
+        this.dimsInfo = ZC.dims.extract(this.extract);
+        // 縮尺の自動推定: ドット基準の寸法があればそれを、無ければ近似（芯間中央の数字）で
+        let samples = ZC.dims.scaleSamples(this.dimsInfo.entries);
+        let src = "記載寸法" + samples.length + "件より";
+        if (!samples.length) {
+          const onV = det.v.filter((a) => this.enabled.has(a));
+          const onH = det.h.filter((a) => this.enabled.has(a));
+          samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
+          src = "寸法値" + samples.length + "件より（近似）";
+        }
         const inf = ZC.scale.infer(samples);
         if (inf.den != null) {
           const den = inf.snapped ? inf.den : Math.round(inf.den * 10) / 10;
           this.$scale.value = String(den);
-          this.$scaleNote.textContent = "自動推定 1/" + den + "（寸法値" + inf.count + "件より）";
+          this.$scaleNote.textContent = "自動推定 1/" + den + "（" + src + "）";
         } else {
           this.$scaleNote.textContent = "縮尺を推定できません。手入力してください。";
         }
@@ -2623,12 +2915,14 @@
         } else {
           const on = this.enabled.size;
           this.setStatus(
-            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）。誤検出はチェックを外してください。"
+            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）" +
+              " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取。誤検出はチェックを外してください。"
           );
         }
       } catch (e) {
         this.extract = null;
         this.axes = { v: [], h: [] };
+        this.dimsInfo = { dots: [], entries: [] };
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
       this.requestRender();
@@ -3023,10 +3317,20 @@
       }
     }
 
-    // 芯々寸法のオーバーレイ（チェック中の芯のみ）
+    // 隣接ペアの表示値: 記載寸法（分割は合計）を優先、無ければ作図距離×縮尺に「≈」を付ける
+    _pairText(dir, a, b, mmp) {
+      const annot = ZC.dims.spanValue(this.dimsInfo.entries, dir, a.pos, b.pos);
+      if (annot) {
+        const v = annot.value;
+        return U.fmtMm(v, Number.isInteger(v) ? 0 : 1) + (annot.parts.length > 1 ? "*" : "");
+      }
+      if (!mmp) return "";
+      return "≈" + U.fmtMm(Math.abs(b.pos - a.pos) * mmp, 0);
+    }
+
+    // 芯々寸法のオーバーレイ（チェック中の芯のみ・値は図面の記載寸法を優先）
     _drawDims(ctx) {
       const mmp = this.mmPerPt();
-      if (!mmp) return;
       const en = this.enabledAxes();
       ctx.font = "11px sans-serif";
       ctx.strokeStyle = COLORS.dim;
@@ -3055,8 +3359,8 @@
           const [x1] = this.toScreen(vs[i].pos, 0);
           const [x2] = this.toScreen(vs[i + 1].pos, 0);
           if (x2 - x1 < 34) continue; // 狭すぎる区間は省略
-          const val = U.fmtMm((vs[i + 1].pos - vs[i].pos) * mmp, 0);
-          haloText(ctx, val, (x1 + x2) / 2, y - 4);
+          const val = this._pairText("v", vs[i], vs[i + 1], mmp);
+          if (val) haloText(ctx, val, (x1 + x2) / 2, y - 4);
         }
       }
 
@@ -3081,7 +3385,8 @@
           const [, y1] = this.toScreen(0, hs[i].pos);
           const [, y2] = this.toScreen(0, hs[i + 1].pos);
           if (y1 - y2 < 34) continue;
-          const val = U.fmtMm((hs[i + 1].pos - hs[i].pos) * mmp, 0);
+          const val = this._pairText("h", hs[i], hs[i + 1], mmp);
+          if (!val) continue;
           ctx.save();
           ctx.translate(x - 4, (y1 + y2) / 2);
           ctx.rotate(-Math.PI / 2);
@@ -3220,7 +3525,7 @@
         v: en.v,
         h: en.h,
         mmPerPt,
-        dimSamples: ZC.scale.collectDimSamples(en.v, en.h, panel.extract.texts),
+        entries: panel.dimsInfo.entries,
         name,
       };
     },

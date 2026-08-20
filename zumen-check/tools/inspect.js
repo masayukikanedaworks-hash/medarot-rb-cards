@@ -60,7 +60,13 @@ async function analyze(file, pageNo, scaleDen, includeAll) {
   const pick = (list) => list.filter((a) => includeAll || a.defaultOn);
   const onV = pick(det.v);
   const onH = pick(det.h);
-  const samples = ZC.scale.collectDimSamples(onV, onH, extract.texts);
+  const dims = ZC.dims.extract(extract);
+  let samples = ZC.dims.scaleSamples(dims.entries);
+  let sampleSrc = "記載寸法";
+  if (!samples.length) {
+    samples = ZC.scale.collectDimSamples(onV, onH, extract.texts);
+    sampleSrc = "寸法値（近似）";
+  }
   const inf = ZC.scale.infer(samples);
   let den;
   let scaleSrc;
@@ -69,29 +75,31 @@ async function analyze(file, pageNo, scaleDen, includeAll) {
     scaleSrc = "手動指定";
   } else if (inf.den != null) {
     den = inf.den;
-    scaleSrc = `寸法値${inf.count}件から自動推定`;
+    scaleSrc = `${sampleSrc}${inf.count}件から自動推定`;
   } else {
     den = 100;
     scaleSrc = "推定不能のため既定値 1/100";
   }
   const mmPerPt = ZC.scale.mmPerPtFromDen(den);
-  return { file, pageNo, pageCount: pages.length, extract, det, onV, onH, samples, den, scaleSrc, mmPerPt };
+  return { file, pageNo, pageCount: pages.length, extract, det, onV, onH, dims, den, scaleSrc, mmPerPt };
 }
 
-// 隣接ペアの芯々寸法（寸法注記が対応していれば併記）
-function spacings(list, mmPerPt, samples, dir) {
+// 隣接ペアの芯々寸法: 記載寸法（黒ドット間の注記、分割は合計）を第一に、作図距離も併記
+function spacings(list, mmPerPt, entries, dir) {
   const sorted = list.slice().sort((a, b) => a.pos - b.pos);
   const out = [];
   for (let i = 0; i + 1 < sorted.length; i++) {
     const a = sorted[i];
     const b = sorted[i + 1];
-    const s = samples.find((x) => x.dir === dir && x.a === a && x.b === b);
+    const annot = ZC.dims.spanValue(entries, dir, a.pos, b.pos);
     out.push({
       from: ZC.axis.displayName(a),
       to: ZC.axis.displayName(b),
       gapPt: b.pos - a.pos,
       gapMm: (b.pos - a.pos) * mmPerPt,
-      annot: s ? s.value : null,
+      annot: annot ? annot.value : null,
+      parts: annot && annot.parts.length > 1 ? annot.parts : null,
+      conflict: annot ? annot.conflict : false,
     });
   }
   return out;
@@ -129,6 +137,7 @@ function reportOne(r, opt) {
     `抽出     : 線分 ${e.segments.length} 本（うち曲線近似 ${e.segments.filter((s) => s.curve).length}） / ` +
       `テキスト ${e.texts.length} 件 / 画像 ${e.imageCount} 個`
   );
+  lines.push(`寸法読取 : 黒ドット ${r.dims.dots.length} 点 / 記載寸法 ${r.dims.entries.length} 区間`);
   lines.push(`縮尺     : 1/${r.den}（${r.scaleSrc}） mm/pt = ${round(r.mmPerPt, 4)}`);
   for (const [dir, all, on, label] of [
     ["v", r.det.v, r.onV, "縦（X方向の並び）"],
@@ -146,22 +155,30 @@ function reportOne(r, opt) {
           (a.label == null ? "・符号なし" : "")
       );
     }
-    const sp = spacings(on, r.mmPerPt, r.samples, dir);
+    const sp = spacings(on, r.mmPerPt, r.dims.entries, dir);
     if (sp.length) {
-      lines.push(`  芯々寸法:`);
+      lines.push(`  芯々寸法（記載値優先 / 参考として作図距離×縮尺も表示）:`);
       for (const s of sp) {
-        let note = "";
         if (s.annot != null) {
           const dv = mm(s.gapMm - s.annot);
-          note = `  [注記 ${s.annot} / 差 ${dv.startsWith("-") ? "" : "+"}${dv}]`;
+          const split = s.parts ? ` = ${s.parts.join("+")}` : "";
+          const conf = s.conflict ? " ※寸法段で値が食い違い" : "";
+          lines.push(
+            `    ${s.from}〜${s.to}: 記載 ${s.annot}${split} mm  [作図 ${mm(s.gapMm)} mm / 差 ${dv.startsWith("-") ? "" : "+"}${dv}]${conf}`
+          );
+        } else {
+          lines.push(`    ${s.from}〜${s.to}: 記載なし  [作図 ${mm(s.gapMm)} mm (${round(s.gapPt, 3)} pt)]`);
         }
-        lines.push(`    ${s.from}〜${s.to}: ${mm(s.gapMm)} mm (${round(s.gapPt, 3)} pt)${note}`);
       }
       if (on.length >= 2) {
         const sorted = on.slice().sort((a, b) => a.pos - b.pos);
-        const total = (sorted[sorted.length - 1].pos - sorted[0].pos) * r.mmPerPt;
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        const annot = ZC.dims.spanValue(r.dims.entries, dir, first.pos, last.pos);
+        const geom = (last.pos - first.pos) * r.mmPerPt;
         lines.push(
-          `    全体 ${ZC.axis.displayName(sorted[0])}〜${ZC.axis.displayName(sorted[sorted.length - 1])}: ${mm(total)} mm`
+          `    全体 ${ZC.axis.displayName(first)}〜${ZC.axis.displayName(last)}: ` +
+            (annot ? `記載 ${annot.value}${annot.parts.length > 1 ? " = " + annot.parts.join("+") : ""} mm  [作図 ${mm(geom)} mm]` : `${mm(geom)} mm（作図距離）`)
         );
       }
     }
@@ -188,6 +205,8 @@ function jsonOne(r) {
     curveSegments: e.segments.filter((s) => s.curve).length,
     texts: e.texts.length,
     images: e.imageCount,
+    dots: r.dims.dots.length,
+    dimEntries: r.dims.entries.length,
     scaleDen: r.den,
     scaleSource: r.scaleSrc,
     mmPerPt: round(r.mmPerPt, 6),
@@ -196,8 +215,8 @@ function jsonOne(r) {
       h: r.det.h.map((a) => axisJson(a, r.mmPerPt)),
     },
     spacings: {
-      v: spacings(r.onV, r.mmPerPt, r.samples, "v").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
-      h: spacings(r.onH, r.mmPerPt, r.samples, "h").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
+      v: spacings(r.onV, r.mmPerPt, r.dims.entries, "v").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
+      h: spacings(r.onH, r.mmPerPt, r.dims.entries, "h").map((s) => ({ ...s, gapPt: round(s.gapPt, 3), gapMm: round(s.gapMm, 1) })),
     },
   };
 }
@@ -216,7 +235,7 @@ function jsonOne(r) {
   }
   // 照合モード
   const cmp = await analyze(opt.files[1], opt.page2, opt.scale2, opt.all);
-  const sideOf = (r, name) => ({ v: r.onV, h: r.onH, mmPerPt: r.mmPerPt, dimSamples: r.samples, name });
+  const sideOf = (r, name) => ({ v: r.onV, h: r.onH, mmPerPt: r.mmPerPt, entries: r.dims.entries, name });
   const result = ZC.compare.compare(sideOf(base, "基準"), sideOf(cmp, "比較"), {
     tol: opt.tol,
     checks: { labels: true, spacing: true, total: true, dims: true },

@@ -12,19 +12,24 @@ exports.ラベル正規化 = () => {
 exports.寸法値パース = () => {
   assert.equal(ZC.util.parseDimNumber("6,000"), 6000);
   assert.equal(ZC.util.parseDimNumber("６０００"), 6000);
-  assert.equal(ZC.util.parseDimNumber("60"), null); // 桁不足
+  assert.equal(ZC.util.parseDimNumber("2730.5"), 2730.5); // 小数点対応
+  assert.equal(ZC.util.parseDimNumber("１２３４．５"), 1234.5); // 全角小数点
+  assert.equal(ZC.util.parseDimNumber("60"), 60); // 分割寸法は小さい値もある
+  assert.equal(ZC.util.parseDimNumber("6"), null); // 1桁は対象外
   assert.equal(ZC.util.parseDimNumber("123456"), null); // 桁過多
   assert.equal(ZC.util.parseDimNumber("X1"), null);
 };
 
 exports.符号判定 = () => {
-  assert.equal(ZC.util.isAxisLabel("X1"), true);
-  assert.equal(ZC.util.isAxisLabel("Y10"), true);
-  assert.equal(ZC.util.isAxisLabel("A"), true);
-  assert.equal(ZC.util.isAxisLabel("12"), true);
-  assert.equal(ZC.util.isAxisLabel("123"), false); // 3桁の純数字は寸法値
-  assert.equal(ZC.util.isAxisLabel("6000"), false);
-  assert.equal(ZC.util.isAxisLabel(""), false);
+  // 縦方向（X方向）= X○○ / 横方向（Y方向）= Y○○ のみ。小数点付きも可
+  assert.deepEqual(ZC.util.axisLabelOf("X1"), { dir: "v", label: "X1" });
+  assert.deepEqual(ZC.util.axisLabelOf("Ｙ１０"), { dir: "h", label: "Y10" });
+  assert.deepEqual(ZC.util.axisLabelOf("x2.5"), { dir: "v", label: "X2.5" });
+  assert.equal(ZC.util.axisLabelOf("A"), null); // X/Y 以外は符号としない
+  assert.equal(ZC.util.axisLabelOf("12"), null);
+  assert.equal(ZC.util.axisLabelOf("6000"), null);
+  assert.equal(ZC.util.axisLabelOf("XY1"), null);
+  assert.equal(ZC.util.axisLabelOf(""), null);
 };
 
 exports.行列 = () => {

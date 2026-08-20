@@ -151,13 +151,16 @@
     return axes;
   }
 
+  // 符号は「縦芯 = X○○ / 横芯 = Y○○」の記載のみを対象にする（小数点付きも可）。
+  // 方向が一致しない符号（縦芯に Y1 など）は割り当てない。
   function assignLabels(axes, texts) {
     const cands = [];
     for (const t of texts) {
-      const norm = U.normalizeLabel(t.str);
-      if (!U.isAxisLabel(norm)) continue;
+      const lab = U.axisLabelOf(t.str);
+      if (!lab) continue;
       cands.push({
-        norm,
+        norm: lab.label,
+        dir: lab.dir,
         x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
         y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
         size: t.size || 10,
@@ -178,6 +181,7 @@
               [ax.to, ax.pos],
             ];
       for (const t of cands) {
+        if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
         if (lateral > PARAMS.LABEL_LATERAL) continue;
         for (const [ex, ey] of ends) {

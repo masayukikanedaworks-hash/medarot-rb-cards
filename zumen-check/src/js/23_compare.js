@@ -1,4 +1,6 @@
-// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す
+// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す。
+// 芯々寸法・全体寸法は「図面に記載された寸法値（黒ドット間の注記、分割は合計）」を第一に使い、
+// 注記が見つからない側だけ作図距離×縮尺で補う。
 (function (ZC) {
   "use strict";
 
@@ -10,7 +12,7 @@
 
   const DIR_NAME = { v: "縦(X方向の並び)", h: "横(Y方向の並び)" };
 
-  // side: {v:[axes], h:[axes], mmPerPt, dimSamples, name}
+  // side: {v:[axes], h:[axes], mmPerPt, entries, name}
   // opts: {tol, checks:{labels, spacing, total, dims}}
   function compare(base, cmp, opts) {
     const tol = opts.tol > 0 ? opts.tol : 1;
@@ -67,67 +69,48 @@
         for (let i = 0; i + 1 < matches.length; i++) {
           const p = matches[i];
           const q = matches[i + 1];
-          const dB = q.b.mm - p.b.mm;
-          const dC = q.c.mm - p.c.mm;
-          const diff = dC - dB;
-          rows.push(
-            row(
-              "芯々寸法",
-              dir,
-              p.b.name + "〜" + q.b.name,
-              U.fmtMm(dB),
-              U.fmtMm(dC),
-              diff,
-              Math.abs(diff) <= tol ? "OK" : "NG",
-              "",
-              { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
-            )
-          );
+          const bv = pairValue(base, dir, p.b, q.b);
+          const cv = pairValue(cmp, dir, p.c, q.c);
+          pushValueRow(rows, "芯々寸法", dir, p, q, bv, cv, tol);
         }
       }
 
       if (checks.total !== false && matches.length >= 2) {
         const p = matches[0];
         const q = matches[matches.length - 1];
-        const dB = q.b.mm - p.b.mm;
-        const dC = q.c.mm - p.c.mm;
-        const diff = dC - dB;
-        rows.push(
-          row(
-            "全体寸法",
-            dir,
-            p.b.name + "〜" + q.b.name,
-            U.fmtMm(dB),
-            U.fmtMm(dC),
-            diff,
-            Math.abs(diff) <= tol ? "OK" : "NG",
-            "",
-            { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
-          )
-        );
+        const bv = pairValue(base, dir, p.b, q.b);
+        const cv = pairValue(cmp, dir, p.c, q.c);
+        pushValueRow(rows, "全体寸法", dir, p, q, bv, cv, tol);
       }
     }
 
-    // 図面内の寸法注記と作図位置の食い違い（各図面ごと）
+    // 記載寸法と作図位置の食い違い（各図面ごと・注記が読めた区間のみ）
     if (checks.dims) {
       for (const side of [base, cmp]) {
         const isBase = side === base;
-        for (const s of side.dimSamples || []) {
-          const geomMm = s.gapPt * side.mmPerPt;
-          const diff = geomMm - s.value;
-          rows.push(
-            row(
-              "寸法値整合(" + side.name + ")",
-              s.dir,
-              nameOf(s.a) + "〜" + nameOf(s.b),
-              U.fmtMm(s.value, 0),
-              U.fmtMm(geomMm),
-              diff,
-              Math.abs(diff) <= tol ? "OK" : "NG",
-              "注記寸法と作図上の芯々距離の比較",
-              { b: isBase ? [s.a, s.b] : [], c: isBase ? [] : [s.a, s.b] }
-            )
-          );
+        for (const dir of ["v", "h"]) {
+          const list = prep(side[dir], side.mmPerPt);
+          for (let i = 0; i + 1 < list.length; i++) {
+            const a = list[i];
+            const b = list[i + 1];
+            const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
+            if (!annot) continue;
+            const geom = b.mm - a.mm;
+            const diff = geom - annot.value;
+            rows.push(
+              row(
+                "寸法値整合(" + side.name + ")",
+                dir,
+                a.name + "〜" + b.name,
+                U.fmtMm(annot.value),
+                U.fmtMm(geom),
+                diff,
+                Math.abs(diff) <= tol ? "OK" : "NG",
+                "記載寸法" + partsNote(annot) + "と作図上の距離×縮尺の比較",
+                { b: isBase ? [a.ax, b.ax] : [], c: isBase ? [] : [a.ax, b.ax] }
+              )
+            );
+          }
         }
       }
     }
@@ -139,6 +122,43 @@
       else summary.warn++;
     }
     return { rows, summary };
+  }
+
+  // 芯ペア間の値: 記載寸法（分割は合計）を優先し、無ければ作図距離×縮尺
+  function pairValue(side, dir, a, b) {
+    const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
+    if (annot) {
+      return { value: annot.value, parts: annot.parts, conflict: annot.conflict, annotated: true };
+    }
+    return { value: Math.abs(b.mm - a.mm), parts: null, conflict: false, annotated: false };
+  }
+
+  function pushValueRow(rows, check, dir, p, q, bv, cv, tol) {
+    const diff = cv.value - bv.value;
+    const notes = [];
+    if (bv.parts && bv.parts.length > 1) notes.push("基準=" + bv.parts.join("+"));
+    if (cv.parts && cv.parts.length > 1) notes.push("比較=" + cv.parts.join("+"));
+    if (!bv.annotated && !cv.annotated) notes.push("記載寸法が見つからないため作図距離×縮尺で比較");
+    else if (!bv.annotated) notes.push("基準は記載寸法が見つからず作図距離×縮尺");
+    else if (!cv.annotated) notes.push("比較は記載寸法が見つからず作図距離×縮尺");
+    if (bv.conflict || cv.conflict) notes.push("図面内の寸法段で値が食い違っています（要確認）");
+    rows.push(
+      row(
+        check,
+        dir,
+        p.b.name + "〜" + q.b.name,
+        U.fmtMm(bv.value),
+        U.fmtMm(cv.value),
+        diff,
+        Math.abs(diff) <= tol ? "OK" : "NG",
+        notes.join(" / "),
+        { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
+      )
+    );
+  }
+
+  function partsNote(annot) {
+    return annot.parts && annot.parts.length > 1 ? "（" + annot.parts.join("+") + "）" : "";
   }
 
   function prep(axes, mmPerPt) {
@@ -174,7 +194,6 @@
         bRest.push(b);
       }
     }
-    // 位置合わせ用オフセット: 符号一致ペアの中央値、なければ先頭同士
     let offset = 0;
     if (matches.length) {
       offset = U.median(matches.map((m) => m.c.mm - m.b.mm));

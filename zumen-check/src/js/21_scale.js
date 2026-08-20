@@ -1,4 +1,6 @@
-// 縮尺推定: 隣り合う通り芯の間に書かれた寸法値から mm/pt を求める
+// 縮尺推定: 寸法値と紙上距離から mm/pt を求める。
+// 通常は 22_dims.js の黒ドット基準のサンプルを使い、ドットが無い図面では
+// collectDimSamples（芯間の中央付近にある数字を拾う近似）にフォールバックする。
 (function (ZC) {
   "use strict";
 
@@ -21,7 +23,7 @@
     const dims = [];
     for (const t of texts) {
       const value = U.parseDimNumber(t.str);
-      if (value == null) continue;
+      if (value == null || value < 100) continue; // 位置アンカーが無いため小さい値は使わない
       dims.push({
         value,
         x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,

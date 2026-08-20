@@ -9,11 +9,15 @@
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
 
+  const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
+  const DOT_MIN = 0.15;
+
   class ContentExtractor {
     constructor(doc) {
       this.doc = doc;
       this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
       this.texts = []; // {str,x,y,ex,ey,size}
+      this.dots = []; // {x,y} 小さな塗り潰し図形（寸法線端点の黒丸など）
       this.imageCount = 0;
       this._fontCache = new Map();
     }
@@ -55,6 +59,7 @@
       return {
         segments: this.segments,
         texts: this.texts,
+        dots: this.dots,
         width: outW,
         height: outH,
         rotate: rot,
@@ -126,6 +131,17 @@
       const strokePath = () => {
         const wDev = gs.w * MAT.scaleOf(gs.ctm);
         for (const sp of subpaths) {
+          // 太線での極小ストローク（丸キャップのドット表現）も黒ドットとして拾う
+          if (wDev >= 1.2 && sp.length >= 1 && this.dots.length < 20000) {
+            let dx0 = Infinity, dy0 = Infinity, dx1 = -Infinity, dy1 = -Infinity;
+            for (const p of sp) {
+              dx0 = Math.min(dx0, p.x); dx1 = Math.max(dx1, p.x);
+              dy0 = Math.min(dy0, p.y); dy1 = Math.max(dy1, p.y);
+            }
+            if (dx1 - dx0 <= 1.3 && dy1 - dy0 <= 1.3) {
+              this.dots.push({ x: (dx0 + dx1) / 2, y: (dy0 + dy1) / 2 });
+            }
+          }
           for (let i = 1; i < sp.length; i++) {
             const a = sp[i - 1];
             const b = sp[i];
@@ -137,6 +153,24 @@
           }
         }
         clearPath();
+      };
+
+      // 塗り潰し時に極小の閉図形（寸法線端点の黒丸など）をドットとして記録する
+      const scanFillDots = () => {
+        if (this.dots.length >= 20000) return;
+        for (const sp of subpaths) {
+          if (sp.length < 3) continue;
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of sp) {
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+            y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+          }
+          const w = x1 - x0;
+          const h = y1 - y0;
+          if (w <= DOT_MAX && h <= DOT_MAX && w >= DOT_MIN && h >= DOT_MIN) {
+            this.dots.push({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 });
+          }
+        }
       };
 
       const showText = (strObj) => {
@@ -248,11 +282,15 @@
           case "b":
           case "b*":
             if (op === "b" || op === "b*") closePath();
+            scanFillDots();
             strokePath();
             break;
           case "f":
           case "F":
           case "f*":
+            scanFillDots();
+            clearPath();
+            break;
           case "n":
             clearPath();
             break;

@@ -24,14 +24,16 @@ function onAxes(det) {
   };
 }
 
-// UI と同じ手順で照合入力を組み立てる（既定ONの芯 + 自動推定縮尺）
+// UI と同じ手順で照合入力を組み立てる（既定ONの芯 + 記載寸法 + 自動推定縮尺）
 async function sideOf(bytes, name) {
   const { extract, det } = await detectAxes(bytes);
   const on = onAxes(det);
-  const samples = ZC.scale.collectDimSamples(on.v, on.h, extract.texts);
+  const dims = ZC.dims.extract(extract);
+  let samples = ZC.dims.scaleSamples(dims.entries);
+  if (!samples.length) samples = ZC.scale.collectDimSamples(on.v, on.h, extract.texts);
   const inf = ZC.scale.infer(samples);
   const mmPerPt = ZC.scale.mmPerPtFromDen(inf.den != null ? inf.den : 100);
-  return { v: on.v, h: on.h, mmPerPt, dimSamples: samples, name, inf, det, extract };
+  return { v: on.v, h: on.h, mmPerPt, entries: dims.entries, name, inf, det, extract, dims };
 }
 
 function near(actual, expected, tol, msg) {
