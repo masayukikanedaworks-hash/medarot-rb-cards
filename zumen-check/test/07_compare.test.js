@@ -19,6 +19,12 @@ exports.同一図面ならすべてOK = async () => {
   assert.equal(sp12.cmp, "6000.0");
   const totals = r.rows.filter((x) => x.check === "全体寸法");
   assert.equal(totals.length, 2);
+
+  // ビュワー強調用の芯参照が付き、JSON/CSVには漏れないこと
+  assert.equal(sp12.refs.b.length, 2);
+  assert.equal(sp12.refs.c.length, 2);
+  assert.equal(sp12.refs.b[0].dir, "v");
+  assert.ok(!JSON.stringify(sp12).includes("refs"));
 };
 
 exports.芯の移動と符号変更を検出 = async () => {

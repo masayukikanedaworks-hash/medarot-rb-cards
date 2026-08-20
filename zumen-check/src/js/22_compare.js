@@ -26,21 +26,39 @@
         let ngCount = 0;
         for (const m of matches) {
           if (m.b.label != null && m.c.label != null && m.b.label !== m.c.label) {
-            rows.push(row("符号", dir, m.b.name + " ↔ " + m.c.name, m.b.label, m.c.label, null, "NG", "符号が一致しません"));
+            rows.push(
+              row("符号", dir, m.b.name + " ↔ " + m.c.name, m.b.label, m.c.label, null, "NG", "符号が一致しません", {
+                b: [m.b.ax],
+                c: [m.c.ax],
+              })
+            );
             ngCount++;
           }
         }
         for (const b of bOnly) {
-          rows.push(row("符号", dir, b.name, "あり", "なし", null, b.label != null ? "NG" : "WARN", "比較図面に対応する芯がありません"));
+          rows.push(
+            row("符号", dir, b.name, "あり", "なし", null, b.label != null ? "NG" : "WARN", "比較図面に対応する芯がありません", {
+              b: [b.ax],
+              c: [],
+            })
+          );
           ngCount++;
         }
         for (const c of cOnly) {
-          rows.push(row("符号", dir, c.name, "なし", "あり", null, c.label != null ? "NG" : "WARN", "基準図面に対応する芯がありません"));
+          rows.push(
+            row("符号", dir, c.name, "なし", "あり", null, c.label != null ? "NG" : "WARN", "基準図面に対応する芯がありません", {
+              b: [],
+              c: [c.ax],
+            })
+          );
           ngCount++;
         }
         if (!ngCount && matches.length) {
           rows.push(
-            row("符号", dir, "全" + matches.length + "本", matches.map((m) => m.b.name).join(" "), "対応あり", null, "OK", "")
+            row("符号", dir, "全" + matches.length + "本", matches.map((m) => m.b.name).join(" "), "対応あり", null, "OK", "", {
+              b: matches.map((m) => m.b.ax),
+              c: matches.map((m) => m.c.ax),
+            })
           );
         }
       }
@@ -61,7 +79,8 @@
               U.fmtMm(dC),
               diff,
               Math.abs(diff) <= tol ? "OK" : "NG",
-              ""
+              "",
+              { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
             )
           );
         }
@@ -82,7 +101,8 @@
             U.fmtMm(dC),
             diff,
             Math.abs(diff) <= tol ? "OK" : "NG",
-            ""
+            "",
+            { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
           )
         );
       }
@@ -91,6 +111,7 @@
     // 図面内の寸法注記と作図位置の食い違い（各図面ごと）
     if (checks.dims) {
       for (const side of [base, cmp]) {
+        const isBase = side === base;
         for (const s of side.dimSamples || []) {
           const geomMm = s.gapPt * side.mmPerPt;
           const diff = geomMm - s.value;
@@ -103,7 +124,8 @@
               U.fmtMm(geomMm),
               diff,
               Math.abs(diff) <= tol ? "OK" : "NG",
-              "注記寸法と作図上の芯々距離の比較"
+              "注記寸法と作図上の芯々距離の比較",
+              { b: isBase ? [s.a, s.b] : [], c: isBase ? [] : [s.a, s.b] }
             )
           );
         }
@@ -182,8 +204,8 @@
     return { matches, bOnly, cOnly };
   }
 
-  function row(check, dir, item, baseVal, cmpVal, diffMm, status, note) {
-    return {
+  function row(check, dir, item, baseVal, cmpVal, diffMm, status, note, refs) {
+    const r = {
       check,
       dir: DIR_NAME[dir] || dir,
       item,
@@ -193,6 +215,11 @@
       status,
       note: note || "",
     };
+    if (refs) {
+      // UI がビュワー強調に使う芯オブジェクト参照。列挙不可にして JSON/CSV には出さない
+      Object.defineProperty(r, "refs", { value: refs, enumerable: false });
+    }
+    return r;
   }
 
   ZC.compare = { compare, matchAxes, PARAMS };

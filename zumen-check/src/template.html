@@ -60,19 +60,50 @@
   .scale-note { color: var(--sub); font-size: 12px; }
   .status { min-height: 20px; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
   .status.error { color: #b30021; }
-  canvas.preview {
-    width: 100%;
+  .viewer-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; font-size: 12px; flex-wrap: wrap; }
+  .viewer-bar button {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 12px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .viewer-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .viewer-bar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .zoom-label { color: var(--sub); min-width: 42px; text-align: right; }
+  .viewer-hint { color: #9aa4ad; margin-left: auto; }
+  .viewer-wrap {
+    position: relative;
     height: 380px;
+    min-height: 240px;
+    max-height: 840px;
+    resize: vertical;
+    overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: #fff;
-    display: block;
+  }
+  .viewer-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  .axtip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(36, 49, 61, 0.92);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
   }
   .axis-list { max-height: 260px; overflow: auto; margin-top: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
   th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
   table.axes tr.off td { color: #a7b0b8; }
+  table.axes tr.hl td { background: #fff3e0; }
+  .result-hint { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
   #check {
     margin-top: 16px;
     background: #ffffff;
