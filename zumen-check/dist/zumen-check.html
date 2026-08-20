@@ -2031,14 +2031,16 @@
     GAP_TOL: 14,           // 鎖線・破線の切れ目を連結する最大間隔
     MIN_LEN_RATIO: 0.28,   // 内容範囲に対する最小長さ比
     MIN_LEN_ABS: 80,       // 最小長さの絶対値
-    MIN_LEN_BUBBLE: 30,    // 符号バブルがある位置は部分的な短い芯でも採用する最小長さ
+    MIN_LEN_BUBBLE: 20,    // 符号バブルがある位置は部分的な短い芯でも採用する最小長さ
     FRAME_EDGE_TOL: 3,     // 内容範囲の端からこの距離以内なら図枠の疑い
     LABEL_LATERAL: 30,     // 芯の位置とバブル中心の横ずれの許容
+    BUBBLE_LATERAL: 3,     // 短い芯をバブルで救うときの横ずれの許容（符号は芯の真上にある）
     BUBBLE_REACH: 120,     // 芯の端点からバブル中心までの最大距離
     BUBBLE_TEXT_IN: 1.15,  // 文字がバブル内にあるとみなす半径倍率
     CHAIN_MIN_PIECES: 4,   // 分割描画の鎖線とみなす最小の線分本数
     CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
+    GROUP_R_TOL: 0.18,     // 同じ図の符号バブルとみなす半径の相対差
   };
 
   const SIDES = ["top", "bottom", "left", "right"];
@@ -2095,7 +2097,9 @@
 
     // 符号（円で囲まれた X○○/Y○○）の候補を先に集める。
     // 部分的にしか引かれていない通り芯（X2.2 など）も、符号があれば採用するため。
-    const cands = bubbleCandidates(extract.texts, extract.circles || []);
+    const allCands = bubbleCandidates(extract.texts, extract.circles || []);
+    const grouped = groupBubbles(allCands);
+    const cands = grouped.primary;
     const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1, cands.filter((c) => c.dir === "v"));
     const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1, cands.filter((c) => c.dir === "h"));
 
@@ -2109,7 +2113,15 @@
         ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
-    return { v: vAxes, h: hAxes, bbox };
+    return {
+      v: vAxes,
+      h: hAxes,
+      bbox,
+      // 対象にした図（符号バブルの広がりが最大の図）と、除外した図の情報
+      region: grouped.groups.length > 1 ? grouped.groups[0].bbox : null,
+      groups: grouped.groups.map((g) => ({ bbox: g.bbox, r: g.r, count: g.items.length })),
+      droppedBubbles: allCands.length - cands.length,
+    };
   }
 
   // 同方向の線分群から芯候補を組み立てる
@@ -2153,9 +2165,11 @@
       const extent = best.to - best.from;
       const pos0 = c.mean;
       // 符号バブルが芯の延長線上にあるか（短い芯を救うための判定）
+      // 符号は芯の真上に描かれるので、救済は「バブル中心が芯の線上」に限る。
+      // 緩めると近くの壁線などが符号を横取りしてしまう。
       const hasBubble = (cands || []).some((t) => {
         const lateral = dir === "v" ? Math.abs(t.x - pos0) : Math.abs(t.y - pos0);
-        if (lateral > PARAMS.LABEL_LATERAL) return false;
+        if (lateral > PARAMS.BUBBLE_LATERAL) return false;
         const along = dir === "v" ? t.y : t.x;
         return Math.max(best.from - along, along - best.to) <= PARAMS.BUBBLE_REACH;
       });
@@ -2206,9 +2220,44 @@
         }
       }
       if (!host) continue; // 円で囲まれていない符号は拾わない
-      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, used: false });
+      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, used: false });
     }
     return cands;
+  }
+
+  // 1枚の用紙に複数の図（右下のキープラン等）が載っている場合、符号バブルの
+  // 大きさで図を分け、一番大きく描かれている図だけを拾い出しの対象にする。
+  // 図どうしの隙間は図の中の芯間隔より狭いことがあるため、位置ではなく大きさで分ける。
+  function groupBubbles(cands) {
+    const sized = cands.filter((c) => c.r > 0);
+    if (sized.length < 2) return { primary: cands, groups: [] };
+    const groups = [];
+    let g = null;
+    for (const c of sized.slice().sort((a, b) => a.r - b.r)) {
+      if (g && c.r <= g.rMax * (1 + PARAMS.GROUP_R_TOL)) {
+        g.items.push(c);
+        g.rMax = Math.max(g.rMax, c.r);
+      } else {
+        g = { items: [c], rMin: c.r, rMax: c.r };
+        groups.push(g);
+      }
+    }
+    for (const gr of groups) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const c of gr.items) {
+        x0 = Math.min(x0, c.x);
+        x1 = Math.max(x1, c.x);
+        y0 = Math.min(y0, c.y);
+        y1 = Math.max(y1, c.y);
+      }
+      gr.bbox = { x0, y0, x1, y1 };
+      gr.r = (gr.rMin + gr.rMax) / 2;
+      // 「大きく描かれている図」= 符号バブルの広がりが最も大きい図
+      gr.spread = Math.max(x1 - x0, 0) + Math.max(y1 - y0, 0);
+    }
+    if (groups.length < 2) return { primary: cands, groups };
+    groups.sort((a, b) => b.spread - a.spread || b.items.length - a.items.length);
+    return { primary: groups[0].items, groups };
   }
 
   // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
@@ -2254,7 +2303,7 @@
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, bubbleCandidates, PARAMS, SIDES, SIDE_NAME };
+  ZC.axis = { detect, displayName, bubbleCandidates, groupBubbles, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 22_dims.js ===== */
@@ -2521,16 +2570,24 @@
         .sort((a, b) => a.pos - b.pos);
       const dirEntries = (entries || []).filter((e) => e.dir === dir);
       const outward = side === "top" || side === "right";
-      // その2本の芯の「外側の端」の近くにある寸法段だけを使う。
-      // 芯の長さは場所によって違うので、中点も含めて2本の芯自身の範囲で判定する。
+      // その辺の符号バブルの位置（= その辺がどこにあるか）を返す
+      const bubblePos = (ax) => {
+        const b = ax.bubbles.find((x) => x.side === side);
+        if (!b) return null;
+        return dir === "v" ? b.y : b.x;
+      };
+      // その2本の芯の「その辺の端」の近くにある寸法段だけを使う。
+      // 辺の位置は2本の符号バブルのうち内側（2本とも芯が伸びている側）を基準にする。
+      // L字平面など芯の長さが場所で変わる図面や、一部にしか引かれていない短い芯
+      // （X3 など）でも、その辺の寸法段だけが帯に入る。
       const nearAxes = (a, b) => {
-        const lo = Math.min(a.from, b.from);
-        const hi = Math.max(a.to, b.to);
-        const mid = (lo + hi) / 2;
-        const edge = outward ? hi : lo;
-        return dirEntries.filter(
-          (e) => (outward ? e.row >= mid : e.row < mid) && Math.abs(e.row - edge) <= SIDE_BAND
-        );
+        const pa = bubblePos(a);
+        const pb = bubblePos(b);
+        const edge =
+          pa != null && pb != null
+            ? outward ? Math.min(pa, pb) : Math.max(pa, pb)
+            : outward ? Math.max(a.to, b.to) : Math.min(a.from, b.from);
+        return dirEntries.filter((e) => Math.abs(e.row - edge) <= SIDE_BAND);
       };
       const spans = [];
       for (let i = 0; i + 1 < axes.length; i++) {

@@ -89,3 +89,24 @@ exports.符号が無い短い線は拾わない = async () => {
   const { det } = await analyze(mk.makeBasicPdf(spec));
   assert.equal(det.v.find((a) => a.label === "X1.5"), undefined, "符号が無ければ短い線は芯にしない");
 };
+
+exports.右下の小さなキープランは拾わない = async () => {
+  const spec = mk.makeSpec();
+  // 本図には無い符号（X7/X8/Y7）と、本図と同じ符号（X1/X2/Y1）を小さな図に置く
+  spec.keyPlan = { labels: { v: ["X1", "X2", "X7", "X8"], h: ["Y1", "Y7"] } };
+  const { det, sides } = await analyze(mk.makeBasicPdf(spec));
+  const labels = det.v.concat(det.h).filter((a) => a.label).map((a) => a.label).sort();
+  assert.deepEqual(labels.filter((l) => l === "X7" || l === "X8" || l === "Y7"), [], "小さい図の符号は拾わない");
+  assert.deepEqual(sides.bottom.axes.map((a) => a.label), ["X1", "X2", "X3"], "本図の符号だけが残る");
+  assert.equal(det.groups.length, 2, "図は2つに分かれて認識される");
+  assert.equal(det.droppedBubbles > 0, true, "小さい図の符号は除外される");
+  // 本図の寸法読み取りは影響を受けない
+  const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
+  assert.equal(sp.value, 6000);
+};
+
+exports.キープランが無い図面では全ての符号を拾う = async () => {
+  const { det } = await analyze(mk.makeBasicPdf());
+  assert.equal(det.groups.length <= 1, true, "1つの図なら分割しない");
+  assert.equal(det.droppedBubbles, 0);
+};
