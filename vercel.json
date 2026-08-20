@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/zumen-check",
+      "destination": "/zumen-check/dist/zumen-check.html"
+    },
+    {
+      "source": "/zumen-check/",
+      "destination": "/zumen-check/dist/zumen-check.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
