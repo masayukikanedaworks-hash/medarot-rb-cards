@@ -32,7 +32,7 @@
   header h1 { font-size: 18px; margin: 0; }
   header .ver { color: var(--sub); font-size: 12px; }
   header .privacy { color: var(--sub); font-size: 12px; margin-left: auto; }
-  main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
+  main { max-width: 2200px; margin: 0 auto; padding: 16px 24px 60px; }
   .panels { display: flex; gap: 16px; flex-wrap: wrap; }
   .panel {
     flex: 1 1 480px;
@@ -75,9 +75,9 @@
   .viewer-hint { color: #9aa4ad; margin-left: auto; }
   .viewer-wrap {
     position: relative;
-    height: 380px;
-    min-height: 240px;
-    max-height: 840px;
+    height: 62vh;
+    min-height: 320px;
+    max-height: 1200px;
     resize: vertical;
     overflow: hidden;
     border: 1px solid var(--border);
@@ -114,20 +114,30 @@
     font-size: 12px;
     cursor: pointer;
   }
-  /* 拾い出し結果: 上辺・右辺・下辺・左辺を横並びのブロックで表示（縦スクロールなし） */
-  .pickup-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: flex-start;
-  }
-  .side-block {
-    flex: 1 1 170px;
-    min-width: 160px;
+  /* 拾い出し結果: X方向（上辺・下辺）/ Y方向（右辺・左辺）の2ブロック。
+     各方向の中で2辺を横並びにし、縦スクロールは出さない */
+  .pickup-grid { display: flex; flex-direction: column; gap: 10px; }
+  .dir-group {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 8px 8px;
     background: #fbfcfd;
+    min-width: 0;
+  }
+  .dir-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+  .dir-cols { display: flex; gap: 10px; align-items: flex-start; }
+  .side-block {
+    flex: 1 1 0;
+    min-width: 0;
+    background: #fff;
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 6px 8px 7px;
+    padding: 5px 8px 6px;
   }
   .side-title {
     font-size: 12px;
@@ -138,20 +148,29 @@
     margin-bottom: 4px;
   }
   .side-empty { font-size: 11px; color: var(--sub); }
-  table.span-table { width: auto; border-collapse: collapse; background: none; }
+  table.span-table { width: 100%; border-collapse: collapse; background: none; table-layout: auto; }
   table.span-table td {
     border: none;
     padding: 1px 0;
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.65;
+    vertical-align: baseline;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  table.span-table td.k { padding-right: 2px; }
-  table.span-table td.c { color: var(--sub); padding: 1px 2px; }
-  table.span-table td.v { text-align: right; font-weight: 600; }
+  table.span-table td.k { width: 1px; padding-right: 2px; }
+  table.span-table td.c { width: 1px; color: var(--sub); padding: 1px 2px; }
+  table.span-table td.v { width: 1px; text-align: right; font-weight: 600; }
   table.span-table td.v.none { font-weight: 400; color: #9a6b00; font-size: 11px; }
-  table.span-table td.p { padding-left: 4px; color: var(--sub); font-size: 11px; }
+  /* 内訳は長くなるので、枠からはみ出さないよう折り返す */
+  table.span-table td.p {
+    padding-left: 5px;
+    color: var(--sub);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: break-all;
+  }
   table.span-table tr.conflict td.v { color: #9a6b00; }
   table.span-table tr.conflict td.p::after { content: " ※"; color: #9a6b00; }
   .ai-box { margin-top: 10px; }
@@ -2628,22 +2647,30 @@
     return sp.from + "~" + sp.to + "：" + val + parts + (sp.conflict ? " ※寸法段で食い違い" : "");
   }
 
-  // 拾い出し結果をテキストにする（上辺→右辺→下辺→左辺の順）
+  // 拾い出し結果をテキストにする
+  // （X方向: 上辺→下辺 / Y方向: 右辺→左辺。画面の並びと同じ）
+  const DIR_GROUPS = [
+    { title: "X方向", sides: ["top", "bottom"] },
+    { title: "Y方向", sides: ["right", "left"] },
+  ];
+
   function formatText(sides) {
-    const order = ["top", "right", "bottom", "left"];
     const lines = [];
-    for (const key of order) {
-      const s = sides[key];
-      if (!s) continue;
-      lines.push(s.name);
-      if (!s.axes.length) {
-        lines.push("  （通り芯なし）");
-      } else if (!s.spans.length) {
-        lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
-      } else {
-        for (const sp of s.spans) lines.push(formatSpan(sp));
+    for (const g of DIR_GROUPS) {
+      lines.push("■" + g.title);
+      for (const key of g.sides) {
+        const s = sides[key];
+        if (!s) continue;
+        lines.push(s.name);
+        if (!s.axes.length) {
+          lines.push("  （通り芯なし）");
+        } else if (!s.spans.length) {
+          lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
+        } else {
+          for (const sp of s.spans) lines.push(formatSpan(sp));
+        }
+        lines.push("");
       }
-      lines.push("");
     }
     return lines.join("\n").trim();
   }
@@ -2994,45 +3021,62 @@
     return e;
   }
 
-  // 辺（上辺/右辺/下辺/左辺）を横並びのブロックで描く。
-  // 各ブロックは「区間 ： 値 （内訳）」の表で、値は右揃えにして桁を揃える。
+  // 拾い出し結果を「X方向（上辺・下辺）」「Y方向（右辺・左辺）」の2ブロックに分け、
+  // 各方向の中で2辺を横並びにする。各辺は「区間 ： 値 （内訳）」の表で、
+  // 値は右揃えにして桁を揃える。
   // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}（拾い出し結果・AI結果の両方に使う）
+  const DIR_GROUPS = [
+    { title: "X方向（縦方向の通り芯）", sides: ["top", "bottom"] },
+    { title: "Y方向（横方向の通り芯）", sides: ["right", "left"] },
+  ];
+
+  function sideBlock(key, side) {
+    const block = el("div", { class: "side-block" });
+    block.appendChild(el("div", { class: "side-title", text: ZC.axis.SIDE_NAME[key] }));
+    const spans = side.spans || [];
+    if (!spans.length) {
+      const axes = (side.axes || []).map((a) => (typeof a === "string" ? a : a.label));
+      block.appendChild(
+        el("div", { class: "side-empty", text: axes.length ? axes.join(" ") + "（区間なし）" : "（通り芯なし）" })
+      );
+      return block;
+    }
+    const table = el("table", { class: "span-table" });
+    const tbody = el("tbody");
+    for (const sp of spans) {
+      const tr = el("tr", { class: sp.conflict ? "conflict" : "" });
+      tr.appendChild(el("td", { class: "k", text: sp.from + "~" + sp.to }));
+      tr.appendChild(el("td", { class: "c", text: "：" }));
+      tr.appendChild(
+        el("td", {
+          class: "v" + (sp.value == null ? " none" : ""),
+          text: sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value),
+        })
+      );
+      tr.appendChild(
+        el("td", {
+          class: "p",
+          text: sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "",
+          title: sp.conflict ? "図面内の寸法段で値が食い違っています" : "",
+        })
+      );
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    block.appendChild(table);
+    return block;
+  }
+
   function renderSideBlocks(container, sidesLike) {
     container.innerHTML = "";
     if (!sidesLike) return;
-    for (const key of SIDE_ORDER) {
-      const side = sidesLike[key] || { axes: [], spans: [] };
-      const block = el("div", { class: "side-block" });
-      block.appendChild(el("div", { class: "side-title", text: ZC.axis.SIDE_NAME[key] }));
-      const spans = side.spans || [];
-      if (!spans.length) {
-        const axes = (side.axes || []).map((a) => (typeof a === "string" ? a : a.label));
-        block.appendChild(
-          el("div", { class: "side-empty", text: axes.length ? axes.join(" ") + "（区間なし）" : "（通り芯なし）" })
-        );
-      } else {
-        const table = el("table", { class: "span-table" });
-        const tbody = el("tbody");
-        for (const sp of spans) {
-          const tr = el("tr", { class: sp.conflict ? "conflict" : "" });
-          tr.appendChild(el("td", { class: "k", text: sp.from + "~" + sp.to }));
-          tr.appendChild(el("td", { class: "c", text: "：" }));
-          tr.appendChild(
-            el("td", { class: "v" + (sp.value == null ? " none" : ""), text: sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value) })
-          );
-          tr.appendChild(
-            el("td", {
-              class: "p",
-              text: sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "",
-              title: sp.conflict ? "図面内の寸法段で値が食い違っています" : "",
-            })
-          );
-          tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        block.appendChild(table);
-      }
-      container.appendChild(block);
+    for (const g of DIR_GROUPS) {
+      const group = el("div", { class: "dir-group" });
+      group.appendChild(el("div", { class: "dir-title", text: g.title }));
+      const cols = el("div", { class: "dir-cols" });
+      for (const key of g.sides) cols.appendChild(sideBlock(key, sidesLike[key] || { axes: [], spans: [] }));
+      group.appendChild(cols);
+      container.appendChild(group);
     }
   }
 
@@ -3062,6 +3106,8 @@
       this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
+      this.autoHeightPx = null; // ビュワー高さの自動調整値
+      this.userSizedViewer = false; // 利用者が高さを変えたか
       this.showDims = true;
       this.measuring = false;
       this.measure = null;
@@ -3153,7 +3199,12 @@
         this.requestRender();
       });
       if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(() => this.requestRender()).observe(this.$wrap);
+        new ResizeObserver(() => {
+          // 利用者が下端をドラッグして高さを変えたら、以後は自動調整しない
+          const h = Math.round(this.$wrap.clientHeight);
+          if (this.autoHeightPx != null && Math.abs(h - this.autoHeightPx) > 2) this.userSizedViewer = true;
+          this.requestRender();
+        }).observe(this.$wrap);
       }
     }
 
@@ -3260,6 +3311,8 @@
         this.sides = null;
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
+      this.autoHeight();
+      this.view = null; // 高さが変わるので次の描画でフィットし直す
       this.requestRender();
       this.renderList();
       this.renderPickup();
@@ -3382,6 +3435,17 @@
     toPage(sx, sy) {
       const v = this.view;
       return [(sx - v.ox) / v.scale, this.extract.height - (sy - v.oy) / v.scale];
+    }
+
+    // 図面の縦横比にビュワーの高さを合わせる（横長の図で下に余白が出るのを防ぐ）。
+    // 利用者が下端をドラッグして高さを変えた後は触らない。
+    autoHeight() {
+      if (!this.extract || !this.$wrap || this.userSizedViewer) return;
+      const w = this.$wrap.clientWidth;
+      if (!w) return;
+      const h = (w * this.extract.height) / Math.max(this.extract.width, 1);
+      this.autoHeightPx = Math.round(Math.min(1100, Math.max(320, h)));
+      this.$wrap.style.height = this.autoHeightPx + "px";
     }
 
     fit() {

@@ -92,22 +92,30 @@
     return sp.from + "~" + sp.to + "：" + val + parts + (sp.conflict ? " ※寸法段で食い違い" : "");
   }
 
-  // 拾い出し結果をテキストにする（上辺→右辺→下辺→左辺の順）
+  // 拾い出し結果をテキストにする
+  // （X方向: 上辺→下辺 / Y方向: 右辺→左辺。画面の並びと同じ）
+  const DIR_GROUPS = [
+    { title: "X方向", sides: ["top", "bottom"] },
+    { title: "Y方向", sides: ["right", "left"] },
+  ];
+
   function formatText(sides) {
-    const order = ["top", "right", "bottom", "left"];
     const lines = [];
-    for (const key of order) {
-      const s = sides[key];
-      if (!s) continue;
-      lines.push(s.name);
-      if (!s.axes.length) {
-        lines.push("  （通り芯なし）");
-      } else if (!s.spans.length) {
-        lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
-      } else {
-        for (const sp of s.spans) lines.push(formatSpan(sp));
+    for (const g of DIR_GROUPS) {
+      lines.push("■" + g.title);
+      for (const key of g.sides) {
+        const s = sides[key];
+        if (!s) continue;
+        lines.push(s.name);
+        if (!s.axes.length) {
+          lines.push("  （通り芯なし）");
+        } else if (!s.spans.length) {
+          lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
+        } else {
+          for (const sp of s.spans) lines.push(formatSpan(sp));
+        }
+        lines.push("");
       }
-      lines.push("");
     }
     return lines.join("\n").trim();
   }
