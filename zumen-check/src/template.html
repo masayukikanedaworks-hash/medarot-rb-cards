@@ -32,7 +32,7 @@
   header h1 { font-size: 18px; margin: 0; }
   header .ver { color: var(--sub); font-size: 12px; }
   header .privacy { color: var(--sub); font-size: 12px; margin-left: auto; }
-  main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
+  main { max-width: 2200px; margin: 0 auto; padding: 16px 24px 60px; }
   .panels { display: flex; gap: 16px; flex-wrap: wrap; }
   .panel {
     flex: 1 1 480px;
@@ -75,9 +75,9 @@
   .viewer-hint { color: #9aa4ad; margin-left: auto; }
   .viewer-wrap {
     position: relative;
-    height: 380px;
-    min-height: 240px;
-    max-height: 840px;
+    height: 62vh;
+    min-height: 320px;
+    max-height: 1200px;
     resize: vertical;
     overflow: hidden;
     border: 1px solid var(--border);
@@ -114,20 +114,30 @@
     font-size: 12px;
     cursor: pointer;
   }
-  /* 拾い出し結果: 上辺・右辺・下辺・左辺を横並びのブロックで表示（縦スクロールなし） */
-  .pickup-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: flex-start;
-  }
-  .side-block {
-    flex: 1 1 170px;
-    min-width: 160px;
+  /* 拾い出し結果: X方向（上辺・下辺）/ Y方向（右辺・左辺）の2ブロック。
+     各方向の中で2辺を横並びにし、縦スクロールは出さない */
+  .pickup-grid { display: flex; flex-direction: column; gap: 10px; }
+  .dir-group {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 8px 8px;
     background: #fbfcfd;
+    min-width: 0;
+  }
+  .dir-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+  .dir-cols { display: flex; gap: 10px; align-items: flex-start; }
+  .side-block {
+    flex: 1 1 0;
+    min-width: 0;
+    background: #fff;
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 6px 8px 7px;
+    padding: 5px 8px 6px;
   }
   .side-title {
     font-size: 12px;
@@ -138,20 +148,29 @@
     margin-bottom: 4px;
   }
   .side-empty { font-size: 11px; color: var(--sub); }
-  table.span-table { width: auto; border-collapse: collapse; background: none; }
+  table.span-table { width: 100%; border-collapse: collapse; background: none; table-layout: auto; }
   table.span-table td {
     border: none;
     padding: 1px 0;
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.65;
+    vertical-align: baseline;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  table.span-table td.k { padding-right: 2px; }
-  table.span-table td.c { color: var(--sub); padding: 1px 2px; }
-  table.span-table td.v { text-align: right; font-weight: 600; }
+  table.span-table td.k { width: 1px; padding-right: 2px; }
+  table.span-table td.c { width: 1px; color: var(--sub); padding: 1px 2px; }
+  table.span-table td.v { width: 1px; text-align: right; font-weight: 600; }
   table.span-table td.v.none { font-weight: 400; color: #9a6b00; font-size: 11px; }
-  table.span-table td.p { padding-left: 4px; color: var(--sub); font-size: 11px; }
+  /* 内訳は長くなるので、枠からはみ出さないよう折り返す */
+  table.span-table td.p {
+    padding-left: 5px;
+    color: var(--sub);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: break-all;
+  }
   table.span-table tr.conflict td.v { color: #9a6b00; }
   table.span-table tr.conflict td.p::after { content: " ※"; color: #9a6b00; }
   .ai-box { margin-top: 10px; }

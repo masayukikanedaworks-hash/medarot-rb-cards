@@ -34,16 +34,24 @@
         .sort((a, b) => a.pos - b.pos);
       const dirEntries = (entries || []).filter((e) => e.dir === dir);
       const outward = side === "top" || side === "right";
-      // その2本の芯の「外側の端」の近くにある寸法段だけを使う。
-      // 芯の長さは場所によって違うので、中点も含めて2本の芯自身の範囲で判定する。
+      // その辺の符号バブルの位置（= その辺がどこにあるか）を返す
+      const bubblePos = (ax) => {
+        const b = ax.bubbles.find((x) => x.side === side);
+        if (!b) return null;
+        return dir === "v" ? b.y : b.x;
+      };
+      // その2本の芯の「その辺の端」の近くにある寸法段だけを使う。
+      // 辺の位置は2本の符号バブルのうち内側（2本とも芯が伸びている側）を基準にする。
+      // L字平面など芯の長さが場所で変わる図面や、一部にしか引かれていない短い芯
+      // （X3 など）でも、その辺の寸法段だけが帯に入る。
       const nearAxes = (a, b) => {
-        const lo = Math.min(a.from, b.from);
-        const hi = Math.max(a.to, b.to);
-        const mid = (lo + hi) / 2;
-        const edge = outward ? hi : lo;
-        return dirEntries.filter(
-          (e) => (outward ? e.row >= mid : e.row < mid) && Math.abs(e.row - edge) <= SIDE_BAND
-        );
+        const pa = bubblePos(a);
+        const pb = bubblePos(b);
+        const edge =
+          pa != null && pb != null
+            ? outward ? Math.min(pa, pb) : Math.max(pa, pb)
+            : outward ? Math.max(a.to, b.to) : Math.min(a.from, b.from);
+        return dirEntries.filter((e) => Math.abs(e.row - edge) <= SIDE_BAND);
       };
       const spans = [];
       for (let i = 0; i + 1 < axes.length; i++) {
@@ -84,22 +92,30 @@
     return sp.from + "~" + sp.to + "：" + val + parts + (sp.conflict ? " ※寸法段で食い違い" : "");
   }
 
-  // 拾い出し結果をテキストにする（上辺→右辺→下辺→左辺の順）
+  // 拾い出し結果をテキストにする
+  // （X方向: 上辺→下辺 / Y方向: 右辺→左辺。画面の並びと同じ）
+  const DIR_GROUPS = [
+    { title: "X方向", sides: ["top", "bottom"] },
+    { title: "Y方向", sides: ["right", "left"] },
+  ];
+
   function formatText(sides) {
-    const order = ["top", "right", "bottom", "left"];
     const lines = [];
-    for (const key of order) {
-      const s = sides[key];
-      if (!s) continue;
-      lines.push(s.name);
-      if (!s.axes.length) {
-        lines.push("  （通り芯なし）");
-      } else if (!s.spans.length) {
-        lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
-      } else {
-        for (const sp of s.spans) lines.push(formatSpan(sp));
+    for (const g of DIR_GROUPS) {
+      lines.push("■" + g.title);
+      for (const key of g.sides) {
+        const s = sides[key];
+        if (!s) continue;
+        lines.push(s.name);
+        if (!s.axes.length) {
+          lines.push("  （通り芯なし）");
+        } else if (!s.spans.length) {
+          lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
+        } else {
+          for (const sp of s.spans) lines.push(formatSpan(sp));
+        }
+        lines.push("");
       }
-      lines.push("");
     }
     return lines.join("\n").trim();
   }

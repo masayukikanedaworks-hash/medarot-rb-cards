@@ -45,6 +45,9 @@ function makeSpec() {
     noRow2: false, // true で下辺の通り芯間寸法の段を省略（分割合計の検証用）
     noBubbles: false, // true で符号の円囲みを省略（円必須の検証用）
     dots: true, // false で黒ドット無しの旧式注記（フォールバック検証用）
+    // 右下の小さなキープラン（本図とは別の図）。{labels:{v:[],h:[]}} を与えると
+    // 本図より小さい符号バブル付きの縮小図を描く。拾い出しから除外されるべきもの。
+    keyPlan: null,
   };
 }
 
@@ -238,6 +241,37 @@ function drawingOps(spec, textEnc, useTJ) {
         spec.dims.h && spec.dims.h[i] != null ? spec.dims.h[i] : fmtDim(spec.hAxes[i + 1].mm - spec.hAxes[i].mm);
       textAt(120, mid - 3, str, false);
     }
+  }
+
+  // ---- 右下の小さなキープラン（本図より小さい符号バブル） ----
+  if (spec.keyPlan) {
+    const kp = spec.keyPlan;
+    const ox = kp.x != null ? kp.x : 660;
+    const oy = kp.y != null ? kp.y : 20;
+    const step = kp.step != null ? kp.step : 12;
+    const r = kp.r != null ? kp.r : BUBBLE_R * 0.45; // 本図の半分以下の符号
+    const w = (kp.labels.v.length - 1) * step;
+    const h = (kp.labels.h.length - 1) * step;
+    ops.push("0.3 w [3 2] 0 d");
+    kp.labels.v.forEach((lab, i) => {
+      const x = ox + i * step;
+      ops.push(`${fmt(x)} ${fmt(oy)} m ${fmt(x)} ${fmt(oy + h)} l S`);
+    });
+    kp.labels.h.forEach((lab, i) => {
+      const y = oy + i * step;
+      ops.push(`${fmt(ox)} ${fmt(y)} m ${fmt(ox + w)} ${fmt(y)} l S`);
+    });
+    ops.push("[] 0 d 0.3 w");
+    kp.labels.v.forEach((lab, i) => {
+      const x = ox + i * step;
+      ops.push(circleOps(x, oy - step, r, false));
+      textAt(x - lab.length * 1.4, oy - step - 2, lab, false);
+    });
+    kp.labels.h.forEach((lab, i) => {
+      const y = oy + i * step;
+      ops.push(circleOps(ox - step, y, r, false));
+      textAt(ox - step - lab.length * 1.4, y - 2, lab, false);
+    });
   }
 
   const T = ["BT /F1 10 Tf", ...texts, `1 0 0 1 656 30 Tm ${textEnc("S=1/" + spec.den)} Tj`, "ET"];

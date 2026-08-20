@@ -29,45 +29,62 @@
     return e;
   }
 
-  // 辺（上辺/右辺/下辺/左辺）を横並びのブロックで描く。
-  // 各ブロックは「区間 ： 値 （内訳）」の表で、値は右揃えにして桁を揃える。
+  // 拾い出し結果を「X方向（上辺・下辺）」「Y方向（右辺・左辺）」の2ブロックに分け、
+  // 各方向の中で2辺を横並びにする。各辺は「区間 ： 値 （内訳）」の表で、
+  // 値は右揃えにして桁を揃える。
   // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}（拾い出し結果・AI結果の両方に使う）
+  const DIR_GROUPS = [
+    { title: "X方向（縦方向の通り芯）", sides: ["top", "bottom"] },
+    { title: "Y方向（横方向の通り芯）", sides: ["right", "left"] },
+  ];
+
+  function sideBlock(key, side) {
+    const block = el("div", { class: "side-block" });
+    block.appendChild(el("div", { class: "side-title", text: ZC.axis.SIDE_NAME[key] }));
+    const spans = side.spans || [];
+    if (!spans.length) {
+      const axes = (side.axes || []).map((a) => (typeof a === "string" ? a : a.label));
+      block.appendChild(
+        el("div", { class: "side-empty", text: axes.length ? axes.join(" ") + "（区間なし）" : "（通り芯なし）" })
+      );
+      return block;
+    }
+    const table = el("table", { class: "span-table" });
+    const tbody = el("tbody");
+    for (const sp of spans) {
+      const tr = el("tr", { class: sp.conflict ? "conflict" : "" });
+      tr.appendChild(el("td", { class: "k", text: sp.from + "~" + sp.to }));
+      tr.appendChild(el("td", { class: "c", text: "：" }));
+      tr.appendChild(
+        el("td", {
+          class: "v" + (sp.value == null ? " none" : ""),
+          text: sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value),
+        })
+      );
+      tr.appendChild(
+        el("td", {
+          class: "p",
+          text: sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "",
+          title: sp.conflict ? "図面内の寸法段で値が食い違っています" : "",
+        })
+      );
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    block.appendChild(table);
+    return block;
+  }
+
   function renderSideBlocks(container, sidesLike) {
     container.innerHTML = "";
     if (!sidesLike) return;
-    for (const key of SIDE_ORDER) {
-      const side = sidesLike[key] || { axes: [], spans: [] };
-      const block = el("div", { class: "side-block" });
-      block.appendChild(el("div", { class: "side-title", text: ZC.axis.SIDE_NAME[key] }));
-      const spans = side.spans || [];
-      if (!spans.length) {
-        const axes = (side.axes || []).map((a) => (typeof a === "string" ? a : a.label));
-        block.appendChild(
-          el("div", { class: "side-empty", text: axes.length ? axes.join(" ") + "（区間なし）" : "（通り芯なし）" })
-        );
-      } else {
-        const table = el("table", { class: "span-table" });
-        const tbody = el("tbody");
-        for (const sp of spans) {
-          const tr = el("tr", { class: sp.conflict ? "conflict" : "" });
-          tr.appendChild(el("td", { class: "k", text: sp.from + "~" + sp.to }));
-          tr.appendChild(el("td", { class: "c", text: "：" }));
-          tr.appendChild(
-            el("td", { class: "v" + (sp.value == null ? " none" : ""), text: sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value) })
-          );
-          tr.appendChild(
-            el("td", {
-              class: "p",
-              text: sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "",
-              title: sp.conflict ? "図面内の寸法段で値が食い違っています" : "",
-            })
-          );
-          tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        block.appendChild(table);
-      }
-      container.appendChild(block);
+    for (const g of DIR_GROUPS) {
+      const group = el("div", { class: "dir-group" });
+      group.appendChild(el("div", { class: "dir-title", text: g.title }));
+      const cols = el("div", { class: "dir-cols" });
+      for (const key of g.sides) cols.appendChild(sideBlock(key, sidesLike[key] || { axes: [], spans: [] }));
+      group.appendChild(cols);
+      container.appendChild(group);
     }
   }
 
@@ -97,6 +114,8 @@
       this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
+      this.autoHeightPx = null; // ビュワー高さの自動調整値
+      this.userSizedViewer = false; // 利用者が高さを変えたか
       this.showDims = true;
       this.measuring = false;
       this.measure = null;
@@ -188,7 +207,12 @@
         this.requestRender();
       });
       if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(() => this.requestRender()).observe(this.$wrap);
+        new ResizeObserver(() => {
+          // 利用者が下端をドラッグして高さを変えたら、以後は自動調整しない
+          const h = Math.round(this.$wrap.clientHeight);
+          if (this.autoHeightPx != null && Math.abs(h - this.autoHeightPx) > 2) this.userSizedViewer = true;
+          this.requestRender();
+        }).observe(this.$wrap);
       }
     }
 
@@ -295,6 +319,8 @@
         this.sides = null;
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
+      this.autoHeight();
+      this.view = null; // 高さが変わるので次の描画でフィットし直す
       this.requestRender();
       this.renderList();
       this.renderPickup();
@@ -417,6 +443,17 @@
     toPage(sx, sy) {
       const v = this.view;
       return [(sx - v.ox) / v.scale, this.extract.height - (sy - v.oy) / v.scale];
+    }
+
+    // 図面の縦横比にビュワーの高さを合わせる（横長の図で下に余白が出るのを防ぐ）。
+    // 利用者が下端をドラッグして高さを変えた後は触らない。
+    autoHeight() {
+      if (!this.extract || !this.$wrap || this.userSizedViewer) return;
+      const w = this.$wrap.clientWidth;
+      if (!w) return;
+      const h = (w * this.extract.height) / Math.max(this.extract.width, 1);
+      this.autoHeightPx = Math.round(Math.min(1100, Math.max(320, h)));
+      this.$wrap.style.height = this.autoHeightPx + "px";
     }
 
     fit() {
