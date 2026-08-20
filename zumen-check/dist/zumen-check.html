@@ -1977,6 +1977,7 @@
     GAP_TOL: 14,           // 鎖線・破線の切れ目を連結する最大間隔
     MIN_LEN_RATIO: 0.28,   // 内容範囲に対する最小長さ比
     MIN_LEN_ABS: 80,       // 最小長さの絶対値
+    MIN_LEN_BUBBLE: 30,    // 符号バブルがある位置は部分的な短い芯でも採用する最小長さ
     FRAME_EDGE_TOL: 3,     // 内容範囲の端からこの距離以内なら図枠の疑い
     LABEL_LATERAL: 30,     // 芯の位置とバブル中心の横ずれの許容
     BUBBLE_REACH: 120,     // 芯の端点からバブル中心までの最大距離
@@ -2038,11 +2039,13 @@
       }
     }
 
-    const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1);
-    const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1);
+    // 符号（円で囲まれた X○○/Y○○）の候補を先に集める。
+    // 部分的にしか引かれていない通り芯（X2.2 など）も、符号があれば採用するため。
+    const cands = bubbleCandidates(extract.texts, extract.circles || []);
+    const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1, cands.filter((c) => c.dir === "v"));
+    const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1, cands.filter((c) => c.dir === "h"));
 
-    // 符号（円で囲まれた X○○/Y○○）の対応付け
-    assignLabels(vAxes.concat(hAxes), extract.texts, extract.circles || []);
+    assignLabels(vAxes.concat(hAxes), cands);
 
     for (const list of [vAxes, hAxes]) {
       list.sort((p, q) => p.pos - q.pos);
@@ -2056,7 +2059,7 @@
   }
 
   // 同方向の線分群から芯候補を組み立てる
-  function buildAxes(pieces, dir, extentRef, edge0, edge1) {
+  function buildAxes(pieces, dir, extentRef, edge0, edge1, cands) {
     if (!pieces.length) return [];
     pieces.sort((p, q) => p.pos - q.pos);
     const clusters = [];
@@ -2094,7 +2097,15 @@
       }
       if (!best) continue;
       const extent = best.to - best.from;
-      if (extent < minLen) continue;
+      const pos0 = c.mean;
+      // 符号バブルが芯の延長線上にあるか（短い芯を救うための判定）
+      const hasBubble = (cands || []).some((t) => {
+        const lateral = dir === "v" ? Math.abs(t.x - pos0) : Math.abs(t.y - pos0);
+        if (lateral > PARAMS.LABEL_LATERAL) return false;
+        const along = dir === "v" ? t.y : t.x;
+        return Math.max(best.from - along, along - best.to) <= PARAMS.BUBBLE_REACH;
+      });
+      if (extent < minLen && !(hasBubble && extent >= PARAMS.MIN_LEN_BUBBLE)) continue;
       const cover = Math.min(1, best.cover / Math.max(extent, 1e-9));
       const dashedFrac = best.dashedLen / Math.max(best.cover, 1e-9);
       const chainLike =
@@ -2122,12 +2133,10 @@
     return axes;
   }
 
-  // 符号は「円で囲まれた X○○（縦芯）/ Y○○（横芯）」のみを採用する。
-  // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
-  function assignLabels(axes, texts, circles) {
-    if (!circles.length) return;
-    // 円 → その中にある符号テキスト
+  // 円で囲まれた X○○/Y○○ の符号だけを候補として集める
+  function bubbleCandidates(texts, circles) {
     const cands = [];
+    if (!circles.length) return cands;
     for (const t of texts) {
       const lab = U.axisLabelOf(t.str);
       if (!lab) continue;
@@ -2145,8 +2154,12 @@
       if (!host) continue; // 円で囲まれていない符号は拾わない
       cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, used: false });
     }
-    if (!cands.length) return;
+    return cands;
+  }
 
+  // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
+  function assignLabels(axes, cands) {
+    if (!cands.length) return;
     const pairs = [];
     for (const ax of axes) {
       for (const t of cands) {
@@ -2187,7 +2200,7 @@
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, PARAMS, SIDES, SIDE_NAME };
+  ZC.axis = { detect, displayName, bubbleCandidates, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 22_dims.js ===== */
