@@ -29,6 +29,48 @@
     return e;
   }
 
+  // 辺（上辺/右辺/下辺/左辺）を横並びのブロックで描く。
+  // 各ブロックは「区間 ： 値 （内訳）」の表で、値は右揃えにして桁を揃える。
+  // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}（拾い出し結果・AI結果の両方に使う）
+  function renderSideBlocks(container, sidesLike) {
+    container.innerHTML = "";
+    if (!sidesLike) return;
+    for (const key of SIDE_ORDER) {
+      const side = sidesLike[key] || { axes: [], spans: [] };
+      const block = el("div", { class: "side-block" });
+      block.appendChild(el("div", { class: "side-title", text: ZC.axis.SIDE_NAME[key] }));
+      const spans = side.spans || [];
+      if (!spans.length) {
+        const axes = (side.axes || []).map((a) => (typeof a === "string" ? a : a.label));
+        block.appendChild(
+          el("div", { class: "side-empty", text: axes.length ? axes.join(" ") + "（区間なし）" : "（通り芯なし）" })
+        );
+      } else {
+        const table = el("table", { class: "span-table" });
+        const tbody = el("tbody");
+        for (const sp of spans) {
+          const tr = el("tr", { class: sp.conflict ? "conflict" : "" });
+          tr.appendChild(el("td", { class: "k", text: sp.from + "~" + sp.to }));
+          tr.appendChild(el("td", { class: "c", text: "：" }));
+          tr.appendChild(
+            el("td", { class: "v" + (sp.value == null ? " none" : ""), text: sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value) })
+          );
+          tr.appendChild(
+            el("td", {
+              class: "p",
+              text: sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "",
+              title: sp.conflict ? "図面内の寸法段で値が食い違っています" : "",
+            })
+          );
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        block.appendChild(table);
+      }
+      container.appendChild(block);
+    }
+  }
+
   // 白フチ付き文字（図面の上でも読めるように）
   function haloText(ctx, str, x, y) {
     ctx.lineWidth = 3;
@@ -84,7 +126,7 @@
         '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:拾い出しON/OFF</span>' +
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
-        '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><pre class="pickup-text"></pre></div>' +
+        '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><div class="pickup-grid"></div></div>' +
         '<div class="ai-box">' +
         '<div class="ai-head">' +
         '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
@@ -101,7 +143,7 @@
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
-      this.$pickup = this.root.querySelector(".pickup-text");
+      this.$pickup = this.root.querySelector(".pickup-grid");
       this.$copy = this.root.querySelector(".copy-btn");
       this.$aiRun = this.root.querySelector(".ai-run");
       this.$aiResult = this.root.querySelector(".ai-result");
@@ -123,7 +165,7 @@
       });
       this.$aiRun.addEventListener("click", () => this.runAi());
       this.$copy.addEventListener("click", () => {
-        const txt = this.$pickup.textContent || "";
+        const txt = this.sides ? ZC.sides.formatText(this.sides) : "";
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
         this.$copy.textContent = "コピーしました";
         setTimeout(() => (this.$copy.textContent = "コピー"), 1200);
@@ -326,7 +368,9 @@
       }
       const det = el("details", { class: "ai-detail" });
       det.appendChild(el("summary", { text: "AIの拾い出し結果（全文）" }));
-      det.appendChild(el("pre", { class: "pickup-text", text: ZC.ai.formatText(this.aiSides) }));
+      const grid = el("div", { class: "pickup-grid" });
+      renderSideBlocks(grid, this.aiSides);
+      det.appendChild(grid);
       wrap.appendChild(det);
     }
 
@@ -807,11 +851,7 @@
     // ---- 拾い出し結果・一覧 ---------------------------------------------
 
     renderPickup() {
-      if (!this.sides) {
-        this.$pickup.textContent = "";
-        return;
-      }
-      this.$pickup.textContent = ZC.sides.formatText(this.sides);
+      renderSideBlocks(this.$pickup, this.sides);
     }
 
     renderList() {
