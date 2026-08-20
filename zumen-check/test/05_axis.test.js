@@ -32,10 +32,17 @@ exports.通り芯の検出と符号割り当て = async () => {
   assert.equal(walls.length, 2, "壁線が候補として検出されること");
   assert.ok(walls.every((a) => !a.defaultOn && !a.label), "壁線は既定OFFで符号なし");
 
-  // 横の寸法線（y=85 の実線）も候補だが既定OFF
-  const dimLine = det.h.find((a) => Math.abs(a.pos - 85) < 0.2);
+  // 横の寸法線（y=97 の実線, X1〜X3で長い）も候補だが既定OFF
+  const dimLine = det.h.find((a) => Math.abs(a.pos - mk.ROW2_Y) < 0.2);
   assert.ok(dimLine, "寸法線が候補として検出されること");
   assert.equal(dimLine.defaultOn, false);
+
+  // 縦向きの寸法線（x=95）も候補だが既定OFFで符号は付かない
+  const dimCol = det.v.find((a) => Math.abs(a.pos - mk.COL_X) < 0.2);
+  if (dimCol) {
+    assert.equal(dimCol.defaultOn, false);
+    assert.equal(dimCol.label, null);
+  }
 };
 
 exports.回転ページでも同じ検出結果 = async () => {

@@ -79,7 +79,9 @@
       list.sort((p, q) => p.pos - q.pos);
       list.forEach((ax, i) => {
         ax.index = i;
-        ax.defaultOn = !ax.frameSuspect && (ax.label != null || ax.dashed);
+        // 照合対象の既定は「X○○/Y○○の符号が付いた芯」のみ。
+        // 符号なしの鎖線などは候補一覧に出すが既定OFF（利用者がONにできる）
+        ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
     return { v: vAxes, h: hAxes, bbox };
@@ -151,13 +153,16 @@
     return axes;
   }
 
+  // 符号は「縦芯 = X○○ / 横芯 = Y○○」の記載のみを対象にする（小数点付きも可）。
+  // 方向が一致しない符号（縦芯に Y1 など）は割り当てない。
   function assignLabels(axes, texts) {
     const cands = [];
     for (const t of texts) {
-      const norm = U.normalizeLabel(t.str);
-      if (!U.isAxisLabel(norm)) continue;
+      const lab = U.axisLabelOf(t.str);
+      if (!lab) continue;
       cands.push({
-        norm,
+        norm: lab.label,
+        dir: lab.dir,
         x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
         y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
         size: t.size || 10,
@@ -178,20 +183,29 @@
               [ax.to, ax.pos],
             ];
       for (const t of cands) {
+        if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
         if (lateral > PARAMS.LABEL_LATERAL) continue;
         for (const [ex, ey] of ends) {
           const d = Math.hypot(t.x - ex, t.y - ey);
-          if (d <= PARAMS.LABEL_RADIUS + t.size) pairs.push({ ax, t, d });
+          if (d <= PARAMS.LABEL_RADIUS + t.size) {
+            // 符号バブルは芯の延長線上に載るため、横ずれの小ささを最優先にする
+            // （壁線などが少し離れた符号を横取りしないように）
+            pairs.push({ ax, t, lateral, score: lateral * 3 + d });
+          }
         }
       }
     }
-    pairs.sort((p, q) => p.d - q.d);
+    pairs.sort((p, q) => p.score - q.score);
+    // 同じ符号（X2 など）は上下両端に2回書かれることがあるため、
+    // 方向ごとに同一符号は1本の芯にのみ割り当てる
+    const usedLabels = new Set();
     for (const p of pairs) {
-      if (p.ax.label != null || p.t.used) continue;
+      const key = p.ax.dir + ":" + p.t.norm;
+      if (p.ax.label != null || usedLabels.has(key)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      p.t.used = true;
+      usedLabels.add(key);
     }
   }
 

@@ -8,12 +8,19 @@
 
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
+  // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
+  // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
+  const TJ_SPLIT = 400;
+
+  const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
+  const DOT_MIN = 0.15;
 
   class ContentExtractor {
     constructor(doc) {
       this.doc = doc;
       this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
       this.texts = []; // {str,x,y,ex,ey,size}
+      this.dots = []; // {x,y} 小さな塗り潰し図形（寸法線端点の黒丸など）
       this.imageCount = 0;
       this._fontCache = new Map();
     }
@@ -55,6 +62,7 @@
       return {
         segments: this.segments,
         texts: this.texts,
+        dots: this.dots,
         width: outW,
         height: outH,
         rotate: rot,
@@ -126,6 +134,17 @@
       const strokePath = () => {
         const wDev = gs.w * MAT.scaleOf(gs.ctm);
         for (const sp of subpaths) {
+          // 太線での極小ストローク（丸キャップのドット表現）も黒ドットとして拾う
+          if (wDev >= 1.2 && sp.length >= 1 && this.dots.length < 20000) {
+            let dx0 = Infinity, dy0 = Infinity, dx1 = -Infinity, dy1 = -Infinity;
+            for (const p of sp) {
+              dx0 = Math.min(dx0, p.x); dx1 = Math.max(dx1, p.x);
+              dy0 = Math.min(dy0, p.y); dy1 = Math.max(dy1, p.y);
+            }
+            if (dx1 - dx0 <= 1.3 && dy1 - dy0 <= 1.3) {
+              this.dots.push({ x: (dx0 + dx1) / 2, y: (dy0 + dy1) / 2 });
+            }
+          }
           for (let i = 1; i < sp.length; i++) {
             const a = sp[i - 1];
             const b = sp[i];
@@ -137,6 +156,24 @@
           }
         }
         clearPath();
+      };
+
+      // 塗り潰し時に極小の閉図形（寸法線端点の黒丸など）をドットとして記録する
+      const scanFillDots = () => {
+        if (this.dots.length >= 20000) return;
+        for (const sp of subpaths) {
+          if (sp.length < 3) continue;
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of sp) {
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+            y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+          }
+          const w = x1 - x0;
+          const h = y1 - y0;
+          if (w <= DOT_MAX && h <= DOT_MAX && w >= DOT_MIN && h >= DOT_MIN) {
+            this.dots.push({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 });
+          }
+        }
       };
 
       const showText = (strObj) => {
@@ -248,11 +285,15 @@
           case "b":
           case "b*":
             if (op === "b" || op === "b*") closePath();
+            scanFillDots();
             strokePath();
             break;
           case "f":
           case "F":
           case "f*":
+            scanFillDots();
+            clearPath();
+            break;
           case "n":
             clearPath();
             break;
@@ -339,18 +380,28 @@
           case "TJ": {
             const arr = ops[ops.length - 1];
             if (Array.isArray(arr)) {
-              // 1 つの TJ を 1 つのテキストランとして扱うため、開始位置を保存して連結する
-              const parts = [];
-              const startTm = tm.slice();
-              const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
-              const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+              // カーニングが小さい間は 1 つのランとして連結し、
+              // 大きなジャンプ（別のラベルへの移動）で分割する
               let str = "";
+              let startTm = null;
+              const flush = () => {
+                if (startTm && str.trim().length) {
+                  const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
+                  const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+                  const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+                  this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
+                }
+                str = "";
+                startTm = null;
+              };
               for (const el of arr) {
                 if (typeof el === "number") {
+                  if (Math.abs(el) > TJ_SPLIT) flush();
                   tm = MAT.mul(MAT.translate((-el / 1000) * tfs * th, 0), tm);
                 } else if (el instanceof PStr) {
                   const glyphs = font ? font.decode(el.bytes) : fallbackDecode(el.bytes);
                   for (const gph of glyphs) {
+                    if (!startTm) startTm = tm.slice();
                     str += gph.str;
                     const isSpace = !font || !font.isType0 ? gph.code === 32 : false;
                     const adv = ((gph.w0 / 1000) * tfs + tc + (isSpace ? tw : 0)) * th;
@@ -358,10 +409,7 @@
                   }
                 }
               }
-              const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
-              if (str.trim().length) {
-                this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
-              }
+              flush();
             }
             break;
           }

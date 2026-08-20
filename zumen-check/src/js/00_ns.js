@@ -3,5 +3,5 @@
 (function (g) {
   "use strict";
   g.ZC = g.ZC || {};
-  g.ZC.VERSION = "1.1.0";
+  g.ZC.VERSION = "1.2.0";
 })(globalThis);

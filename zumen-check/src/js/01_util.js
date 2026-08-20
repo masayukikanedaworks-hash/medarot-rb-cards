@@ -17,19 +17,22 @@
     return out.toUpperCase();
   }
 
-  // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000）。該当しなければ null
+  // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000、"2730.5" → 2730.5）。該当しなければ null
+  // 小数点付きの寸法にも対応する。判定は寸法線（黒ドット間の直線）への位置付けと併用する前提。
   function parseDimNumber(s) {
     const t = normalizeLabel(s).replace(/,/g, "");
-    if (!/^\d{3,5}$/.test(t)) return null;
+    if (!/^\d{2,5}(\.\d{1,3})?$/.test(t)) return null;
     const v = Number(t);
-    return v >= 100 && v <= 99999 ? v : null;
+    return v >= 10 && v <= 99999 ? v : null;
   }
 
-  // 通り芯符号らしい文字列か（X1 / Y10 / A / 3 など。3桁以上の純数字は寸法値とみなし除外）
-  function isAxisLabel(norm) {
-    if (!norm || norm.length > 4) return false;
-    if (/^[0-9]{1,2}$/.test(norm)) return true;
-    return /^[A-Z]{1,2}[0-9]{0,3}$/.test(norm);
+  // 通り芯符号: 縦方向（X方向）= X○○ / 横方向（Y方向）= Y○○ の記載のみを符号として拾う。
+  // 番号は小数点付き（X2.5 など）も許容。該当すれば {dir:"v"|"h", label} を返す。
+  function axisLabelOf(s) {
+    const t = normalizeLabel(s);
+    const m = /^([XY])(\d{1,3}(\.\d{1,2})?)$/.exec(t);
+    if (!m) return null;
+    return { dir: m[1] === "X" ? "v" : "h", label: t };
   }
 
   function median(arr) {
@@ -101,5 +104,5 @@
     return (Object.is(r, -0) ? 0 : r).toFixed(d); // "-0.0" を出さない
   }
 
-  ZC.util = { normalizeLabel, parseDimNumber, isAxisLabel, median, MAT, latin1, indexOfBytes, fmtMm };
+  ZC.util = { normalizeLabel, parseDimNumber, axisLabelOf, median, MAT, latin1, indexOfBytes, fmtMm };
 })(globalThis.ZC = globalThis.ZC || {});

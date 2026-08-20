@@ -1,18 +1,30 @@
-// 縮尺推定のテスト
+// 縮尺推定のテスト（黒ドット基準の記載寸法 → 無ければ近似フォールバック）
 "use strict";
 
 const mk = require("./make_pdf");
-const { detectAxes, onAxes, near, assert } = require("./helpers");
+const { loadFirstPage, detectAxes, onAxes, near, assert } = require("./helpers");
 
-exports.寸法値から縮尺を推定 = async () => {
-  const { extract, det } = await detectAxes(mk.makeBasicPdf());
-  const on = onAxes(det);
-  const samples = ZC.scale.collectDimSamples(on.v, on.h, extract.texts);
-  assert.ok(samples.length >= 3, "寸法サンプルが3件以上（実際: " + samples.length + "）");
+exports.記載寸法から縮尺を推定 = async () => {
+  const { extract } = await loadFirstPage(mk.makeBasicPdf());
+  const dims = ZC.dims.extract(extract);
+  const samples = ZC.dims.scaleSamples(dims.entries);
+  assert.ok(samples.length >= 4, "縮尺サンプルが4件以上（実際: " + samples.length + "）");
   const inf = ZC.scale.infer(samples);
   assert.equal(inf.den, 100, "1/100 に推定されること");
   assert.equal(inf.snapped, true);
   near(inf.mmPerPt * 170.0787, 6000, 0.5, "6000mmスパンの換算");
+};
+
+exports.黒ドットが無い図面はフォールバックで推定 = async () => {
+  const spec = mk.makeSpec();
+  spec.dots = false; // 旧式の浮き注記
+  const { extract, det } = await detectAxes(mk.makeBasicPdf(spec));
+  const dims = ZC.dims.extract(extract);
+  assert.equal(dims.entries.length, 0, "ドットが無ければ記載寸法は読まない");
+  const on = onAxes(det);
+  const samples = ZC.scale.collectDimSamples(on.v, on.h, extract.texts);
+  const inf = ZC.scale.infer(samples);
+  assert.equal(inf.den, 100, "フォールバックでも 1/100 に推定");
 };
 
 exports.寸法値が無ければ推定不能 = () => {

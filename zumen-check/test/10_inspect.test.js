@@ -30,15 +30,18 @@ exports.単体の測定レポート = () => {
   const p = tmpPdf("base.pdf", mk.makeBasicPdf());
   const out = run([p]);
   assert.ok(out.includes("1/100"), "縮尺の自動推定が表示される");
+  assert.ok(out.includes("黒ドット 8 点"), "ドット読取数が表示される: \n" + out);
   assert.ok(out.includes("X1"), "符号が表示される");
-  assert.ok(out.includes("X1〜X2: 6000.0 mm"), "芯々寸法が表示される: \n" + out);
-  assert.ok(out.includes("注記 6000"), "寸法注記の対応が表示される");
+  assert.ok(out.includes("X1〜X2: 記載 6000"), "記載寸法が表示される: \n" + out);
+  assert.ok(out.includes("作図 6000.0 mm"), "作図距離も併記される");
 };
 
 exports.JSON出力 = () => {
   const p = tmpPdf("base.pdf", mk.makeBasicPdf());
   const j = JSON.parse(run([p, "--json"]));
   assert.equal(j.scaleDen, 100);
+  assert.equal(j.dots, 8);
+  assert.equal(j.dimEntries, 5);
   assert.equal(j.axes.v.filter((a) => a.defaultOn).length, 3);
   assert.equal(j.axes.h.filter((a) => a.defaultOn).length, 2);
   assert.equal(j.spacings.v[0].gapMm, 6000);
