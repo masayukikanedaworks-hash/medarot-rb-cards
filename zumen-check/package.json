@@ -1,0 +1,12 @@
+{
+  "name": "zumen-check",
+  "version": "1.1.0",
+  "private": true,
+  "description": "通り芯照合ツール - 基準図面と比較図面のPDFから通り芯と芯々寸法の食い違いを検出する",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node test/run.js",
+    "build": "node tools/build.js",
+    "inspect": "node tools/inspect.js"
+  }
+}

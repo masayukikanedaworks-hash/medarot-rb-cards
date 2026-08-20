@@ -1,0 +1,3346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>通り芯照合ツール</title>
+<style>
+  :root {
+    --border: #d7dde3;
+    --ink: #24313d;
+    --sub: #5c6b78;
+    --accent: #1565d8;
+    --bg: #f2f5f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  header {
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .ver { color: var(--sub); font-size: 12px; }
+  header .privacy { color: var(--sub); font-size: 12px; margin-left: auto; }
+  main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
+  .panels { display: flex; gap: 16px; flex-wrap: wrap; }
+  .panel {
+    flex: 1 1 480px;
+    min-width: 420px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px 16px;
+  }
+  .panel h2, #check h2 { font-size: 15px; margin: 0 0 10px; }
+  .file-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .file-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .file-btn:hover { filter: brightness(1.08); }
+  .fname { color: var(--sub); font-size: 12px; word-break: break-all; }
+  .ctrl-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+  .ctrl-row input[type="number"] { width: 70px; padding: 2px 4px; }
+  .scale-note { color: var(--sub); font-size: 12px; }
+  .status { min-height: 20px; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+  .status.error { color: #b30021; }
+  .viewer-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; font-size: 12px; flex-wrap: wrap; }
+  .viewer-bar button {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 12px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .viewer-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .viewer-bar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .zoom-label { color: var(--sub); min-width: 42px; text-align: right; }
+  .viewer-hint { color: #9aa4ad; margin-left: auto; }
+  .viewer-wrap {
+    position: relative;
+    height: 380px;
+    min-height: 240px;
+    max-height: 840px;
+    resize: vertical;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+  }
+  .viewer-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  .axtip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(36, 49, 61, 0.92);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
+  }
+  .axis-list { max-height: 260px; overflow: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
+  th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
+  th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
+  table.axes tr.off td { color: #a7b0b8; }
+  table.axes tr.hl td { background: #fff3e0; }
+  .result-hint { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
+  #check {
+    margin-top: 16px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px 16px;
+  }
+  .check-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .check-row label { user-select: none; }
+  #tol { width: 60px; padding: 2px 4px; }
+  #run-check {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 22px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #run-check:disabled { background: #b9c4ce; cursor: not-allowed; }
+  #csv-dl {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  .summary { font-weight: 600; margin: 12px 0 8px; }
+  .summary.ng { color: #b30021; }
+  .summary.warn { color: #9a6b00; }
+  .summary.ok { color: #0a7a3d; }
+  table.result td.st { font-weight: 700; text-align: center; }
+  table.result tr.ng { background: #fdebee; }
+  table.result tr.ng td.st { color: #b30021; }
+  table.result tr.warn { background: #fdf6e3; }
+  table.result tr.warn td.st { color: #9a6b00; }
+  table.result tr.ok td.st { color: #0a7a3d; }
+  #result { overflow: auto; }
+  footer { color: var(--sub); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>通り芯照合ツール</h1>
+  <span class="ver"></span>
+  <span class="privacy">図面はブラウザ内でのみ処理され、外部には送信されません</span>
+</header>
+<main>
+  <div class="panels">
+    <section class="panel">
+      <h2>1. 基準図面</h2>
+      <div id="panel-base-body"></div>
+    </section>
+    <section class="panel">
+      <h2>2. 比較図面</h2>
+      <div id="panel-cmp-body"></div>
+    </section>
+  </div>
+  <section id="check">
+    <h2>3. チェック項目を選んで照合</h2>
+    <div class="check-row">
+      <label><input type="checkbox" id="ck-labels" checked> 通り芯符号の対応</label>
+      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法</label>
+      <label><input type="checkbox" id="ck-total" checked> 全体寸法</label>
+      <label><input type="checkbox" id="ck-dims"> 寸法注記と作図位置の整合（各図面内）</label>
+      <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
+    </div>
+    <button id="run-check" disabled>照合する</button>
+    <button id="csv-dl" hidden>CSVダウンロード</button>
+    <div id="result"></div>
+  </section>
+  <footer>
+    <p>ベクターPDF専用（スキャンPDFは読み取れません）。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
+  </footer>
+</main>
+<script>
+/* ===== 00_ns.js ===== */
+// 通り芯照合ツール 名前空間
+// 各ファイルは _order.json の順に連結される前提。import/export は使わない。
+(function (g) {
+  "use strict";
+  g.ZC = g.ZC || {};
+  g.ZC.VERSION = "1.1.0";
+})(globalThis);
+
+/* ===== 01_util.js ===== */
+// 汎用ユーティリティ（文字正規化・行列・数値）
+(function (ZC) {
+  "use strict";
+
+  // 全角英数記号→半角に寄せ、空白を除去して大文字化する（通り芯符号の比較用）
+  function normalizeLabel(s) {
+    let out = "";
+    for (const ch of String(s)) {
+      const c = ch.codePointAt(0);
+      if (c === 0x3000 || c === 0x20 || c === 9 || c === 10 || c === 13) continue;
+      if (c >= 0xff01 && c <= 0xff5e) {
+        out += String.fromCharCode(c - 0xfee0);
+        continue;
+      }
+      out += ch;
+    }
+    return out.toUpperCase();
+  }
+
+  // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000）。該当しなければ null
+  function parseDimNumber(s) {
+    const t = normalizeLabel(s).replace(/,/g, "");
+    if (!/^\d{3,5}$/.test(t)) return null;
+    const v = Number(t);
+    return v >= 100 && v <= 99999 ? v : null;
+  }
+
+  // 通り芯符号らしい文字列か（X1 / Y10 / A / 3 など。3桁以上の純数字は寸法値とみなし除外）
+  function isAxisLabel(norm) {
+    if (!norm || norm.length > 4) return false;
+    if (/^[0-9]{1,2}$/.test(norm)) return true;
+    return /^[A-Z]{1,2}[0-9]{0,3}$/.test(norm);
+  }
+
+  function median(arr) {
+    if (!arr.length) return NaN;
+    const a = arr.slice().sort((x, y) => x - y);
+    const m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+
+  // PDF の行ベクトル規約 [a b c d e f]: p' = p・M
+  const MAT = {
+    id() {
+      return [1, 0, 0, 1, 0, 0];
+    },
+    translate(tx, ty) {
+      return [1, 0, 0, 1, tx, ty];
+    },
+    mul(a, b) {
+      // a を先に適用してから b（p・a・b）
+      return [
+        a[0] * b[0] + a[1] * b[2],
+        a[0] * b[1] + a[1] * b[3],
+        a[2] * b[0] + a[3] * b[2],
+        a[2] * b[1] + a[3] * b[3],
+        a[4] * b[0] + a[5] * b[2] + b[4],
+        a[4] * b[1] + a[5] * b[3] + b[5],
+      ];
+    },
+    apply(m, x, y) {
+      return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    },
+    // 等方近似の拡大率（線幅・文字サイズのデバイス換算に使う）
+    scaleOf(m) {
+      const det = Math.abs(m[0] * m[3] - m[1] * m[2]);
+      return det > 0 ? Math.sqrt(det) : Math.hypot(m[0], m[1]);
+    },
+  };
+
+  function latin1(bytes, start, end) {
+    start = start || 0;
+    if (end === undefined) end = bytes.length;
+    let s = "";
+    const CHUNK = 8192;
+    for (let i = start; i < end; i += CHUNK) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(end, i + CHUNK)));
+    }
+    return s;
+  }
+
+  // バイト列から ASCII 文字列を探す（見つからなければ -1）
+  function indexOfBytes(hay, needleStr, from) {
+    const n = needleStr.length;
+    const first = needleStr.charCodeAt(0);
+    outer: for (let i = Math.max(0, from | 0); i <= hay.length - n; i++) {
+      if (hay[i] !== first) continue;
+      for (let j = 1; j < n; j++) {
+        if (hay[i + j] !== needleStr.charCodeAt(j)) continue outer;
+      }
+      return i;
+    }
+    return -1;
+  }
+
+  function fmtMm(v, digits) {
+    if (v == null || !isFinite(v)) return "—";
+    const d = digits === undefined ? 1 : digits;
+    const k = 10 ** d;
+    const r = Math.round(v * k) / k;
+    return (Object.is(r, -0) ? 0 : r).toFixed(d); // "-0.0" を出さない
+  }
+
+  ZC.util = { normalizeLabel, parseDimNumber, isAxisLabel, median, MAT, latin1, indexOfBytes, fmtMm };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 10_filters.js ===== */
+// PDF ストリームフィルタ（FlateDecode ほか）
+// FlateDecode はブラウザ/Node 標準の DecompressionStream を使い、外部依存を持たない。
+(function (ZC) {
+  "use strict";
+
+  function pump(format, bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+    return new Response(stream).arrayBuffer().then((b) => new Uint8Array(b));
+  }
+
+  function trimTrailingWs(bytes) {
+    let end = bytes.length;
+    while (end > 0 && [0, 9, 10, 12, 13, 32].includes(bytes[end - 1])) end--;
+    return bytes.subarray(0, end);
+  }
+
+  async function inflate(bytes) {
+    // zlib 形式 → 末尾ゴミ除去 → 生 deflate の順で試す（壊れ気味の PDF 対策）
+    const attempts = [
+      ["deflate", bytes],
+      ["deflate", trimTrailingWs(bytes)],
+      ["deflate-raw", bytes.length > 2 && (bytes[0] & 0x0f) === 8 ? bytes.subarray(2) : bytes],
+    ];
+    let lastErr = null;
+    for (const [fmt, b] of attempts) {
+      try {
+        return await pump(fmt, b);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw new Error("FlateDecodeに失敗しました: " + (lastErr && lastErr.message));
+  }
+
+  // PNG/TIFF Predictor（主に xref ストリームで使われる）
+  function applyPredictor(data, parms) {
+    const pred = num(parms.Predictor, 1);
+    if (pred <= 1) return data;
+    const colors = num(parms.Colors, 1);
+    const bpc = num(parms.BitsPerComponent, 8);
+    const cols = num(parms.Columns, 1);
+    const bpp = Math.max(1, Math.ceil((colors * bpc) / 8));
+    const rowLen = Math.ceil((colors * bpc * cols) / 8);
+    if (pred === 2) {
+      // TIFF: bpc=8 のみ対応
+      if (bpc !== 8) return data;
+      const out = data.slice();
+      for (let r = 0; r + rowLen <= out.length; r += rowLen) {
+        for (let i = bpp; i < rowLen; i++) out[r + i] = (out[r + i] + out[r + i - bpp]) & 0xff;
+      }
+      return out;
+    }
+    // PNG系: 各行の先頭 1 バイトがフィルタ種別
+    const rows = Math.floor(data.length / (rowLen + 1));
+    const out = new Uint8Array(rows * rowLen);
+    let prev = new Uint8Array(rowLen);
+    for (let r = 0; r < rows; r++) {
+      const ft = data[r * (rowLen + 1)];
+      const src = data.subarray(r * (rowLen + 1) + 1, (r + 1) * (rowLen + 1));
+      const cur = out.subarray(r * rowLen, (r + 1) * rowLen);
+      for (let i = 0; i < rowLen; i++) {
+        const raw = src[i];
+        const a = i >= bpp ? cur[i - bpp] : 0;
+        const b = prev[i];
+        const c = i >= bpp ? prev[i - bpp] : 0;
+        let v;
+        switch (ft) {
+          case 0: v = raw; break;
+          case 1: v = raw + a; break;
+          case 2: v = raw + b; break;
+          case 3: v = raw + ((a + b) >> 1); break;
+          case 4: {
+            const p = a + b - c;
+            const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+            v = raw + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+            break;
+          }
+          default: v = raw;
+        }
+        cur[i] = v & 0xff;
+      }
+      prev = cur;
+    }
+    return out;
+  }
+
+  function asciiHexDecode(bytes) {
+    const out = [];
+    let hi = -1;
+    for (let i = 0; i < bytes.length; i++) {
+      const c = bytes[i];
+      if (c === 0x3e) break; // >
+      const d = hexVal(c);
+      if (d < 0) continue;
+      if (hi < 0) hi = d;
+      else {
+        out.push(hi * 16 + d);
+        hi = -1;
+      }
+    }
+    if (hi >= 0) out.push(hi * 16);
+    return new Uint8Array(out);
+  }
+
+  function ascii85Decode(bytes) {
+    const out = [];
+    let tuple = 0, count = 0;
+    let i = 0;
+    // 先頭の <~ を読み飛ばす
+    if (bytes[0] === 0x3c && bytes[1] === 0x7e) i = 2;
+    for (; i < bytes.length; i++) {
+      const c = bytes[i];
+      if (c === 0x7e) break; // ~>
+      if ([0, 9, 10, 12, 13, 32].includes(c)) continue;
+      if (c === 0x7a && count === 0) { // z = 0x00000000
+        out.push(0, 0, 0, 0);
+        continue;
+      }
+      if (c < 0x21 || c > 0x75) continue;
+      tuple = tuple * 85 + (c - 0x21);
+      if (++count === 5) {
+        out.push((tuple >>> 24) & 0xff, (tuple >>> 16) & 0xff, (tuple >>> 8) & 0xff, tuple & 0xff);
+        tuple = 0;
+        count = 0;
+      }
+    }
+    if (count > 0) {
+      for (let j = count; j < 5; j++) tuple = tuple * 85 + 84;
+      const b = [(tuple >>> 24) & 0xff, (tuple >>> 16) & 0xff, (tuple >>> 8) & 0xff, tuple & 0xff];
+      for (let j = 0; j < count - 1; j++) out.push(b[j]);
+    }
+    return new Uint8Array(out);
+  }
+
+  function runLengthDecode(bytes) {
+    const out = [];
+    let i = 0;
+    while (i < bytes.length) {
+      const l = bytes[i++];
+      if (l === 128) break;
+      if (l < 128) {
+        for (let j = 0; j <= l; j++) out.push(bytes[i++]);
+      } else {
+        const b = bytes[i++];
+        for (let j = 0; j < 257 - l; j++) out.push(b);
+      }
+    }
+    return new Uint8Array(out);
+  }
+
+  async function decode(name, data, parms) {
+    switch (name) {
+      case "FlateDecode":
+      case "Fl": {
+        const inflated = await inflate(data);
+        return applyPredictor(inflated, parms || {});
+      }
+      case "ASCIIHexDecode":
+      case "AHx":
+        return asciiHexDecode(data);
+      case "ASCII85Decode":
+      case "A85":
+        return ascii85Decode(data);
+      case "RunLengthDecode":
+      case "RL":
+        return runLengthDecode(data);
+      case "DCTDecode":
+      case "JPXDecode":
+      case "CCITTFaxDecode":
+      case "JBIG2Decode":
+        // 画像系フィルタは対象外（線分抽出には不要）
+        throw new Error("IMAGE_FILTER");
+      default:
+        throw new Error("未対応のフィルタです: " + name);
+    }
+  }
+
+  function num(v, def) {
+    return typeof v === "number" && isFinite(v) ? v : def;
+  }
+
+  function hexVal(c) {
+    if (c >= 0x30 && c <= 0x39) return c - 0x30;
+    if (c >= 0x41 && c <= 0x46) return c - 0x41 + 10;
+    if (c >= 0x61 && c <= 0x66) return c - 0x61 + 10;
+    return -1;
+  }
+
+  ZC.filters = { inflate, applyPredictor, asciiHexDecode, ascii85Decode, runLengthDecode, decode };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 11_lexer.js ===== */
+// PDF 構文の字句解析とオブジェクト組み立て
+// ファイル本体・xref・コンテントストリーム・CMap で共用する。
+(function (ZC) {
+  "use strict";
+
+  class Name {
+    constructor(n) {
+      this.name = n;
+    }
+  }
+  class Ref {
+    constructor(num, gen) {
+      this.num = num;
+      this.gen = gen;
+    }
+  }
+  class PStr {
+    // PDF 文字列（リテラル/16進）。テキスト表示のためバイト列のまま保持する
+    constructor(bytes) {
+      this.bytes = bytes;
+    }
+  }
+
+  function isWs(c) {
+    return c === 0 || c === 9 || c === 10 || c === 12 || c === 13 || c === 32;
+  }
+  function isDelim(c) {
+    return (
+      c === 0x28 || c === 0x29 || c === 0x3c || c === 0x3e || c === 0x5b ||
+      c === 0x5d || c === 0x7b || c === 0x7d || c === 0x2f || c === 0x25
+    );
+  }
+
+  class Lexer {
+    constructor(bytes, pos) {
+      this.b = bytes;
+      this.pos = pos || 0;
+    }
+
+    skipWs() {
+      const b = this.b;
+      for (;;) {
+        while (this.pos < b.length && isWs(b[this.pos])) this.pos++;
+        if (b[this.pos] === 0x25) {
+          // % コメント: 行末まで
+          while (this.pos < b.length && b[this.pos] !== 10 && b[this.pos] !== 13) this.pos++;
+          continue;
+        }
+        return;
+      }
+    }
+
+    readToken() {
+      this.skipWs();
+      const b = this.b;
+      if (this.pos >= b.length) return null;
+      const c = b[this.pos];
+      if (c === 0x3c) {
+        if (b[this.pos + 1] === 0x3c) {
+          this.pos += 2;
+          return { t: "<<" };
+        }
+        return { t: "str", v: this.readHexString() };
+      }
+      if (c === 0x3e) {
+        if (b[this.pos + 1] === 0x3e) {
+          this.pos += 2;
+          return { t: ">>" };
+        }
+        this.pos++;
+        return { t: "junk" };
+      }
+      if (c === 0x28) return { t: "str", v: this.readLiteralString() };
+      if (c === 0x2f) return { t: "name", v: this.readName() };
+      if (c === 0x5b) { this.pos++; return { t: "[" }; }
+      if (c === 0x5d) { this.pos++; return { t: "]" }; }
+      if (c === 0x7b) { this.pos++; return { t: "{" }; }
+      if (c === 0x7d) { this.pos++; return { t: "}" }; }
+      if (c === 0x29) { this.pos++; return { t: "junk" }; }
+      if ((c >= 0x30 && c <= 0x39) || c === 0x2b || c === 0x2d || c === 0x2e) {
+        return { t: "num", v: this.readNumber() };
+      }
+      const kw = this.readKeyword();
+      return { t: "kw", v: kw };
+    }
+
+    readNumber() {
+      const b = this.b;
+      const start = this.pos;
+      this.pos++;
+      while (this.pos < b.length) {
+        const c = b[this.pos];
+        if ((c >= 0x30 && c <= 0x39) || c === 0x2e || c === 0x2b || c === 0x2d) this.pos++;
+        else break;
+      }
+      const v = parseFloat(ZC.util.latin1(b, start, this.pos));
+      return isFinite(v) ? v : 0;
+    }
+
+    readKeyword() {
+      const b = this.b;
+      const start = this.pos;
+      while (this.pos < b.length && !isWs(b[this.pos]) && !isDelim(b[this.pos])) this.pos++;
+      if (this.pos === start) this.pos++; // 不正バイトで停止しない
+      return ZC.util.latin1(b, start, this.pos);
+    }
+
+    readName() {
+      const b = this.b;
+      this.pos++; // '/'
+      let s = "";
+      while (this.pos < b.length && !isWs(b[this.pos]) && !isDelim(b[this.pos])) {
+        let c = b[this.pos];
+        if (c === 0x23 && this.pos + 2 < b.length) {
+          const h = parseInt(ZC.util.latin1(b, this.pos + 1, this.pos + 3), 16);
+          if (isFinite(h)) {
+            s += String.fromCharCode(h);
+            this.pos += 3;
+            continue;
+          }
+        }
+        s += String.fromCharCode(c);
+        this.pos++;
+      }
+      return s;
+    }
+
+    readLiteralString() {
+      const b = this.b;
+      this.pos++; // '('
+      const out = [];
+      let depth = 1;
+      while (this.pos < b.length) {
+        let c = b[this.pos++];
+        if (c === 0x5c) {
+          // バックスラッシュエスケープ
+          const e = b[this.pos++];
+          switch (e) {
+            case 0x6e: out.push(10); break; // \n
+            case 0x72: out.push(13); break; // \r
+            case 0x74: out.push(9); break;  // \t
+            case 0x62: out.push(8); break;  // \b
+            case 0x66: out.push(12); break; // \f
+            case 0x28: out.push(0x28); break;
+            case 0x29: out.push(0x29); break;
+            case 0x5c: out.push(0x5c); break;
+            case 13: if (b[this.pos] === 10) this.pos++; break; // 行継続
+            case 10: break;
+            default:
+              if (e >= 0x30 && e <= 0x37) {
+                // 8進数 1〜3桁
+                let v = e - 0x30;
+                for (let k = 0; k < 2; k++) {
+                  const d = b[this.pos];
+                  if (d >= 0x30 && d <= 0x37) {
+                    v = v * 8 + (d - 0x30);
+                    this.pos++;
+                  } else break;
+                }
+                out.push(v & 0xff);
+              } else if (e !== undefined) out.push(e);
+          }
+          continue;
+        }
+        if (c === 0x28) depth++;
+        if (c === 0x29) {
+          depth--;
+          if (depth === 0) break;
+        }
+        if (c === 13) {
+          // CR / CRLF は LF に正規化
+          if (b[this.pos] === 10) this.pos++;
+          c = 10;
+        }
+        out.push(c);
+      }
+      return new Uint8Array(out);
+    }
+
+    readHexString() {
+      const b = this.b;
+      this.pos++; // '<'
+      const out = [];
+      let hi = -1;
+      while (this.pos < b.length) {
+        const c = b[this.pos++];
+        if (c === 0x3e) break;
+        let d = -1;
+        if (c >= 0x30 && c <= 0x39) d = c - 0x30;
+        else if (c >= 0x41 && c <= 0x46) d = c - 0x41 + 10;
+        else if (c >= 0x61 && c <= 0x66) d = c - 0x61 + 10;
+        else continue;
+        if (hi < 0) hi = d;
+        else {
+          out.push(hi * 16 + d);
+          hi = -1;
+        }
+      }
+      if (hi >= 0) out.push(hi * 16); // 奇数桁は 0 詰め
+      return new Uint8Array(out);
+    }
+  }
+
+  // トークン列から PDF オブジェクトを組み立てる。
+  // allowRefs=false ならコンテントストリーム用（"n n R" の先読みをしない）。
+  class ObjParser {
+    constructor(lexer, opts) {
+      this.lex = lexer;
+      this.allowRefs = !opts || opts.refs !== false;
+    }
+
+    // EOF は undefined、null オブジェクトは null を返す
+    parse() {
+      return this.parseFrom(this.lex.readToken());
+    }
+
+    parseFrom(tok) {
+      if (!tok) return undefined;
+      switch (tok.t) {
+        case "num": {
+          if (this.allowRefs && Number.isInteger(tok.v) && tok.v >= 0) {
+            const save = this.lex.pos;
+            const t2 = this.lex.readToken();
+            if (t2 && t2.t === "num" && Number.isInteger(t2.v) && t2.v >= 0) {
+              const t3 = this.lex.readToken();
+              if (t3 && t3.t === "kw" && t3.v === "R") return new Ref(tok.v, t2.v);
+            }
+            this.lex.pos = save;
+          }
+          return tok.v;
+        }
+        case "str":
+          return new PStr(tok.v);
+        case "name":
+          return new Name(tok.v);
+        case "[": {
+          const arr = [];
+          for (;;) {
+            const t = this.lex.readToken();
+            if (!t || t.t === "]") break;
+            const v = this.parseFrom(t);
+            if (v !== undefined) arr.push(v);
+          }
+          return arr;
+        }
+        case "<<": {
+          const dict = Object.create(null);
+          for (;;) {
+            const t = this.lex.readToken();
+            if (!t || t.t === ">>") break;
+            if (t.t !== "name") {
+              this.parseFrom(t); // 壊れたキーは読み捨て
+              continue;
+            }
+            const v = this.parse();
+            if (v !== undefined) dict[t.v] = v;
+          }
+          return dict;
+        }
+        case "kw":
+          if (tok.v === "true") return true;
+          if (tok.v === "false") return false;
+          if (tok.v === "null") return null;
+          return { op: tok.v };
+        default:
+          return { op: tok.t };
+      }
+    }
+  }
+
+  ZC.syntax = { Lexer, ObjParser, Name, Ref, PStr, isWs, isDelim };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 12_pdf.js ===== */
+// PDF ドキュメント層: xref（表/ストリーム両対応）、オブジェクト解決、ページ列挙
+(function (ZC) {
+  "use strict";
+
+  const { Lexer, ObjParser, Name, Ref } = ZC.syntax;
+  const U = ZC.util;
+
+  class PDFError extends Error {}
+
+  class PDFStream {
+    constructor(doc, dict, raw) {
+      this.doc = doc;
+      this.dict = dict;
+      this.raw = raw;
+      this._data = null;
+    }
+    async data() {
+      if (!this._data) this._data = await this.doc._decodeStream(this);
+      return this._data;
+    }
+  }
+
+  class PDFDocument {
+    constructor(bytes) {
+      this.bytes = bytes;
+      this.xref = new Map(); // objNum -> {offset,gen} | {stm,idx}
+      this.trailer = Object.create(null);
+      this.cache = new Map();
+      this.objStmCache = new Map();
+      this._rescanned = false;
+    }
+
+    static async load(bytes) {
+      if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes);
+      const doc = new PDFDocument(bytes);
+      await doc._init();
+      return doc;
+    }
+
+    async _init() {
+      if (U.latin1(this.bytes, 0, Math.min(1024, this.bytes.length)).indexOf("%PDF") < 0) {
+        throw new PDFError("PDFファイルではありません。");
+      }
+      let ok = false;
+      const tailStart = Math.max(0, this.bytes.length - 2048);
+      const tail = U.latin1(this.bytes, tailStart);
+      const sx = tail.lastIndexOf("startxref");
+      if (sx >= 0) {
+        const m = tail.slice(sx + 9).match(/\d+/);
+        if (m) {
+          try {
+            await this._readXrefChain(Number(m[0]));
+            ok = this.xref.size > 0 && this.trailer.Root !== undefined;
+          } catch (e) {
+            ok = false;
+          }
+        }
+      }
+      if (!ok) await this._rebuildByScan();
+      if (this.trailer.Encrypt !== undefined) {
+        throw new PDFError("暗号化されたPDFには対応していません。パスワードを外したPDFを使用してください。");
+      }
+      if (this.trailer.Root === undefined) {
+        throw new PDFError("PDFの構造を読み取れませんでした。");
+      }
+    }
+
+    async _readXrefChain(offset) {
+      const seen = new Set();
+      const queue = [offset];
+      while (queue.length) {
+        const off = queue.shift();
+        if (off == null || seen.has(off) || off < 0 || off >= this.bytes.length) continue;
+        seen.add(off);
+        const trailer = await this._readXrefAt(off);
+        for (const k of Object.keys(trailer)) {
+          if (this.trailer[k] === undefined) this.trailer[k] = trailer[k];
+        }
+        // ハイブリッド参照 → 旧版の順で辿る（新しいエントリ優先で登録済みのため上書きしない）
+        if (typeof trailer.XRefStm === "number") queue.push(trailer.XRefStm);
+        if (typeof trailer.Prev === "number") queue.push(trailer.Prev);
+      }
+    }
+
+    async _readXrefAt(off) {
+      const lex = new Lexer(this.bytes, off);
+      const first = lex.readToken();
+      if (first && first.t === "kw" && first.v === "xref") {
+        // クラシックな xref 表
+        for (;;) {
+          const a = lex.readToken();
+          if (!a) throw new PDFError("xref表が途中で終わっています");
+          if (a.t === "kw" && a.v === "trailer") break;
+          const b = lex.readToken();
+          if (!a || !b || a.t !== "num" || b.t !== "num") throw new PDFError("xref表が壊れています");
+          const start = a.v;
+          for (let i = 0; i < b.v; i++) {
+            const f1 = lex.readToken();
+            const f2 = lex.readToken();
+            const f3 = lex.readToken();
+            if (!f1 || !f2 || !f3) throw new PDFError("xref表が壊れています");
+            const num = start + i;
+            if (f3.v === "n" && !this.xref.has(num)) {
+              this.xref.set(num, { offset: f1.v, gen: f2.v });
+            }
+          }
+        }
+        const trailer = new ObjParser(lex).parse();
+        return trailer && typeof trailer === "object" ? trailer : {};
+      }
+      // xref ストリーム（PDF 1.5+）
+      const { value } = await this._parseIndirectAt(off);
+      if (!(value instanceof PDFStream)) throw new PDFError("xrefストリームが見つかりません");
+      const dict = value.dict;
+      const data = await value.data();
+      const W = (Array.isArray(dict.W) ? dict.W : []).map(Number);
+      if (W.length < 2) throw new PDFError("xrefストリームのWが不正です");
+      const rowLen = W.reduce((a, b) => a + (b || 0), 0);
+      let index;
+      if (Array.isArray(dict.Index)) index = dict.Index.map(Number);
+      else if (typeof dict.Size === "number") index = [0, dict.Size];
+      else index = [0, Math.floor(data.length / rowLen)];
+      let p = 0;
+      const read = (w) => {
+        let v = 0;
+        for (let j = 0; j < w; j++) v = v * 256 + data[p++];
+        return v;
+      };
+      for (let k = 0; k + 1 < index.length; k += 2) {
+        const start = index[k];
+        const count = index[k + 1];
+        for (let i = 0; i < count && p + rowLen <= data.length; i++) {
+          const type = W[0] ? read(W[0]) : 1;
+          const f2 = read(W[1]);
+          const f3 = W[2] ? read(W[2]) : 0;
+          const num = start + i;
+          if (this.xref.has(num)) continue;
+          if (type === 1) this.xref.set(num, { offset: f2, gen: f3 });
+          else if (type === 2) this.xref.set(num, { stm: f2, idx: f3 });
+        }
+      }
+      return dict;
+    }
+
+    // xref が壊れている場合の総当たり再構築
+    async _rebuildByScan() {
+      this.cache.clear();
+      this.objStmCache.clear();
+      const s = U.latin1(this.bytes);
+      const map = new Map();
+      const re = /(\d{1,9})\s+(\d{1,5})\s+obj\b/g;
+      let m;
+      while ((m = re.exec(s))) {
+        map.set(Number(m[1]), { offset: m.index, gen: Number(m[2]) });
+      }
+      // ObjStm 経由のエントリは既存の xref から引き継ぐ
+      for (const [num, e] of this.xref) {
+        if (!map.has(num)) map.set(num, e);
+      }
+      this.xref = map;
+      // trailer を末尾から探す
+      let ti = s.lastIndexOf("trailer");
+      while (ti >= 0) {
+        try {
+          const t = new ObjParser(new Lexer(this.bytes, ti + 7)).parse();
+          if (t && typeof t === "object") {
+            for (const k of Object.keys(t)) {
+              if (this.trailer[k] === undefined) this.trailer[k] = t[k];
+            }
+            if (this.trailer.Root !== undefined) break;
+          }
+        } catch (e) { /* 次の候補へ */ }
+        ti = s.lastIndexOf("trailer", ti - 1);
+      }
+      if (this.trailer.Root === undefined) {
+        // /Type /Catalog を持つオブジェクトを探す
+        for (const [num] of this.xref) {
+          let v = null;
+          try {
+            v = await this.getObj(num);
+          } catch (e) { /* skip */ }
+          const d = v instanceof PDFStream ? v.dict : v;
+          if (d && d.Type instanceof Name && d.Type.name === "Catalog") {
+            this.trailer.Root = new Ref(num, 0);
+            break;
+          }
+        }
+      }
+    }
+
+    async _parseIndirectAt(off, expectNum) {
+      const lex = new Lexer(this.bytes, off);
+      const t1 = lex.readToken();
+      const t2 = lex.readToken();
+      const t3 = lex.readToken();
+      if (!t1 || !t2 || !t3 || t1.t !== "num" || t2.t !== "num" || !(t3.t === "kw" && t3.v === "obj")) {
+        throw new PDFError("オブジェクトの位置がずれています");
+      }
+      if (expectNum != null && t1.v !== expectNum) {
+        throw new PDFError("オブジェクト番号が一致しません");
+      }
+      let value = new ObjParser(lex).parse();
+      // 直後に stream が続くか
+      const save = lex.pos;
+      const t4 = lex.readToken();
+      if (t4 && t4.t === "kw" && t4.v === "stream" && value && typeof value === "object" && !Array.isArray(value)) {
+        let p = lex.pos;
+        if (this.bytes[p] === 13) p++;
+        if (this.bytes[p] === 10) p++;
+        let len = value.Length;
+        if (len instanceof Ref) len = await this.deref(len);
+        let end = -1;
+        if (typeof len === "number" && len >= 0 && p + len <= this.bytes.length) {
+          const probe = U.latin1(this.bytes, p + len, Math.min(this.bytes.length, p + len + 20));
+          if (/^[\s]*endstream/.test(probe)) end = p + len;
+        }
+        if (end < 0) {
+          // Length が信用できないので endstream を探す
+          const es = U.indexOfBytes(this.bytes, "endstream", p);
+          if (es < 0) throw new PDFError("endstreamが見つかりません");
+          let e = es;
+          if (this.bytes[e - 1] === 10) e--;
+          if (this.bytes[e - 1] === 13) e--;
+          end = e;
+        }
+        value = new PDFStream(this, value, this.bytes.subarray(p, end));
+      } else {
+        lex.pos = save;
+      }
+      return { num: t1.v, value };
+    }
+
+    async getObj(num) {
+      if (this.cache.has(num)) return this.cache.get(num);
+      const e = this.xref.get(num);
+      let v = null;
+      if (e) {
+        try {
+          if (e.offset != null) v = (await this._parseIndirectAt(e.offset, num)).value;
+          else v = await this._getFromObjStm(e.stm, e.idx, num);
+        } catch (err) {
+          // オフセットずれ → 一度だけ全走査で復旧を試みる
+          if (!this._rescanned) {
+            this._rescanned = true;
+            await this._rebuildByScan();
+            const e2 = this.xref.get(num);
+            if (e2 && e2.offset != null) {
+              try {
+                v = (await this._parseIndirectAt(e2.offset, num)).value;
+              } catch (err2) {
+                v = null;
+              }
+            }
+          }
+        }
+      }
+      this.cache.set(num, v);
+      return v;
+    }
+
+    async _getFromObjStm(stmNum, idx, wantNum) {
+      let table = this.objStmCache.get(stmNum);
+      if (!table) {
+        const stm = await this.getObj(stmNum);
+        if (!(stm instanceof PDFStream)) throw new PDFError("オブジェクトストリームが読めません");
+        const data = await stm.data();
+        const n = await this.deref(stm.dict.N);
+        const first = await this.deref(stm.dict.First);
+        const lex = new Lexer(data);
+        const heads = [];
+        for (let i = 0; i < n; i++) {
+          const a = lex.readToken();
+          const b = lex.readToken();
+          if (!a || !b) break;
+          heads.push([a.v, b.v]);
+        }
+        table = heads.map(([objNum, rel]) => ({
+          num: objNum,
+          value: new ObjParser(new Lexer(data, first + rel)).parse(),
+        }));
+        this.objStmCache.set(stmNum, table);
+      }
+      let ent = table[idx];
+      if (!ent || (wantNum != null && ent.num !== wantNum)) {
+        ent = table.find((e2) => e2.num === wantNum);
+      }
+      return ent ? ent.value : null;
+    }
+
+    async deref(v) {
+      let depth = 0;
+      while (v instanceof Ref) {
+        if (depth++ > 32) return null;
+        v = await this.getObj(v.num);
+      }
+      return v;
+    }
+
+    async _decodeStream(stm) {
+      let data = stm.raw;
+      const filter = await this.deref(stm.dict.Filter);
+      let parms = await this.deref(stm.dict.DecodeParms !== undefined ? stm.dict.DecodeParms : stm.dict.DP);
+      const filters = filter == null ? [] : Array.isArray(filter) ? filter : [filter];
+      const parmsArr = parms == null ? [] : Array.isArray(parms) ? parms : [parms];
+      for (let i = 0; i < filters.length; i++) {
+        const f = await this.deref(filters[i]);
+        const name = f instanceof Name ? f.name : String(f);
+        const pmRaw = (await this.deref(parmsArr[i])) || {};
+        const pm = {};
+        for (const k of ["Predictor", "Colors", "BitsPerComponent", "Columns"]) {
+          pm[k] = await this.deref(pmRaw[k]);
+        }
+        data = await ZC.filters.decode(name, data, pm);
+      }
+      return data;
+    }
+
+    async getPages() {
+      const root = await this.deref(this.trailer.Root);
+      if (!root) throw new PDFError("ドキュメントカタログが読めません");
+      const pages = [];
+      const seen = new Set();
+      const walk = async (ref, inh, depth) => {
+        if (depth > 64 || pages.length > 2000) return;
+        if (ref instanceof Ref) {
+          const key = ref.num + "_" + ref.gen;
+          if (seen.has(key)) return;
+          seen.add(key);
+        }
+        const node = await this.deref(ref);
+        if (!node || typeof node !== "object") return;
+        const d = node instanceof PDFStream ? node.dict : node;
+        const inherit = {
+          Resources: d.Resources !== undefined ? d.Resources : inh.Resources,
+          MediaBox: d.MediaBox !== undefined ? d.MediaBox : inh.MediaBox,
+          CropBox: d.CropBox !== undefined ? d.CropBox : inh.CropBox,
+          Rotate: d.Rotate !== undefined ? d.Rotate : inh.Rotate,
+        };
+        const type = d.Type instanceof Name ? d.Type.name : null;
+        const kids = d.Kids !== undefined ? await this.deref(d.Kids) : null;
+        if ((type === "Pages" || (Array.isArray(kids) && type !== "Page")) && Array.isArray(kids)) {
+          for (const k of kids) await walk(k, inherit, depth + 1);
+        } else if (type === "Page" || d.Contents !== undefined) {
+          pages.push(Object.assign(Object.create(null), d, inherit));
+        }
+      };
+      await walk(root.Pages, {}, 0);
+      if (!pages.length) throw new PDFError("ページが見つかりませんでした");
+      return pages;
+    }
+
+    async getPageContentBytes(page) {
+      const c = await this.deref(page.Contents);
+      const list = Array.isArray(c) ? c : c ? [c] : [];
+      const parts = [];
+      let total = 0;
+      for (const item of list) {
+        const s = await this.deref(item);
+        if (s instanceof PDFStream) {
+          try {
+            const d = await s.data();
+            parts.push(d);
+            total += d.length + 1;
+          } catch (e) {
+            if (e && e.message === "IMAGE_FILTER") continue;
+            // 壊れたストリームは飛ばして続行
+          }
+        }
+      }
+      const out = new Uint8Array(total);
+      let p = 0;
+      for (const part of parts) {
+        out.set(part, p);
+        p += part.length;
+        out[p++] = 0x0a; // ストリーム境界の区切り
+      }
+      return out;
+    }
+  }
+
+  ZC.pdf = { PDFDocument, PDFStream, PDFError };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 13_fonts.js ===== */
+// フォント: 文字コード→Unicode 変換（ToUnicode CMap / 単純エンコーディング）と字幅
+(function (ZC) {
+  "use strict";
+
+  const { Lexer, Name } = ZC.syntax;
+  const { PDFStream } = ZC.pdf;
+
+  // グリフ名 → 文字（通り芯符号・寸法値の読み取りに必要な範囲のみ）
+  const GLYPH_NAMES = {
+    space: " ", period: ".", comma: ",", hyphen: "-", minus: "-", endash: "-",
+    slash: "/", colon: ":", semicolon: ";", plus: "+", equal: "=", underscore: "_",
+    parenleft: "(", parenright: ")", asterisk: "*", numbersign: "#", at: "@",
+    zero: "0", one: "1", two: "2", three: "3", four: "4",
+    five: "5", six: "6", seven: "7", eight: "8", nine: "9",
+  };
+
+  function glyphToChar(name) {
+    if (!name) return "";
+    if (GLYPH_NAMES[name] !== undefined) return GLYPH_NAMES[name];
+    if (name.length === 1) return name;
+    let m = /^uni([0-9A-Fa-f]{4})$/.exec(name);
+    if (m) return String.fromCharCode(parseInt(m[1], 16));
+    m = /^u([0-9A-Fa-f]{4,6})$/.exec(name);
+    if (m) return String.fromCodePoint(parseInt(m[1], 16));
+    return "";
+  }
+
+  function bytesToInt(b) {
+    let v = 0;
+    for (let i = 0; i < b.length; i++) v = v * 256 + b[i];
+    return v;
+  }
+
+  function utf16beToStr(b) {
+    let s = "";
+    for (let i = 0; i + 1 < b.length; i += 2) s += String.fromCharCode(b[i] * 256 + b[i + 1]);
+    if (b.length === 1) s += String.fromCharCode(b[0]);
+    return s;
+  }
+
+  // ToUnicode CMap を解析して {map, codeLens} を返す
+  function parseToUnicodeCMap(bytes) {
+    const map = new Map();
+    const lens = new Set();
+    const lex = new Lexer(bytes);
+    const toks = [];
+    for (;;) {
+      const t = lex.readToken();
+      if (!t) break;
+      toks.push(t);
+    }
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i];
+      if (t.t !== "kw") continue;
+      if (t.v === "begincodespacerange") {
+        for (i++; i < toks.length && !(toks[i].t === "kw" && toks[i].v === "endcodespacerange"); i += 2) {
+          if (toks[i].t === "str") lens.add(toks[i].v.length);
+        }
+      } else if (t.v === "beginbfchar") {
+        for (i++; i < toks.length && !(toks[i].t === "kw" && toks[i].v === "endbfchar"); i += 2) {
+          const src = toks[i];
+          const dst = toks[i + 1];
+          if (src && dst && src.t === "str" && dst.t === "str") {
+            map.set(bytesToInt(src.v), utf16beToStr(dst.v));
+            lens.add(src.v.length);
+          }
+        }
+      } else if (t.v === "beginbfrange") {
+        i++;
+        while (i < toks.length && !(toks[i].t === "kw" && toks[i].v === "endbfrange")) {
+          const lo = toks[i++];
+          const hi = toks[i++];
+          if (!lo || !hi || lo.t !== "str" || hi.t !== "str") break;
+          lens.add(lo.v.length);
+          const loV = bytesToInt(lo.v);
+          const hiV = Math.min(bytesToInt(hi.v), loV + 65535);
+          const dst = toks[i++];
+          if (dst && dst.t === "[") {
+            // 配列形式: 各コードに個別の文字列
+            let k = 0;
+            while (i < toks.length && toks[i].t !== "]") {
+              if (toks[i].t === "str") map.set(loV + k++, utf16beToStr(toks[i].v));
+              i++;
+            }
+            i++; // ']'
+          } else if (dst && dst.t === "str") {
+            const base = utf16beToStr(dst.v);
+            for (let c = loV; c <= hiV; c++) {
+              const d = c - loV;
+              if (base.length === 0) continue;
+              // 最後のコードユニットに加算する
+              const lastCode = base.charCodeAt(base.length - 1) + d;
+              map.set(c, base.slice(0, -1) + String.fromCharCode(lastCode));
+            }
+          }
+        }
+      }
+    }
+    return { map, codeLens: Array.from(lens).sort((a, b) => b - a) };
+  }
+
+  class Font {
+    constructor() {
+      this.isType0 = false;
+      this.toUni = null; // Map<code, string>
+      this.codeLens = [1];
+      this.simpleMap = null; // code -> char（Differences 由来）
+      this.widths = null; // Map<code, width(1/1000)>
+      this.defaultWidth = 500;
+      this.firstChar = 0;
+      this.widthArr = null;
+    }
+
+    static async build(doc, fontDictRef) {
+      const f = new Font();
+      const dict = await doc.deref(fontDictRef);
+      if (!dict || typeof dict !== "object") return f;
+      const subtype = dict.Subtype instanceof Name ? dict.Subtype.name : "";
+      f.isType0 = subtype === "Type0";
+
+      const tu = await doc.deref(dict.ToUnicode);
+      if (tu instanceof PDFStream) {
+        try {
+          const parsed = parseToUnicodeCMap(await tu.data());
+          if (parsed.map.size) {
+            f.toUni = parsed.map;
+            if (parsed.codeLens.length) f.codeLens = parsed.codeLens;
+          }
+        } catch (e) { /* ToUnicode 無しとして続行 */ }
+      }
+
+      if (f.isType0) {
+        if (!f.toUni) f.codeLens = [2];
+        f.defaultWidth = 1000;
+        const desc = await doc.deref(dict.DescendantFonts);
+        const d0 = Array.isArray(desc) ? await doc.deref(desc[0]) : null;
+        if (d0) {
+          const dw = await doc.deref(d0.DW);
+          if (typeof dw === "number") f.defaultWidth = dw;
+          const w = await doc.deref(d0.W);
+          if (Array.isArray(w)) {
+            f.widths = new Map();
+            for (let i = 0; i < w.length; ) {
+              const c1 = await doc.deref(w[i++]);
+              const next = await doc.deref(w[i++]);
+              if (Array.isArray(next)) {
+                for (let k = 0; k < next.length; k++) {
+                  const wv = await doc.deref(next[k]);
+                  if (typeof wv === "number") f.widths.set(c1 + k, wv);
+                }
+              } else if (typeof next === "number") {
+                const c2 = next;
+                const wv = await doc.deref(w[i++]);
+                if (typeof wv === "number") {
+                  for (let c = c1; c <= Math.min(c2, c1 + 65535); c++) f.widths.set(c, wv);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // 単純フォント
+        const enc = await doc.deref(dict.Encoding);
+        if (enc && typeof enc === "object" && !(enc instanceof Name)) {
+          const diffs = await doc.deref(enc.Differences);
+          if (Array.isArray(diffs)) {
+            f.simpleMap = new Map();
+            let code = 0;
+            for (const item of diffs) {
+              const v = await doc.deref(item);
+              if (typeof v === "number") code = v;
+              else if (v instanceof Name) f.simpleMap.set(code++, glyphToChar(v.name));
+            }
+          }
+        }
+        const fc = await doc.deref(dict.FirstChar);
+        const widths = await doc.deref(dict.Widths);
+        if (typeof fc === "number" && Array.isArray(widths)) {
+          f.firstChar = fc;
+          f.widthArr = [];
+          for (const wv of widths) {
+            const n = await doc.deref(wv);
+            f.widthArr.push(typeof n === "number" ? n : f.defaultWidth);
+          }
+        }
+      }
+      return f;
+    }
+
+    width(code) {
+      if (this.widths) {
+        const w = this.widths.get(code);
+        return w !== undefined ? w : this.defaultWidth;
+      }
+      if (this.widthArr) {
+        const w = this.widthArr[code - this.firstChar];
+        return w !== undefined ? w : this.defaultWidth;
+      }
+      return this.defaultWidth;
+    }
+
+    // 表示文字列のバイト列 → [{code, str, w0}] （w0 は 1/1000 単位の字幅）
+    decode(bytes) {
+      const out = [];
+      let i = 0;
+      while (i < bytes.length) {
+        let code = -1;
+        let used = 1;
+        if (this.toUni) {
+          // codespace の長い順に一致を試す
+          for (const len of this.codeLens) {
+            if (i + len > bytes.length) continue;
+            const c = bytesToInt(bytes.subarray(i, i + len));
+            if (this.toUni.has(c) || len === this.codeLens[this.codeLens.length - 1]) {
+              code = c;
+              used = len;
+              break;
+            }
+          }
+          if (code < 0) {
+            code = bytes[i];
+            used = 1;
+          }
+        } else if (this.isType0) {
+          code = bytesToInt(bytes.subarray(i, Math.min(i + 2, bytes.length)));
+          used = 2;
+        } else {
+          code = bytes[i];
+          used = 1;
+        }
+        i += used;
+        let str = "";
+        if (this.toUni && this.toUni.has(code)) str = this.toUni.get(code);
+        else if (this.simpleMap && this.simpleMap.has(code)) str = this.simpleMap.get(code);
+        else if (!this.isType0 && code >= 32 && code < 127) str = String.fromCharCode(code);
+        out.push({ code, str, w0: this.width(code) });
+      }
+      return out;
+    }
+  }
+
+  ZC.fonts = { Font, parseToUnicodeCMap, glyphToChar };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 14_content.js ===== */
+// コンテントストリーム解釈: 線分とテキストをデバイス座標（表示向き・pt）で抽出する
+(function (ZC) {
+  "use strict";
+
+  const { Lexer, ObjParser, Name, PStr } = ZC.syntax;
+  const { PDFStream } = ZC.pdf;
+  const MAT = ZC.util.MAT;
+
+  const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
+  const MAX_FORM_DEPTH = 8;
+
+  class ContentExtractor {
+    constructor(doc) {
+      this.doc = doc;
+      this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
+      this.texts = []; // {str,x,y,ex,ey,size}
+      this.imageCount = 0;
+      this._fontCache = new Map();
+    }
+
+    // page: PDFDocument.getPages() の要素
+    async run(page) {
+      const mb = normBox(await this.doc.deref(page.MediaBox)) || [0, 0, 612, 792];
+      let box = normBox(await this.doc.deref(page.CropBox)) || mb;
+      // CropBox は MediaBox と交差させる
+      box = [
+        Math.max(box[0], mb[0]),
+        Math.max(box[1], mb[1]),
+        Math.min(box[2], mb[2]),
+        Math.min(box[3], mb[3]),
+      ];
+      if (!(box[2] > box[0] && box[3] > box[1])) box = mb;
+      const w = box[2] - box[0];
+      const h = box[3] - box[1];
+      let rot = await this.doc.deref(page.Rotate);
+      rot = typeof rot === "number" ? ((rot % 360) + 360) % 360 : 0;
+      // ページ原点補正 + /Rotate の表示向き変換
+      let base = MAT.translate(-box[0], -box[1]);
+      let outW = w;
+      let outH = h;
+      if (rot === 90) {
+        base = MAT.mul(base, [0, -1, 1, 0, 0, w]);
+        outW = h;
+        outH = w;
+      } else if (rot === 180) {
+        base = MAT.mul(base, [-1, 0, 0, -1, w, h]);
+      } else if (rot === 270) {
+        base = MAT.mul(base, [0, 1, -1, 0, h, 0]);
+        outW = h;
+        outH = w;
+      }
+      const resources = await this.doc.deref(page.Resources);
+      const content = await this.doc.getPageContentBytes(page);
+      await this._exec(content, { ctm: base, w: 1, dashed: false }, resources || {}, 0);
+      return {
+        segments: this.segments,
+        texts: this.texts,
+        width: outW,
+        height: outH,
+        rotate: rot,
+        imageCount: this.imageCount,
+      };
+    }
+
+    async _exec(bytes, initGs, resources, depth) {
+      const doc = this.doc;
+      const lex = new Lexer(bytes);
+      const parser = new ObjParser(lex, { refs: false });
+      let gs = { ctm: initGs.ctm.slice(), w: initGs.w, dashed: initGs.dashed };
+      const gsStack = [];
+      let ops = [];
+
+      // パス構築: subpath = [{x,y,curve}] の配列
+      let subpaths = [];
+      let cur = null;
+      let lastPt = null;
+
+      // テキスト状態
+      let tm = MAT.id();
+      let tlm = MAT.id();
+      let font = null;
+      let tfs = 0;
+      let tc = 0;
+      let tw = 0;
+      let th = 1;
+      let tl = 0;
+      let trise = 0;
+
+      const moveTo = (x, y) => {
+        const p = MAT.apply(gs.ctm, x, y);
+        cur = [{ x: p[0], y: p[1], curve: false }];
+        subpaths.push(cur);
+        lastPt = { x, y };
+      };
+      const lineTo = (x, y, curve) => {
+        if (!cur) moveTo(x, y);
+        else {
+          const p = MAT.apply(gs.ctm, x, y);
+          cur.push({ x: p[0], y: p[1], curve: !!curve });
+          lastPt = { x, y };
+        }
+      };
+      const curveTo = (x1, y1, x2, y2, x3, y3) => {
+        if (!lastPt) {
+          moveTo(x3, y3);
+          return;
+        }
+        const p0 = lastPt;
+        for (let i = 1; i <= BEZIER_STEPS; i++) {
+          const t = i / BEZIER_STEPS;
+          const u = 1 - t;
+          const x = u * u * u * p0.x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3;
+          const y = u * u * u * p0.y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3;
+          lineTo(x, y, true);
+        }
+        lastPt = { x: x3, y: y3 };
+      };
+      const closePath = () => {
+        if (cur && cur.length > 1) cur.push({ x: cur[0].x, y: cur[0].y, curve: false });
+      };
+      const clearPath = () => {
+        subpaths = [];
+        cur = null;
+        lastPt = null;
+      };
+      const strokePath = () => {
+        const wDev = gs.w * MAT.scaleOf(gs.ctm);
+        for (const sp of subpaths) {
+          for (let i = 1; i < sp.length; i++) {
+            const a = sp[i - 1];
+            const b = sp[i];
+            if (a.x === b.x && a.y === b.y) continue;
+            this.segments.push({
+              x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+              w: wDev, dashed: gs.dashed, curve: b.curve,
+            });
+          }
+        }
+        clearPath();
+      };
+
+      const showText = (strObj) => {
+        if (!(strObj instanceof PStr) || tfs === 0) return;
+        const glyphs = font ? font.decode(strObj.bytes) : fallbackDecode(strObj.bytes);
+        if (!glyphs.length) return;
+        const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+        const start = [trm0[4], trm0[5]];
+        const size = tfs * MAT.scaleOf(MAT.mul(tm, gs.ctm));
+        let str = "";
+        for (const gph of glyphs) {
+          str += gph.str;
+          const isSpace = !font || !font.isType0 ? gph.code === 32 : false;
+          const adv = ((gph.w0 / 1000) * tfs + tc + (isSpace ? tw : 0)) * th;
+          tm = MAT.mul(MAT.translate(adv, 0), tm);
+        }
+        const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+        if (str.trim().length) {
+          this.texts.push({ str, x: start[0], y: start[1], ex: trm1[4], ey: trm1[5], size });
+        }
+      };
+
+      const nums = (n) => {
+        const a = [];
+        for (let i = ops.length - n; i < ops.length; i++) {
+          const v = ops[i];
+          a.push(typeof v === "number" ? v : 0);
+        }
+        return a;
+      };
+
+      for (;;) {
+        const v = parser.parse();
+        if (v === undefined) break;
+        if (!v || typeof v !== "object" || !("op" in v)) {
+          ops.push(v);
+          if (ops.length > 64) ops.splice(0, ops.length - 64);
+          continue;
+        }
+        const op = v.op;
+        switch (op) {
+          case "q":
+            gsStack.push({ ctm: gs.ctm.slice(), w: gs.w, dashed: gs.dashed });
+            break;
+          case "Q":
+            if (gsStack.length) gs = gsStack.pop();
+            break;
+          case "cm": {
+            const m = nums(6);
+            gs.ctm = MAT.mul(m, gs.ctm);
+            break;
+          }
+          case "w":
+            gs.w = nums(1)[0];
+            break;
+          case "d": {
+            // 破線パターン: 配列に正の値があれば破線とみなす
+            const arr = ops[ops.length - 2];
+            gs.dashed = Array.isArray(arr) && arr.length > 0 && arr.some((x) => typeof x === "number" && x > 0);
+            break;
+          }
+          case "m": {
+            const [x, y] = nums(2);
+            moveTo(x, y);
+            break;
+          }
+          case "l": {
+            const [x, y] = nums(2);
+            lineTo(x, y, false);
+            break;
+          }
+          case "c": {
+            const [x1, y1, x2, y2, x3, y3] = nums(6);
+            curveTo(x1, y1, x2, y2, x3, y3);
+            break;
+          }
+          case "v": {
+            const [x2, y2, x3, y3] = nums(4);
+            const p0 = lastPt || { x: x2, y: y2 };
+            curveTo(p0.x, p0.y, x2, y2, x3, y3);
+            break;
+          }
+          case "y": {
+            const [x1, y1, x3, y3] = nums(4);
+            curveTo(x1, y1, x3, y3, x3, y3);
+            break;
+          }
+          case "h":
+            closePath();
+            break;
+          case "re": {
+            const [x, y, rw, rh] = nums(4);
+            moveTo(x, y);
+            lineTo(x + rw, y, false);
+            lineTo(x + rw, y + rh, false);
+            lineTo(x, y + rh, false);
+            closePath();
+            break;
+          }
+          case "S":
+            strokePath();
+            break;
+          case "s":
+            closePath();
+            strokePath();
+            break;
+          case "B":
+          case "B*":
+          case "b":
+          case "b*":
+            if (op === "b" || op === "b*") closePath();
+            strokePath();
+            break;
+          case "f":
+          case "F":
+          case "f*":
+          case "n":
+            clearPath();
+            break;
+          case "BT":
+            tm = MAT.id();
+            tlm = MAT.id();
+            break;
+          case "ET":
+            break;
+          case "Tf": {
+            const size = ops[ops.length - 1];
+            const nameObj = ops[ops.length - 2];
+            tfs = typeof size === "number" ? size : 0;
+            font = null;
+            if (nameObj instanceof Name && resources) {
+              const fonts = await doc.deref(resources.Font);
+              if (fonts && fonts[nameObj.name] !== undefined) {
+                const fref = fonts[nameObj.name];
+                const key = fref && fref.num !== undefined ? "R" + fref.num + "_" + fref.gen : fref;
+                if (this._fontCache.has(key)) font = this._fontCache.get(key);
+                else {
+                  font = await ZC.fonts.Font.build(doc, fref);
+                  this._fontCache.set(key, font);
+                }
+              }
+            }
+            break;
+          }
+          case "Td": {
+            const [tx, ty] = nums(2);
+            tlm = MAT.mul(MAT.translate(tx, ty), tlm);
+            tm = tlm.slice();
+            break;
+          }
+          case "TD": {
+            const [tx, ty] = nums(2);
+            tl = -ty;
+            tlm = MAT.mul(MAT.translate(tx, ty), tlm);
+            tm = tlm.slice();
+            break;
+          }
+          case "Tm": {
+            tlm = nums(6);
+            tm = tlm.slice();
+            break;
+          }
+          case "T*":
+            tlm = MAT.mul(MAT.translate(0, -tl), tlm);
+            tm = tlm.slice();
+            break;
+          case "TL":
+            tl = nums(1)[0];
+            break;
+          case "Tc":
+            tc = nums(1)[0];
+            break;
+          case "Tw":
+            tw = nums(1)[0];
+            break;
+          case "Tz":
+            th = nums(1)[0] / 100;
+            break;
+          case "Ts":
+            trise = nums(1)[0];
+            break;
+          case "Tj":
+            showText(ops[ops.length - 1]);
+            break;
+          case "'":
+            tlm = MAT.mul(MAT.translate(0, -tl), tlm);
+            tm = tlm.slice();
+            showText(ops[ops.length - 1]);
+            break;
+          case '"': {
+            const aw = ops[ops.length - 3];
+            const ac = ops[ops.length - 2];
+            if (typeof aw === "number") tw = aw;
+            if (typeof ac === "number") tc = ac;
+            tlm = MAT.mul(MAT.translate(0, -tl), tlm);
+            tm = tlm.slice();
+            showText(ops[ops.length - 1]);
+            break;
+          }
+          case "TJ": {
+            const arr = ops[ops.length - 1];
+            if (Array.isArray(arr)) {
+              // 1 つの TJ を 1 つのテキストランとして扱うため、開始位置を保存して連結する
+              const parts = [];
+              const startTm = tm.slice();
+              const trm0 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], startTm), gs.ctm);
+              const size = tfs * MAT.scaleOf(MAT.mul(startTm, gs.ctm));
+              let str = "";
+              for (const el of arr) {
+                if (typeof el === "number") {
+                  tm = MAT.mul(MAT.translate((-el / 1000) * tfs * th, 0), tm);
+                } else if (el instanceof PStr) {
+                  const glyphs = font ? font.decode(el.bytes) : fallbackDecode(el.bytes);
+                  for (const gph of glyphs) {
+                    str += gph.str;
+                    const isSpace = !font || !font.isType0 ? gph.code === 32 : false;
+                    const adv = ((gph.w0 / 1000) * tfs + tc + (isSpace ? tw : 0)) * th;
+                    tm = MAT.mul(MAT.translate(adv, 0), tm);
+                  }
+                }
+              }
+              const trm1 = MAT.mul(MAT.mul([tfs * th, 0, 0, tfs, 0, trise], tm), gs.ctm);
+              if (str.trim().length) {
+                this.texts.push({ str, x: trm0[4], y: trm0[5], ex: trm1[4], ey: trm1[5], size });
+              }
+            }
+            break;
+          }
+          case "Do": {
+            const nameObj = ops[ops.length - 1];
+            if (nameObj instanceof Name && resources && depth < MAX_FORM_DEPTH) {
+              const xobjects = await doc.deref(resources.XObject);
+              if (xobjects && xobjects[nameObj.name] !== undefined) {
+                const xo = await doc.deref(xobjects[nameObj.name]);
+                if (xo instanceof PDFStream) {
+                  const st = xo.dict.Subtype instanceof Name ? xo.dict.Subtype.name : "";
+                  if (st === "Image") {
+                    this.imageCount++;
+                  } else if (st === "Form") {
+                    let data = null;
+                    try {
+                      data = await xo.data();
+                    } catch (e) {
+                      if (e && e.message !== "IMAGE_FILTER") data = null;
+                    }
+                    if (data) {
+                      const mtx = await doc.deref(xo.dict.Matrix);
+                      const ctm2 = Array.isArray(mtx) && mtx.length === 6 ? MAT.mul(mtx.map(Number), gs.ctm) : gs.ctm;
+                      const res2 = (await doc.deref(xo.dict.Resources)) || resources;
+                      await this._exec(data, { ctm: ctm2, w: gs.w, dashed: gs.dashed }, res2, depth + 1);
+                    }
+                  }
+                }
+              }
+            }
+            break;
+          }
+          case "BI": {
+            // インライン画像: ID までのキー値を読み飛ばし、EI を探す
+            this.imageCount++;
+            for (;;) {
+              const t = parser.parse();
+              if (t === undefined) break;
+              if (t && typeof t === "object" && t.op === "ID") break;
+            }
+            let p = lex.pos + 1;
+            const b = bytes;
+            let found = -1;
+            for (; p + 1 < b.length; p++) {
+              if (
+                b[p] === 0x45 && b[p + 1] === 0x49 &&
+                ZC.syntax.isWs(b[p - 1]) &&
+                (p + 2 >= b.length || ZC.syntax.isWs(b[p + 2]) || ZC.syntax.isDelim(b[p + 2]))
+              ) {
+                found = p;
+                break;
+              }
+            }
+            if (found < 0) {
+              lex.pos = b.length;
+            } else {
+              lex.pos = found + 2;
+            }
+            break;
+          }
+          default:
+            // 色・クリップ・マークコンテント等は無視
+            break;
+        }
+        ops = [];
+      }
+    }
+  }
+
+  // フォント情報が取れないときの素朴なデコード（ASCII 前提）
+  function fallbackDecode(bytes) {
+    const out = [];
+    for (let i = 0; i < bytes.length; i++) {
+      const c = bytes[i];
+      out.push({ code: c, str: c >= 32 && c < 127 ? String.fromCharCode(c) : "", w0: 500 });
+    }
+    return out;
+  }
+
+  function normBox(box) {
+    if (!Array.isArray(box) || box.length < 4) return null;
+    const n = box.map(Number);
+    if (n.some((x) => !isFinite(x))) return null;
+    return [Math.min(n[0], n[2]), Math.min(n[1], n[3]), Math.max(n[0], n[2]), Math.max(n[1], n[3])];
+  }
+
+  ZC.content = { ContentExtractor };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 20_axis.js ===== */
+// 通り芯検出: 軸平行の線分を束ねて長い「芯」を推定し、符号ラベルを対応付ける
+(function (ZC) {
+  "use strict";
+
+  const U = ZC.util;
+
+  // 調整パラメータ（単位は pt = 1/72 インチ）。詳細は CLAUDE.md 参照
+  const PARAMS = {
+    ANGLE_TOL: 0.002,      // 軸平行判定: 短辺のずれ ≤ max(0.3pt, 長さ×この値)
+    MIN_PIECE_LEN: 0.4,    // 候補に含める線分の最小長
+    CLUSTER_TOL: 0.35,     // 同一の芯とみなす位置ずれ
+    GAP_TOL: 14,           // 鎖線・破線の切れ目を連結する最大間隔
+    MIN_LEN_RATIO: 0.28,   // 内容範囲に対する最小長さ比
+    MIN_LEN_ABS: 80,       // 最小長さの絶対値
+    FRAME_EDGE_TOL: 3,     // 内容範囲の端からこの距離以内なら図枠の疑い
+    LABEL_RADIUS: 40,      // 端点から符号ラベルを探す半径
+    LABEL_LATERAL: 30,     // 芯の位置とラベルの横ずれの許容
+    CHAIN_MIN_PIECES: 4,   // 分割描画の鎖線とみなす最小の線分本数
+    CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
+    CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
+  };
+
+  // extract: ContentExtractor.run() の結果
+  function detect(extract) {
+    const segs = extract.segments;
+    if (!segs.length) return { v: [], h: [], bbox: null };
+
+    // 内容範囲（全線分のバウンディングボックス）
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const s of segs) {
+      bx0 = Math.min(bx0, s.x1, s.x2);
+      bx1 = Math.max(bx1, s.x1, s.x2);
+      by0 = Math.min(by0, s.y1, s.y2);
+      by1 = Math.max(by1, s.y1, s.y2);
+    }
+    const bbox = { x0: bx0, y0: by0, x1: bx1, y1: by1 };
+
+    // 軸平行線分の収集
+    const vPieces = []; // 縦線: pos=x
+    const hPieces = []; // 横線: pos=y
+    for (const s of segs) {
+      if (s.curve) continue;
+      const dx = Math.abs(s.x1 - s.x2);
+      const dy = Math.abs(s.y1 - s.y2);
+      if (dy >= dx) {
+        const len = dy;
+        if (len < PARAMS.MIN_PIECE_LEN) continue;
+        if (dx <= Math.max(0.3, len * PARAMS.ANGLE_TOL)) {
+          vPieces.push({
+            pos: (s.x1 + s.x2) / 2,
+            a: Math.min(s.y1, s.y2),
+            b: Math.max(s.y1, s.y2),
+            len,
+            dashed: s.dashed,
+          });
+        }
+      } else {
+        const len = dx;
+        if (len < PARAMS.MIN_PIECE_LEN) continue;
+        if (dy <= Math.max(0.3, len * PARAMS.ANGLE_TOL)) {
+          hPieces.push({
+            pos: (s.y1 + s.y2) / 2,
+            a: Math.min(s.x1, s.x2),
+            b: Math.max(s.x1, s.x2),
+            len,
+            dashed: s.dashed,
+          });
+        }
+      }
+    }
+
+    const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1);
+    const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1);
+
+    // 符号ラベルの対応付け（縦横まとめて貪欲法で最短距離から割り当て）
+    assignLabels(vAxes.concat(hAxes), extract.texts);
+
+    for (const list of [vAxes, hAxes]) {
+      list.sort((p, q) => p.pos - q.pos);
+      list.forEach((ax, i) => {
+        ax.index = i;
+        ax.defaultOn = !ax.frameSuspect && (ax.label != null || ax.dashed);
+      });
+    }
+    return { v: vAxes, h: hAxes, bbox };
+  }
+
+  // 同方向の線分群から芯候補を組み立てる
+  function buildAxes(pieces, dir, extentRef, edge0, edge1) {
+    if (!pieces.length) return [];
+    pieces.sort((p, q) => p.pos - q.pos);
+    const clusters = [];
+    let cl = null;
+    for (const p of pieces) {
+      if (cl && p.pos - cl.mean <= PARAMS.CLUSTER_TOL) {
+        cl.items.push(p);
+        cl.wsum += p.pos * p.len;
+        cl.lsum += p.len;
+        cl.mean = cl.wsum / Math.max(cl.lsum, 1e-9);
+      } else {
+        cl = { items: [p], wsum: p.pos * p.len, lsum: p.len, mean: p.pos };
+        clusters.push(cl);
+      }
+    }
+
+    const minLen = Math.max(PARAMS.MIN_LEN_ABS, PARAMS.MIN_LEN_RATIO * extentRef);
+    const axes = [];
+    for (const c of clusters) {
+      // 位置方向に区間をつなぎ、最長の連結チェーンを採用
+      const iv = c.items.slice().sort((p, q) => p.a - q.a);
+      let best = null;
+      let chain = null;
+      for (const p of iv) {
+        if (chain && p.a - chain.to <= PARAMS.GAP_TOL) {
+          chain.to = Math.max(chain.to, p.b);
+          chain.cover += p.len;
+          chain.pieces++;
+          chain.dashedLen += p.dashed ? p.len : 0;
+        } else {
+          chain = { from: p.a, to: p.b, cover: p.len, pieces: 1, dashedLen: p.dashed ? p.len : 0 };
+          if (!best || chain.to - chain.from > best.to - best.from) best = chain;
+        }
+        if (chain.to - chain.from > best.to - best.from) best = chain;
+      }
+      if (!best) continue;
+      const extent = best.to - best.from;
+      if (extent < minLen) continue;
+      const cover = Math.min(1, best.cover / Math.max(extent, 1e-9));
+      const dashedFrac = best.dashedLen / Math.max(best.cover, 1e-9);
+      const chainLike =
+        best.pieces >= PARAMS.CHAIN_MIN_PIECES &&
+        cover >= PARAMS.CHAIN_COVER_MIN &&
+        cover <= PARAMS.CHAIN_COVER_MAX;
+      const pos = c.mean;
+      axes.push({
+        dir,
+        pos,
+        from: best.from,
+        to: best.to,
+        extent,
+        cover,
+        pieces: best.pieces,
+        dashed: dashedFrac > 0.3 || chainLike,
+        frameSuspect:
+          Math.abs(pos - edge0) <= PARAMS.FRAME_EDGE_TOL ||
+          Math.abs(pos - edge1) <= PARAMS.FRAME_EDGE_TOL,
+        label: null,
+        labelXY: null,
+      });
+    }
+    return axes;
+  }
+
+  function assignLabels(axes, texts) {
+    const cands = [];
+    for (const t of texts) {
+      const norm = U.normalizeLabel(t.str);
+      if (!U.isAxisLabel(norm)) continue;
+      cands.push({
+        norm,
+        x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
+        y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
+        size: t.size || 10,
+        used: false,
+      });
+    }
+    if (!cands.length) return;
+    const pairs = [];
+    for (const ax of axes) {
+      const ends =
+        ax.dir === "v"
+          ? [
+              [ax.pos, ax.from],
+              [ax.pos, ax.to],
+            ]
+          : [
+              [ax.from, ax.pos],
+              [ax.to, ax.pos],
+            ];
+      for (const t of cands) {
+        const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
+        if (lateral > PARAMS.LABEL_LATERAL) continue;
+        for (const [ex, ey] of ends) {
+          const d = Math.hypot(t.x - ex, t.y - ey);
+          if (d <= PARAMS.LABEL_RADIUS + t.size) pairs.push({ ax, t, d });
+        }
+      }
+    }
+    pairs.sort((p, q) => p.d - q.d);
+    for (const p of pairs) {
+      if (p.ax.label != null || p.t.used) continue;
+      p.ax.label = p.t.norm;
+      p.ax.labelXY = { x: p.t.x, y: p.t.y };
+      p.t.used = true;
+    }
+  }
+
+  // 表示名（符号が無い芯は方向+連番）
+  function displayName(ax) {
+    if (ax.label != null) return ax.label;
+    return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
+  }
+
+  ZC.axis = { detect, displayName, PARAMS };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 21_scale.js ===== */
+// 縮尺推定: 隣り合う通り芯の間に書かれた寸法値から mm/pt を求める
+(function (ZC) {
+  "use strict";
+
+  const U = ZC.util;
+  const PT_PER_MM = 72 / 25.4;
+
+  // よく使われる縮尺の分母
+  const STD_SCALES = [10, 20, 25, 30, 40, 50, 60, 75, 100, 120, 125, 150, 200, 250, 300, 400, 500, 600, 1000, 1200];
+
+  const PARAMS = {
+    MIN_GAP: 8,        // 寸法探索の対象にする最小の芯間隔(pt)
+    MID_RATIO: 0.35,   // 寸法値は区間中央からこの比率以内にあること
+    PERP_MARGIN: 80,   // 芯の長さ方向の探索マージン(pt)
+    CLUSTER_REL: 0.025 // 同一縮尺とみなす mm/pt の相対差
+  };
+
+  // 有効な芯リストと全テキストから「芯ペアに対応する寸法値」を集める
+  // 戻り値: [{dir, i, aName, bName, value, gapPt, mmPerPt, dist}]
+  function collectDimSamples(vAxes, hAxes, texts) {
+    const dims = [];
+    for (const t of texts) {
+      const value = U.parseDimNumber(t.str);
+      if (value == null) continue;
+      dims.push({
+        value,
+        x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
+        y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
+      });
+    }
+    if (!dims.length) return [];
+    const samples = [];
+    for (const [dir, axes] of [["v", vAxes], ["h", hAxes]]) {
+      const sorted = axes.slice().sort((p, q) => p.pos - q.pos);
+      for (let i = 0; i + 1 < sorted.length; i++) {
+        const a = sorted[i];
+        const b = sorted[i + 1];
+        const gap = b.pos - a.pos;
+        if (gap < PARAMS.MIN_GAP) continue;
+        const mid = (a.pos + b.pos) / 2;
+        const perpLo = Math.min(a.from, b.from) - PARAMS.PERP_MARGIN;
+        const perpHi = Math.max(a.to, b.to) + PARAMS.PERP_MARGIN;
+        let bestDim = null;
+        let bestDist = Infinity;
+        for (const d of dims) {
+          const along = dir === "v" ? d.x : d.y;
+          const perp = dir === "v" ? d.y : d.x;
+          if (perp < perpLo || perp > perpHi) continue;
+          const off = Math.abs(along - mid);
+          if (off > gap * PARAMS.MID_RATIO) continue;
+          if (off < bestDist) {
+            bestDist = off;
+            bestDim = d;
+          }
+        }
+        if (bestDim) {
+          samples.push({
+            dir,
+            i,
+            a,
+            b,
+            value: bestDim.value,
+            gapPt: gap,
+            mmPerPt: bestDim.value / gap,
+            dist: bestDist,
+          });
+        }
+      }
+    }
+    return samples;
+  }
+
+  // サンプル群から縮尺を推定する
+  // 戻り値: {den, mmPerPt, snapped, count} または den=null（推定不能）
+  function infer(samples) {
+    if (!samples.length) return { den: null, mmPerPt: null, snapped: false, count: 0 };
+    const vals = samples.map((s) => s.mmPerPt).sort((a, b) => a - b);
+    // 相対差 CLUSTER_REL 以内に収まる最大の窓を探す
+    let bestLo = 0;
+    let bestN = 1;
+    for (let lo = 0, hi = 0; lo < vals.length; lo++) {
+      if (hi < lo) hi = lo;
+      while (hi + 1 < vals.length && vals[hi + 1] <= vals[lo] * (1 + PARAMS.CLUSTER_REL)) hi++;
+      if (hi - lo + 1 > bestN) {
+        bestN = hi - lo + 1;
+        bestLo = lo;
+      }
+    }
+    const win = vals.slice(bestLo, bestLo + bestN);
+    let mmPerPt = U.median(win);
+    let den = mmPerPt * PT_PER_MM;
+    let snapped = false;
+    for (const s of STD_SCALES) {
+      if (Math.abs(den / s - 1) <= 0.02) {
+        den = s;
+        mmPerPt = s / PT_PER_MM;
+        snapped = true;
+        break;
+      }
+    }
+    return { den, mmPerPt, snapped, count: bestN };
+  }
+
+  function mmPerPtFromDen(den) {
+    return den / PT_PER_MM;
+  }
+
+  ZC.scale = { collectDimSamples, infer, mmPerPtFromDen, PT_PER_MM, PARAMS, STD_SCALES };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 22_compare.js ===== */
+// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す
+(function (ZC) {
+  "use strict";
+
+  const U = ZC.util;
+
+  const PARAMS = {
+    MATCH_TOL_MM: 25, // 位置による対応付けの最大ずれ(mm)
+  };
+
+  const DIR_NAME = { v: "縦(X方向の並び)", h: "横(Y方向の並び)" };
+
+  // side: {v:[axes], h:[axes], mmPerPt, dimSamples, name}
+  // opts: {tol, checks:{labels, spacing, total, dims}}
+  function compare(base, cmp, opts) {
+    const tol = opts.tol > 0 ? opts.tol : 1;
+    const checks = opts.checks || {};
+    const rows = [];
+
+    for (const dir of ["v", "h"]) {
+      const bList = prep(base[dir], base.mmPerPt);
+      const cList = prep(cmp[dir], cmp.mmPerPt);
+      const { matches, bOnly, cOnly } = matchAxes(bList, cList);
+
+      if (checks.labels !== false) {
+        let ngCount = 0;
+        for (const m of matches) {
+          if (m.b.label != null && m.c.label != null && m.b.label !== m.c.label) {
+            rows.push(
+              row("符号", dir, m.b.name + " ↔ " + m.c.name, m.b.label, m.c.label, null, "NG", "符号が一致しません", {
+                b: [m.b.ax],
+                c: [m.c.ax],
+              })
+            );
+            ngCount++;
+          }
+        }
+        for (const b of bOnly) {
+          rows.push(
+            row("符号", dir, b.name, "あり", "なし", null, b.label != null ? "NG" : "WARN", "比較図面に対応する芯がありません", {
+              b: [b.ax],
+              c: [],
+            })
+          );
+          ngCount++;
+        }
+        for (const c of cOnly) {
+          rows.push(
+            row("符号", dir, c.name, "なし", "あり", null, c.label != null ? "NG" : "WARN", "基準図面に対応する芯がありません", {
+              b: [],
+              c: [c.ax],
+            })
+          );
+          ngCount++;
+        }
+        if (!ngCount && matches.length) {
+          rows.push(
+            row("符号", dir, "全" + matches.length + "本", matches.map((m) => m.b.name).join(" "), "対応あり", null, "OK", "", {
+              b: matches.map((m) => m.b.ax),
+              c: matches.map((m) => m.c.ax),
+            })
+          );
+        }
+      }
+
+      if (checks.spacing !== false) {
+        for (let i = 0; i + 1 < matches.length; i++) {
+          const p = matches[i];
+          const q = matches[i + 1];
+          const dB = q.b.mm - p.b.mm;
+          const dC = q.c.mm - p.c.mm;
+          const diff = dC - dB;
+          rows.push(
+            row(
+              "芯々寸法",
+              dir,
+              p.b.name + "〜" + q.b.name,
+              U.fmtMm(dB),
+              U.fmtMm(dC),
+              diff,
+              Math.abs(diff) <= tol ? "OK" : "NG",
+              "",
+              { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
+            )
+          );
+        }
+      }
+
+      if (checks.total !== false && matches.length >= 2) {
+        const p = matches[0];
+        const q = matches[matches.length - 1];
+        const dB = q.b.mm - p.b.mm;
+        const dC = q.c.mm - p.c.mm;
+        const diff = dC - dB;
+        rows.push(
+          row(
+            "全体寸法",
+            dir,
+            p.b.name + "〜" + q.b.name,
+            U.fmtMm(dB),
+            U.fmtMm(dC),
+            diff,
+            Math.abs(diff) <= tol ? "OK" : "NG",
+            "",
+            { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
+          )
+        );
+      }
+    }
+
+    // 図面内の寸法注記と作図位置の食い違い（各図面ごと）
+    if (checks.dims) {
+      for (const side of [base, cmp]) {
+        const isBase = side === base;
+        for (const s of side.dimSamples || []) {
+          const geomMm = s.gapPt * side.mmPerPt;
+          const diff = geomMm - s.value;
+          rows.push(
+            row(
+              "寸法値整合(" + side.name + ")",
+              s.dir,
+              nameOf(s.a) + "〜" + nameOf(s.b),
+              U.fmtMm(s.value, 0),
+              U.fmtMm(geomMm),
+              diff,
+              Math.abs(diff) <= tol ? "OK" : "NG",
+              "注記寸法と作図上の芯々距離の比較",
+              { b: isBase ? [s.a, s.b] : [], c: isBase ? [] : [s.a, s.b] }
+            )
+          );
+        }
+      }
+    }
+
+    const summary = { ok: 0, ng: 0, warn: 0 };
+    for (const r of rows) {
+      if (r.status === "OK") summary.ok++;
+      else if (r.status === "NG") summary.ng++;
+      else summary.warn++;
+    }
+    return { rows, summary };
+  }
+
+  function prep(axes, mmPerPt) {
+    const sorted = (axes || []).slice().sort((p, q) => p.pos - q.pos);
+    return sorted.map((ax) => ({
+      ax,
+      label: ax.label != null ? ax.label : null,
+      // UI の一覧と同じ表示名（検出時の連番）を使う
+      name: nameOf(ax),
+      mm: ax.pos * mmPerPt,
+    }));
+  }
+
+  function nameOf(ax) {
+    return ax.label != null ? ax.label : ZC.axis.displayName(ax);
+  }
+
+  // 符号一致を優先し、残りは位置（オフセット補正後）で対応付ける
+  function matchAxes(bList, cList) {
+    const matches = [];
+    const usedC = new Set();
+    const byLabel = new Map();
+    for (const c of cList) {
+      if (c.label != null && !byLabel.has(c.label)) byLabel.set(c.label, c);
+    }
+    const bRest = [];
+    for (const b of bList) {
+      const c = b.label != null ? byLabel.get(b.label) : undefined;
+      if (c && !usedC.has(c)) {
+        matches.push({ b, c });
+        usedC.add(c);
+      } else {
+        bRest.push(b);
+      }
+    }
+    // 位置合わせ用オフセット: 符号一致ペアの中央値、なければ先頭同士
+    let offset = 0;
+    if (matches.length) {
+      offset = U.median(matches.map((m) => m.c.mm - m.b.mm));
+    } else if (bList.length && cList.length) {
+      offset = cList[0].mm - bList[0].mm;
+    }
+    const cRest = cList.filter((c) => !usedC.has(c));
+    for (const b of bRest) {
+      let best = null;
+      let bestD = PARAMS.MATCH_TOL_MM;
+      for (const c of cRest) {
+        if (usedC.has(c)) continue;
+        const d = Math.abs(c.mm - (b.mm + offset));
+        if (d <= bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      if (best) {
+        matches.push({ b, c: best });
+        usedC.add(best);
+      }
+    }
+    matches.sort((p, q) => p.b.mm - q.b.mm);
+    const bOnly = bList.filter((b) => !matches.some((m) => m.b === b));
+    const cOnly = cList.filter((c) => !usedC.has(c));
+    return { matches, bOnly, cOnly };
+  }
+
+  function row(check, dir, item, baseVal, cmpVal, diffMm, status, note, refs) {
+    const r = {
+      check,
+      dir: DIR_NAME[dir] || dir,
+      item,
+      base: baseVal,
+      cmp: cmpVal,
+      diff: diffMm == null ? null : diffMm,
+      status,
+      note: note || "",
+    };
+    if (refs) {
+      // UI がビュワー強調に使う芯オブジェクト参照。列挙不可にして JSON/CSV には出さない
+      Object.defineProperty(r, "refs", { value: refs, enumerable: false });
+    }
+    return r;
+  }
+
+  ZC.compare = { compare, matchAxes, PARAMS };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 30_ui.js ===== */
+// UI 層: ファイル読み込み・対話ビュワー（ズーム/パン/測定/寸法表示）・芯リスト・照合結果表示
+// DOM を触るのはこのファイルと 31_app.js のみ（テストは 2x系までのロジックを対象とする）
+(function (ZC) {
+  "use strict";
+
+  const U = ZC.util;
+
+  const COLORS = {
+    seg: "#b9c0c7",
+    v: "#1565d8",
+    h: "#0a8f4e",
+    off: "#c7c7c7",
+    hover: "#f5820a",
+    dim: "#a15c00",
+    measure: "#d81b60",
+  };
+
+  function el(tag, attrs, children) {
+    const e = document.createElement(tag);
+    if (attrs) {
+      for (const k of Object.keys(attrs)) {
+        if (k === "class") e.className = attrs[k];
+        else if (k === "text") e.textContent = attrs[k];
+        else if (k.startsWith("on")) e.addEventListener(k.slice(2), attrs[k]);
+        else e.setAttribute(k, attrs[k]);
+      }
+    }
+    for (const c of children || []) e.appendChild(c);
+    return e;
+  }
+
+  // 白フチ付き文字（図面の上でも読めるように）
+  function haloText(ctx, str, x, y) {
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.strokeText(str, x, y);
+    ctx.fillText(str, x, y);
+  }
+
+  class Panel {
+    constructor(key, title, container) {
+      this.key = key;
+      this.title = title;
+      this.root = container;
+      this.doc = null;
+      this.pages = [];
+      this.extract = null;
+      this.axes = { v: [], h: [] };
+      this.enabled = new Set();
+      this.fileName = "";
+      // ビュワー状態
+      this.view = null; // {scale, ox, oy, fitScale}
+      this.showDims = true;
+      this.measuring = false;
+      this.measure = null; // {a:{x,y}, b:{x,y}} ページ座標
+      this.measureTemp = null;
+      this._measureCursor = null;
+      this.hoverAx = null;
+      this.highlightAxes = null; // 照合結果ホバーからの強調
+      this._rowMap = new Map(); // axis -> {tr, cb}
+      this._drag = null;
+      this._raf = 0;
+      this._build();
+    }
+
+    _build() {
+      this.root.innerHTML =
+        '<div class="file-row">' +
+        '<label class="file-btn">PDFを選択<input type="file" accept=".pdf,application/pdf" hidden></label>' +
+        '<span class="fname">未選択</span>' +
+        "</div>" +
+        '<div class="ctrl-row">' +
+        '<label>ページ <select class="page-sel" disabled></select></label>' +
+        '<label>縮尺 1/<input class="scale-in" type="number" value="100" min="1" step="any"></label>' +
+        '<span class="scale-note"></span>' +
+        "</div>" +
+        '<div class="status"></div>' +
+        '<div class="viewer-bar">' +
+        '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
+        '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
+        '<label title="チェック中の芯の芯々寸法を図上に表示"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
+        '<span class="zoom-label">—</span>' +
+        '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:照合ON/OFF</span>' +
+        "</div>" +
+        '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
+        '<div class="axis-list"></div>';
+      this.$file = this.root.querySelector('input[type="file"]');
+      this.$fname = this.root.querySelector(".fname");
+      this.$page = this.root.querySelector(".page-sel");
+      this.$scale = this.root.querySelector(".scale-in");
+      this.$scaleNote = this.root.querySelector(".scale-note");
+      this.$status = this.root.querySelector(".status");
+      this.$wrap = this.root.querySelector(".viewer-wrap");
+      this.$canvas = this.root.querySelector("canvas");
+      this.$tip = this.root.querySelector(".axtip");
+      this.$list = this.root.querySelector(".axis-list");
+      this.$zoom = this.root.querySelector(".zoom-label");
+      this.$fit = this.root.querySelector(".vb-fit");
+      this.$measureBtn = this.root.querySelector(".vb-measure");
+      this.$dims = this.root.querySelector(".vb-dims");
+
+      this.$file.addEventListener("change", () => this._onFile());
+      this.$page.addEventListener("change", () => this.loadPage(Number(this.$page.value)));
+      this.$scale.addEventListener("input", () => {
+        this.requestRender();
+        this.renderList();
+        ZC.ui.updateRunButton();
+      });
+      this.$fit.addEventListener("click", () => {
+        this.fit();
+        this.requestRender();
+      });
+      this.$measureBtn.addEventListener("click", () => this.setMeasuring(!this.measuring));
+      this.$dims.addEventListener("change", () => {
+        this.showDims = this.$dims.checked;
+        this.requestRender();
+      });
+
+      const cv = this.$canvas;
+      cv.addEventListener("wheel", (e) => this._onWheel(e), { passive: false });
+      cv.addEventListener("mousedown", (e) => this._onDown(e));
+      cv.addEventListener("mousemove", (e) => this._onMove(e));
+      cv.addEventListener("mouseup", (e) => this._onUp(e));
+      cv.addEventListener("mouseleave", () => {
+        this._drag = null;
+        this.hoverAx = null;
+        this._measureCursor = null;
+        this._tip(null);
+        this._syncRowHl();
+        this.requestRender();
+      });
+      cv.addEventListener("dblclick", () => {
+        this.fit();
+        this.requestRender();
+      });
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(() => this.requestRender()).observe(this.$wrap);
+      }
+    }
+
+    setStatus(msg, kind) {
+      this.$status.textContent = msg || "";
+      this.$status.className = "status" + (kind ? " " + kind : "");
+    }
+
+    setMeasuring(on) {
+      this.measuring = on;
+      if (!on) this.measureTemp = null;
+      this.$measureBtn.classList.toggle("active", on);
+      this.$canvas.style.cursor = on ? "crosshair" : "grab";
+      this.requestRender();
+    }
+
+    // Esc: 測定の解除
+    cancelMeasure() {
+      if (!this.measuring && !this.measure) return;
+      this.measure = null;
+      this.measureTemp = null;
+      this.setMeasuring(false);
+    }
+
+    async _onFile() {
+      const f = this.$file.files && this.$file.files[0];
+      if (!f) return;
+      this.fileName = f.name;
+      this.$fname.textContent = f.name;
+      this.setStatus("読み込み中…");
+      this.doc = null;
+      this.pages = [];
+      this.extract = null;
+      this.axes = { v: [], h: [] };
+      this.enabled.clear();
+      try {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        this.doc = await ZC.pdf.PDFDocument.load(buf);
+        this.pages = await this.doc.getPages();
+        this.$page.innerHTML = "";
+        this.pages.forEach((_, i) => {
+          this.$page.appendChild(el("option", { value: String(i), text: String(i + 1) + " / " + this.pages.length }));
+        });
+        this.$page.disabled = this.pages.length <= 1;
+        await this.loadPage(0);
+      } catch (e) {
+        this.doc = null;
+        this.setStatus("読み込みに失敗しました: " + (e && e.message ? e.message : e), "error");
+        this.requestRender();
+        this.renderList();
+        ZC.ui.updateRunButton();
+      }
+    }
+
+    async loadPage(index) {
+      if (!this.doc || !this.pages[index]) return;
+      this.setStatus("解析中…");
+      try {
+        const ex = new ZC.content.ContentExtractor(this.doc);
+        this.extract = await ex.run(this.pages[index]);
+        const det = ZC.axis.detect(this.extract);
+        this.axes = { v: det.v, h: det.h };
+        this.enabled.clear();
+        for (const ax of det.v.concat(det.h)) {
+          if (ax.defaultOn) this.enabled.add(ax);
+        }
+        this.view = null; // 再フィット
+        this.measure = null;
+        this.measureTemp = null;
+        this.highlightAxes = null;
+        // 縮尺の自動推定（既定ONの芯のみを対象）
+        const onV = det.v.filter((a) => this.enabled.has(a));
+        const onH = det.h.filter((a) => this.enabled.has(a));
+        const samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
+        const inf = ZC.scale.infer(samples);
+        if (inf.den != null) {
+          const den = inf.snapped ? inf.den : Math.round(inf.den * 10) / 10;
+          this.$scale.value = String(den);
+          this.$scaleNote.textContent = "自動推定 1/" + den + "（寸法値" + inf.count + "件より）";
+        } else {
+          this.$scaleNote.textContent = "縮尺を推定できません。手入力してください。";
+        }
+        const nSeg = this.extract.segments.length;
+        if (nSeg === 0) {
+          this.setStatus(
+            this.extract.imageCount > 0
+              ? "線分を抽出できませんでした。スキャン（ラスタ）PDFの可能性があります。"
+              : "線分を抽出できませんでした。",
+            "error"
+          );
+        } else {
+          const on = this.enabled.size;
+          this.setStatus(
+            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）。誤検出はチェックを外してください。"
+          );
+        }
+      } catch (e) {
+        this.extract = null;
+        this.axes = { v: [], h: [] };
+        this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
+      }
+      this.requestRender();
+      this.renderList();
+      ZC.ui.updateRunButton();
+    }
+
+    allAxes() {
+      return this.axes.v.concat(this.axes.h);
+    }
+
+    enabledAxes() {
+      return {
+        v: this.axes.v.filter((a) => this.enabled.has(a)),
+        h: this.axes.h.filter((a) => this.enabled.has(a)),
+      };
+    }
+
+    mmPerPt() {
+      const den = Number(this.$scale.value);
+      return den > 0 ? ZC.scale.mmPerPtFromDen(den) : null;
+    }
+
+    ready() {
+      return !!(this.extract && this.enabled.size >= 1 && this.mmPerPt());
+    }
+
+    setHighlight(axes) {
+      this.highlightAxes = axes && axes.length ? axes : null;
+      this.requestRender();
+    }
+
+    toggleAxis(ax) {
+      if (this.enabled.has(ax)) this.enabled.delete(ax);
+      else this.enabled.add(ax);
+      const row = this._rowMap.get(ax);
+      if (row) {
+        row.cb.checked = this.enabled.has(ax);
+        row.tr.classList.toggle("off", !this.enabled.has(ax));
+      }
+      this.requestRender();
+      ZC.ui.updateRunButton();
+    }
+
+    // ---- 座標変換 -------------------------------------------------------
+    // ページ座標(pt, y上向き) ⇔ キャンバスCSS座標(y下向き)
+
+    toScreen(x, y) {
+      const v = this.view;
+      return [v.ox + x * v.scale, v.oy + (this.extract.height - y) * v.scale];
+    }
+
+    toPage(sx, sy) {
+      const v = this.view;
+      return [(sx - v.ox) / v.scale, this.extract.height - (sy - v.oy) / v.scale];
+    }
+
+    fit() {
+      if (!this.extract) return;
+      const W = this.$canvas.clientWidth || 600;
+      const H = this.$canvas.clientHeight || 380;
+      const pad = 10;
+      const k = Math.min((W - pad * 2) / this.extract.width, (H - pad * 2) / this.extract.height);
+      this.view = {
+        scale: k,
+        ox: (W - this.extract.width * k) / 2,
+        oy: (H - this.extract.height * k) / 2,
+        fitScale: k,
+      };
+    }
+
+    // ---- 入力イベント ----------------------------------------------------
+
+    _onWheel(e) {
+      if (!this.extract) return;
+      e.preventDefault();
+      if (!this.view) this.fit();
+      const v = this.view;
+      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+      const k2 = Math.min(v.fitScale * 800, Math.max(v.fitScale * 0.15, v.scale * factor));
+      const mx = e.offsetX;
+      const my = e.offsetY;
+      v.ox = mx - ((mx - v.ox) * k2) / v.scale;
+      v.oy = my - ((my - v.oy) * k2) / v.scale;
+      v.scale = k2;
+      this.requestRender();
+    }
+
+    _onDown(e) {
+      if (!this.extract || e.button !== 0) return;
+      e.preventDefault();
+      this._drag = { mx: e.offsetX, my: e.offsetY, ox: this.view.ox, oy: this.view.oy, moved: false };
+    }
+
+    _onMove(e) {
+      if (!this.extract || !this.view) return;
+      const mx = e.offsetX;
+      const my = e.offsetY;
+      if (this._drag) {
+        const dx = mx - this._drag.mx;
+        const dy = my - this._drag.my;
+        if (Math.abs(dx) + Math.abs(dy) > 3) this._drag.moved = true;
+        if (this._drag.moved) {
+          this.view.ox = this._drag.ox + dx;
+          this.view.oy = this._drag.oy + dy;
+          this.$canvas.style.cursor = "grabbing";
+          this._tip(null);
+          this.requestRender();
+          return;
+        }
+      }
+      if (this.measuring) {
+        const [px, py] = this.toPage(mx, my);
+        this._measureCursor = this._snap(px, py);
+        this._tip(null);
+        this.requestRender();
+        return;
+      }
+      // ホバー判定
+      const hit = this._hitAxis(mx, my);
+      if (hit !== this.hoverAx) {
+        this.hoverAx = hit;
+        this._syncRowHl();
+        this.requestRender();
+      }
+      this.$canvas.style.cursor = hit ? "pointer" : "grab";
+      this._tip(hit, mx, my);
+    }
+
+    _onUp(e) {
+      if (!this.extract || !this.view) return;
+      const wasDrag = this._drag && this._drag.moved;
+      this._drag = null;
+      this.$canvas.style.cursor = this.measuring ? "crosshair" : "grab";
+      if (wasDrag) return;
+      const mx = e.offsetX;
+      const my = e.offsetY;
+      if (this.measuring) {
+        const [px, py] = this.toPage(mx, my);
+        const pt = this._snap(px, py);
+        if (!this.measureTemp) {
+          this.measureTemp = pt;
+          this.measure = null;
+        } else {
+          this.measure = { a: this.measureTemp, b: pt };
+          this.measureTemp = null;
+        }
+        this.requestRender();
+        return;
+      }
+      const hit = this._hitAxis(mx, my);
+      if (hit) {
+        this.toggleAxis(hit);
+        this._tip(hit, mx, my); // ON/OFF後の状態をツールチップへ即反映
+      }
+    }
+
+    // 画面座標での芯のヒットテスト（6px以内）
+    _hitAxis(mx, my) {
+      if (!this.view) return null;
+      let best = null;
+      let bestD = 6;
+      for (const ax of this.allAxes()) {
+        let d;
+        if (ax.dir === "v") {
+          const [sx] = this.toScreen(ax.pos, 0);
+          const [, sy1] = this.toScreen(0, ax.to);
+          const [, sy2] = this.toScreen(0, ax.from);
+          if (my < sy1 - 6 || my > sy2 + 6) continue;
+          d = Math.abs(mx - sx);
+        } else {
+          const [, sy] = this.toScreen(0, ax.pos);
+          const [sx1] = this.toScreen(ax.from, 0);
+          const [sx2] = this.toScreen(ax.to, 0);
+          if (mx < sx1 - 6 || mx > sx2 + 6) continue;
+          d = Math.abs(my - sy);
+        }
+        if (d < bestD) {
+          bestD = d;
+          best = ax;
+        }
+      }
+      return best;
+    }
+
+    // 測定点のスナップ（芯の位置・線分端点）
+    _snap(px, py) {
+      const tol = 8 / this.view.scale;
+      let sx = px;
+      let sy = py;
+      let dx = tol;
+      let dy = tol;
+      let snapped = false;
+      for (const ax of this.allAxes()) {
+        if (ax.dir === "v") {
+          const d = Math.abs(px - ax.pos);
+          if (d < dx) {
+            dx = d;
+            sx = ax.pos;
+            snapped = true;
+          }
+        } else {
+          const d = Math.abs(py - ax.pos);
+          if (d < dy) {
+            dy = d;
+            sy = ax.pos;
+            snapped = true;
+          }
+        }
+      }
+      if (this.extract.segments.length <= 30000) {
+        // 端点は「現在のスナップ結果より近い」場合のみ採用する
+        let bd = snapped ? Math.hypot(sx - px, sy - py) : tol;
+        for (const s of this.extract.segments) {
+          const d1 = Math.hypot(px - s.x1, py - s.y1);
+          if (d1 < bd) {
+            bd = d1;
+            sx = s.x1;
+            sy = s.y1;
+            snapped = true;
+          }
+          const d2 = Math.hypot(px - s.x2, py - s.y2);
+          if (d2 < bd) {
+            bd = d2;
+            sx = s.x2;
+            sy = s.y2;
+            snapped = true;
+          }
+        }
+      }
+      return { x: sx, y: sy, snapped };
+    }
+
+    _tip(ax, mx, my) {
+      if (!ax) {
+        this.$tip.style.display = "none";
+        return;
+      }
+      const mmp = this.mmPerPt();
+      const pos = mmp ? U.fmtMm(ax.pos * mmp, 0) + " mm" : U.fmtMm(ax.pos, 1) + " pt";
+      const len = mmp ? U.fmtMm(ax.extent * mmp, 0) + " mm" : U.fmtMm(ax.extent, 1) + " pt";
+      this.$tip.textContent =
+        ZC.axis.displayName(ax) +
+        "  位置 " + pos + " / 長さ " + len +
+        " / " + (ax.dashed ? "鎖線" : "実線") +
+        (ax.frameSuspect ? "・図枠?" : "") +
+        (this.enabled.has(ax) ? " / 照合対象" : " / 対象外（クリックでON）");
+      this.$tip.style.display = "block";
+      const ww = this.$wrap.clientWidth;
+      const tw = this.$tip.offsetWidth;
+      this.$tip.style.left = Math.max(2, Math.min(mx + 14, ww - tw - 4)) + "px";
+      this.$tip.style.top = my + 16 + "px";
+    }
+
+    _syncRowHl() {
+      for (const [ax, row] of this._rowMap) {
+        row.tr.classList.toggle("hl", ax === this.hoverAx);
+      }
+    }
+
+    // ---- 描画 ------------------------------------------------------------
+
+    requestRender() {
+      if (this._raf) return;
+      const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 16);
+      this._raf = raf(() => {
+        this._raf = 0;
+        this.renderCanvas();
+      });
+    }
+
+    renderCanvas() {
+      const cv = this.$canvas;
+      const cssW = cv.clientWidth || 600;
+      const cssH = cv.clientHeight || 380;
+      const dpr = globalThis.devicePixelRatio || 1;
+      if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) {
+        cv.width = Math.round(cssW * dpr);
+        cv.height = Math.round(cssH * dpr);
+      }
+      const ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, cssW, cssH);
+      if (!this.extract || !this.extract.segments.length) {
+        this.$zoom.textContent = "—";
+        ctx.fillStyle = "#8a939b";
+        ctx.font = "13px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          this.doc ? "表示できる線分がありません" : "PDFを読み込むとここにプレビューが表示されます",
+          cssW / 2,
+          cssH / 2
+        );
+        return;
+      }
+      if (!this.view) this.fit();
+      const v = this.view;
+      this.$zoom.textContent = Math.round((v.scale / v.fitScale) * 100) + "%";
+
+      // 可視範囲（ページ座標）— 範囲外の線分は描かない
+      const [px0, py1] = this.toPage(0, 0);
+      const [px1, py0] = this.toPage(cssW, cssH);
+      const m = 2 / v.scale;
+
+      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = COLORS.seg;
+      ctx.beginPath();
+      const segs = this.extract.segments;
+      const maxDraw = 200000;
+      for (let i = 0; i < segs.length && i < maxDraw; i++) {
+        const s = segs[i];
+        if (Math.max(s.x1, s.x2) < px0 - m || Math.min(s.x1, s.x2) > px1 + m) continue;
+        if (Math.max(s.y1, s.y2) < py0 - m || Math.min(s.y1, s.y2) > py1 + m) continue;
+        const a = this.toScreen(s.x1, s.y1);
+        const b = this.toScreen(s.x2, s.y2);
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+
+      this._drawHighlightBand(ctx);
+      this._drawAxes(ctx);
+      if (this.showDims) this._drawDims(ctx);
+      this._drawMeasure(ctx);
+    }
+
+    _axisScreenSeg(ax) {
+      if (ax.dir === "v") {
+        const [sx] = this.toScreen(ax.pos, 0);
+        const [, sy1] = this.toScreen(0, ax.to);
+        const [, sy2] = this.toScreen(0, ax.from);
+        return [sx, sy1, sx, sy2];
+      }
+      const [, sy] = this.toScreen(0, ax.pos);
+      const [sx1] = this.toScreen(ax.from, 0);
+      const [sx2] = this.toScreen(ax.to, 0);
+      return [sx1, sy, sx2, sy];
+    }
+
+    _drawAxes(ctx) {
+      const hl = this.highlightAxes;
+      for (const ax of this.allAxes()) {
+        const on = this.enabled.has(ax);
+        const hover = this.hoverAx === ax || (hl && hl.includes(ax));
+        ctx.lineWidth = hover ? 2.5 : on ? 1.6 : 1;
+        ctx.strokeStyle = hover ? COLORS.hover : !on ? COLORS.off : ax.dir === "v" ? COLORS.v : COLORS.h;
+        ctx.setLineDash(on || hover ? [7, 3, 2, 3] : [2, 3]);
+        const [x1, y1, x2, y2] = this._axisScreenSeg(ax);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (on || hover) {
+          const name = ZC.axis.displayName(ax);
+          ctx.fillStyle = hover ? COLORS.hover : ax.dir === "v" ? COLORS.v : COLORS.h;
+          ctx.font = "bold 11px sans-serif";
+          if (ax.dir === "v") {
+            ctx.textAlign = "center";
+            haloText(ctx, name, x1, y1 - 4);
+          } else {
+            ctx.textAlign = "right";
+            haloText(ctx, name, x1 - 4, y1 + 4);
+          }
+        }
+      }
+    }
+
+    // 照合結果ホバー時の強調帯（2本ならその間を塗る）
+    _drawHighlightBand(ctx) {
+      const hl = this.highlightAxes;
+      if (!hl || hl.length < 2) return;
+      const dirs = new Set(hl.map((a) => a.dir));
+      if (dirs.size !== 1) return;
+      const sorted = hl.slice().sort((a, b) => a.pos - b.pos);
+      const a = sorted[0];
+      const b = sorted[sorted.length - 1];
+      ctx.fillStyle = "rgba(245,130,10,0.13)";
+      if (a.dir === "v") {
+        const [x1] = this.toScreen(a.pos, 0);
+        const [x2] = this.toScreen(b.pos, 0);
+        const [, yTop] = this.toScreen(0, Math.max(a.to, b.to));
+        const [, yBot] = this.toScreen(0, Math.min(a.from, b.from));
+        ctx.fillRect(x1, yTop, x2 - x1, yBot - yTop);
+      } else {
+        const [, y1] = this.toScreen(0, b.pos);
+        const [, y2] = this.toScreen(0, a.pos);
+        const [xL] = this.toScreen(Math.min(a.from, b.from), 0);
+        const [xR] = this.toScreen(Math.max(a.to, b.to), 0);
+        ctx.fillRect(xL, y1, xR - xL, y2 - y1);
+      }
+    }
+
+    // 芯々寸法のオーバーレイ（チェック中の芯のみ）
+    _drawDims(ctx) {
+      const mmp = this.mmPerPt();
+      if (!mmp) return;
+      const en = this.enabledAxes();
+      ctx.font = "11px sans-serif";
+      ctx.strokeStyle = COLORS.dim;
+      ctx.fillStyle = COLORS.dim;
+      ctx.lineWidth = 1;
+
+      // 縦芯（上側に水平の寸法線）
+      const vs = en.v.slice().sort((a, b) => a.pos - b.pos);
+      if (vs.length >= 2) {
+        const topPage = Math.max(...vs.map((a) => a.to));
+        const [, yDim] = this.toScreen(0, topPage);
+        const y = yDim - 22;
+        const [xs] = this.toScreen(vs[0].pos, 0);
+        const [xe] = this.toScreen(vs[vs.length - 1].pos, 0);
+        ctx.beginPath();
+        ctx.moveTo(xs, y);
+        ctx.lineTo(xe, y);
+        for (const ax of vs) {
+          const [sx] = this.toScreen(ax.pos, 0);
+          ctx.moveTo(sx, y - 4);
+          ctx.lineTo(sx, y + 4);
+        }
+        ctx.stroke();
+        ctx.textAlign = "center";
+        for (let i = 0; i + 1 < vs.length; i++) {
+          const [x1] = this.toScreen(vs[i].pos, 0);
+          const [x2] = this.toScreen(vs[i + 1].pos, 0);
+          if (x2 - x1 < 34) continue; // 狭すぎる区間は省略
+          const val = U.fmtMm((vs[i + 1].pos - vs[i].pos) * mmp, 0);
+          haloText(ctx, val, (x1 + x2) / 2, y - 4);
+        }
+      }
+
+      // 横芯（左側に垂直の寸法線・文字は90度回転）
+      const hs = en.h.slice().sort((a, b) => a.pos - b.pos);
+      if (hs.length >= 2) {
+        const leftPage = Math.min(...hs.map((a) => a.from));
+        const [xDim] = this.toScreen(leftPage, 0);
+        const x = xDim - 22;
+        const [, ys] = this.toScreen(0, hs[0].pos);
+        const [, ye] = this.toScreen(0, hs[hs.length - 1].pos);
+        ctx.beginPath();
+        ctx.moveTo(x, ys);
+        ctx.lineTo(x, ye);
+        for (const ax of hs) {
+          const [, sy] = this.toScreen(0, ax.pos);
+          ctx.moveTo(x - 4, sy);
+          ctx.lineTo(x + 4, sy);
+        }
+        ctx.stroke();
+        for (let i = 0; i + 1 < hs.length; i++) {
+          const [, y1] = this.toScreen(0, hs[i].pos);
+          const [, y2] = this.toScreen(0, hs[i + 1].pos);
+          if (y1 - y2 < 34) continue;
+          const val = U.fmtMm((hs[i + 1].pos - hs[i].pos) * mmp, 0);
+          ctx.save();
+          ctx.translate(x - 4, (y1 + y2) / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = "center";
+          haloText(ctx, val, 0, 0);
+          ctx.restore();
+        }
+      }
+    }
+
+    _drawMeasure(ctx) {
+      const a = this.measure ? this.measure.a : this.measureTemp;
+      const b = this.measure ? this.measure.b : this.measuring ? this._measureCursor : null;
+      if (!a) return;
+      const pA = this.toScreen(a.x, a.y);
+      ctx.fillStyle = COLORS.measure;
+      ctx.strokeStyle = COLORS.measure;
+      const mark = (p, snapped) => {
+        ctx.beginPath();
+        if (snapped) ctx.rect(p[0] - 3.5, p[1] - 3.5, 7, 7);
+        else ctx.arc(p[0], p[1], 3, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      mark(pA, a.snapped);
+      if (!b) return;
+      const pB = this.toScreen(b.x, b.y);
+      mark(pB, b.snapped);
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pA[0], pA[1]);
+      ctx.lineTo(pB[0], pB[1]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const mmp = this.mmPerPt();
+      const f = (val) => U.fmtMm(val * (mmp || 1), 1);
+      const unit = mmp ? "mm" : "pt";
+      const dx = Math.abs(b.x - a.x);
+      const dy = Math.abs(b.y - a.y);
+      const len = Math.hypot(dx, dy);
+      const label = f(len) + " " + unit + "（ΔX " + f(dx) + " / ΔY " + f(dy) + "）";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "left";
+      const mx = (pA[0] + pB[0]) / 2 + 8;
+      const my = (pA[1] + pB[1]) / 2 - 8;
+      haloText(ctx, label, mx, my);
+    }
+
+    // ---- 一覧 ------------------------------------------------------------
+
+    renderList() {
+      this.$list.innerHTML = "";
+      this._rowMap = new Map();
+      const axes = this.allAxes();
+      if (!axes.length) return;
+      const table = el("table", { class: "axes" });
+      const thead = el("thead");
+      thead.innerHTML =
+        "<tr><th>照合</th><th>方向</th><th>符号</th><th>位置(mm)</th><th>長さ(mm)</th><th>線種</th></tr>";
+      table.appendChild(thead);
+      const tbody = el("tbody");
+      const mmPerPt = this.mmPerPt() || 0;
+      const list = this.axes.v.concat(this.axes.h);
+      for (const ax of list) {
+        const tr = el("tr", {
+          class: this.enabled.has(ax) ? "" : "off",
+          onmouseenter: () => {
+            this.hoverAx = ax;
+            this.requestRender();
+          },
+          onmouseleave: () => {
+            this.hoverAx = null;
+            this.requestRender();
+          },
+        });
+        const cb = el("input", { type: "checkbox" });
+        cb.checked = this.enabled.has(ax);
+        cb.addEventListener("change", () => {
+          if (cb.checked) this.enabled.add(ax);
+          else this.enabled.delete(ax);
+          tr.className = cb.checked ? "" : "off";
+          this.requestRender();
+          ZC.ui.updateRunButton();
+        });
+        this._rowMap.set(ax, { tr, cb });
+        tr.appendChild(el("td", {}, [cb]));
+        tr.appendChild(el("td", { text: ax.dir === "v" ? "縦" : "横" }));
+        tr.appendChild(el("td", { text: ZC.axis.displayName(ax) + (ax.label == null ? "（符号なし）" : "") }));
+        tr.appendChild(el("td", { text: mmPerPt ? U.fmtMm(ax.pos * mmPerPt, 0) : "—" }));
+        tr.appendChild(el("td", { text: mmPerPt ? U.fmtMm(ax.extent * mmPerPt, 0) : "—" }));
+        tr.appendChild(
+          el("td", {
+            text: (ax.dashed ? "鎖線/破線" : "実線") + (ax.frameSuspect ? "・図枠?" : ""),
+          })
+        );
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      this.$list.appendChild(table);
+    }
+  }
+
+  const ui = {
+    base: null,
+    cmp: null,
+    lastResult: null,
+
+    init() {
+      document.querySelectorAll(".ver").forEach((e) => (e.textContent = "v" + ZC.VERSION));
+      ui.base = new Panel("base", "基準図面", document.getElementById("panel-base-body"));
+      ui.cmp = new Panel("cmp", "比較図面", document.getElementById("panel-cmp-body"));
+      document.getElementById("run-check").addEventListener("click", () => ui.runCheck());
+      document.getElementById("csv-dl").addEventListener("click", () => ui.downloadCsv());
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          ui.base.cancelMeasure();
+          ui.cmp.cancelMeasure();
+        }
+      });
+      globalThis.addEventListener("resize", () => {
+        ui.base.requestRender();
+        ui.cmp.requestRender();
+      });
+      ui.updateRunButton();
+    },
+
+    updateRunButton() {
+      const btn = document.getElementById("run-check");
+      if (btn) btn.disabled = !(ui.base && ui.cmp && ui.base.ready() && ui.cmp.ready());
+    },
+
+    gatherSide(panel, name) {
+      const en = panel.enabledAxes();
+      const mmPerPt = panel.mmPerPt();
+      return {
+        v: en.v,
+        h: en.h,
+        mmPerPt,
+        dimSamples: ZC.scale.collectDimSamples(en.v, en.h, panel.extract.texts),
+        name,
+      };
+    },
+
+    runCheck() {
+      const tol = Number(document.getElementById("tol").value) || 1;
+      const checks = {
+        labels: document.getElementById("ck-labels").checked,
+        spacing: document.getElementById("ck-spacing").checked,
+        total: document.getElementById("ck-total").checked,
+        dims: document.getElementById("ck-dims").checked,
+      };
+      const base = ui.gatherSide(ui.base, "基準");
+      const cmp = ui.gatherSide(ui.cmp, "比較");
+      const result = ZC.compare.compare(base, cmp, { tol, checks });
+      ui.lastResult = result;
+      ui.renderResult(result, tol);
+    },
+
+    renderResult(result, tol) {
+      const wrap = document.getElementById("result");
+      wrap.innerHTML = "";
+      const s = result.summary;
+      const sumCls = s.ng ? "ng" : s.warn ? "warn" : "ok";
+      wrap.appendChild(
+        el("div", {
+          class: "summary " + sumCls,
+          text:
+            (s.ng ? "NG " + s.ng + "件" : "NGなし") +
+            (s.warn ? " / 要確認 " + s.warn + "件" : "") +
+            " / OK " + s.ok + "件" +
+            "（許容差 ±" + tol + "mm）",
+        })
+      );
+      if (!result.rows.length) {
+        wrap.appendChild(el("p", { text: "チェック項目が選択されていないか、対応する芯がありません。" }));
+        document.getElementById("csv-dl").hidden = true;
+        return;
+      }
+      wrap.appendChild(
+        el("p", { class: "result-hint", text: "行にカーソルを乗せると該当箇所が両方のビュワーで強調表示されます。" })
+      );
+      const table = el("table", { class: "result" });
+      const thead = el("thead");
+      thead.innerHTML =
+        "<tr><th>判定</th><th>チェック</th><th>方向</th><th>対象</th><th>基準</th><th>比較</th><th>差(mm)</th><th>備考</th></tr>";
+      table.appendChild(thead);
+      const tbody = el("tbody");
+      for (const r of result.rows) {
+        const tr = el("tr", { class: r.status.toLowerCase() });
+        if (r.refs) {
+          tr.addEventListener("mouseenter", () => {
+            ui.base.setHighlight(r.refs.b);
+            ui.cmp.setHighlight(r.refs.c);
+          });
+          tr.addEventListener("mouseleave", () => {
+            ui.base.setHighlight(null);
+            ui.cmp.setHighlight(null);
+          });
+        }
+        tr.appendChild(el("td", { text: r.status === "WARN" ? "要確認" : r.status, class: "st" }));
+        tr.appendChild(el("td", { text: r.check }));
+        tr.appendChild(el("td", { text: r.dir }));
+        tr.appendChild(el("td", { text: r.item }));
+        tr.appendChild(el("td", { text: String(r.base) }));
+        tr.appendChild(el("td", { text: String(r.cmp) }));
+        tr.appendChild(el("td", { text: r.diff == null ? "—" : (r.diff > 0 ? "+" : "") + U.fmtMm(r.diff) }));
+        tr.appendChild(el("td", { text: r.note }));
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      document.getElementById("csv-dl").hidden = false;
+    },
+
+    downloadCsv() {
+      if (!ui.lastResult) return;
+      const head = ["判定", "チェック", "方向", "対象", "基準", "比較", "差(mm)", "備考"];
+      const lines = [head.join(",")];
+      for (const r of ui.lastResult.rows) {
+        const cells = [
+          r.status,
+          r.check,
+          r.dir,
+          r.item,
+          String(r.base),
+          String(r.cmp),
+          r.diff == null ? "" : U.fmtMm(r.diff),
+          r.note,
+        ].map((c) => '"' + String(c).replace(/"/g, '""') + '"');
+        lines.push(cells.join(","));
+      }
+      // Excel で文字化けしないよう BOM 付き UTF-8
+      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "zumen-check.csv";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    },
+  };
+
+  ZC.ui = ui;
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 31_app.js ===== */
+// 起動: ブラウザ上でのみ UI を初期化する（Node のテスト実行では何もしない）
+(function (ZC) {
+  "use strict";
+  if (typeof document === "undefined" || !document.getElementById) return;
+  const boot = () => {
+    if (document.getElementById("panel-base-body")) ZC.ui.init();
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})(globalThis.ZC = globalThis.ZC || {});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>通り芯照合ツール</title>
+<style>
+  :root {
+    --border: #d7dde3;
+    --ink: #24313d;
+    --sub: #5c6b78;
+    --accent: #1565d8;
+    --bg: #f2f5f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  header {
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .ver { color: var(--sub); font-size: 12px; }
+  header .privacy { color: var(--sub); font-size: 12px; margin-left: auto; }
+  main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
+  .panels { display: flex; gap: 16px; flex-wrap: wrap; }
+  .panel {
+    flex: 1 1 480px;
+    min-width: 420px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px 16px;
+  }
+  .panel h2, #check h2 { font-size: 15px; margin: 0 0 10px; }
+  .file-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .file-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .file-btn:hover { filter: brightness(1.08); }
+  .fname { color: var(--sub); font-size: 12px; word-break: break-all; }
+  .ctrl-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+  .ctrl-row input[type="number"] { width: 70px; padding: 2px 4px; }
+  .scale-note { color: var(--sub); font-size: 12px; }
+  .status { min-height: 20px; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+  .status.error { color: #b30021; }
+  .viewer-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; font-size: 12px; flex-wrap: wrap; }
+  .viewer-bar button {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 12px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .viewer-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .viewer-bar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .zoom-label { color: var(--sub); min-width: 42px; text-align: right; }
+  .viewer-hint { color: #9aa4ad; margin-left: auto; }
+  .viewer-wrap {
+    position: relative;
+    height: 380px;
+    min-height: 240px;
+    max-height: 840px;
+    resize: vertical;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+  }
+  .viewer-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  .axtip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(36, 49, 61, 0.92);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: none;
+    z-index: 5;
+  }
+  .axis-list { max-height: 260px; overflow: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
+  th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
+  th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
+  table.axes tr.off td { color: #a7b0b8; }
+  table.axes tr.hl td { background: #fff3e0; }
+  .result-hint { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
+  #check {
+    margin-top: 16px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px 16px;
+  }
+  .check-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .check-row label { user-select: none; }
+  #tol { width: 60px; padding: 2px 4px; }
+  #run-check {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 22px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #run-check:disabled { background: #b9c4ce; cursor: not-allowed; }
+  #csv-dl {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  .summary { font-weight: 600; margin: 12px 0 8px; }
+  .summary.ng { color: #b30021; }
+  .summary.warn { color: #9a6b00; }
+  .summary.ok { color: #0a7a3d; }
+  table.result td.st { font-weight: 700; text-align: center; }
+  table.result tr.ng { background: #fdebee; }
+  table.result tr.ng td.st { color: #b30021; }
+  table.result tr.warn { background: #fdf6e3; }
+  table.result tr.warn td.st { color: #9a6b00; }
+  table.result tr.ok td.st { color: #0a7a3d; }
+  #result { overflow: auto; }
+  footer { color: var(--sub); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>通り芯照合ツール</h1>
+  <span class="ver"></span>
+  <span class="privacy">図面はブラウザ内でのみ処理され、外部には送信されません</span>
+</header>
+<main>
+  <div class="panels">
+    <section class="panel">
+      <h2>1. 基準図面</h2>
+      <div id="panel-base-body"></div>
+    </section>
+    <section class="panel">
+      <h2>2. 比較図面</h2>
+      <div id="panel-cmp-body"></div>
+    </section>
+  </div>
+  <section id="check">
+    <h2>3. チェック項目を選んで照合</h2>
+    <div class="check-row">
+      <label><input type="checkbox" id="ck-labels" checked> 通り芯符号の対応</label>
+      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法</label>
+      <label><input type="checkbox" id="ck-total" checked> 全体寸法</label>
+      <label><input type="checkbox" id="ck-dims"> 寸法注記と作図位置の整合（各図面内）</label>
+      <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
+    </div>
+    <button id="run-check" disabled>照合する</button>
+    <button id="csv-dl" hidden>CSVダウンロード</button>
+    <div id="result"></div>
+  </section>
+  <footer>
+    <p>ベクターPDF専用（スキャンPDFは読み取れません）。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
+  </footer>
+</main>
+<!--@SCRIPTS-->
+</body>
+</html>
