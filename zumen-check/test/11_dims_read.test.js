@@ -66,3 +66,26 @@ exports.全体寸法は端から端までのチェーン合計 = async () => {
   assert.equal(sides.top.total.to, "X3");
   assert.equal(sides.top.total.value, 11000, "6000+5000");
 };
+
+exports.部分的な短い通り芯も符号があれば拾う = async () => {
+  const spec = mk.makeSpec();
+  // X1.5: 短い（120pt）通り芯で、符号は上辺のみ。実図面の X2.2 / X4.3 に相当
+  spec.vAxes.splice(1, 0, { label: "X1.5", mm: 3000, from: 300, to: 420, sides: ["top"] });
+  spec.splitsV0 = null;
+  const { det, sides } = await analyze(mk.makeBasicPdf(spec));
+  const ax = det.v.find((a) => a.label === "X1.5");
+  assert.ok(ax, "短い芯でも符号があれば検出される");
+  assert.ok(ax.extent < 150, "長さのしきい値未満であること: " + ax.extent);
+  assert.deepEqual(ax.bubbles.map((b) => b.side), ["top"], "符号は上辺のみ");
+  // 上辺だけ X1.5 で分割され、下辺は通しのまま
+  assert.deepEqual(spansOf(sides, "top"), ["X1~X1.5:3000", "X1.5~X2:3000", "X2~X3:5000"]);
+  assert.deepEqual(spansOf(sides, "bottom"), ["X1~X2:6000", "X2~X3:5000"]);
+};
+
+exports.符号が無い短い線は拾わない = async () => {
+  const spec = mk.makeSpec();
+  spec.vAxes.splice(1, 0, { label: "X1.5", mm: 3000, from: 300, to: 420, sides: [] }); // 符号なし
+  spec.splitsV0 = null;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.equal(det.v.find((a) => a.label === "X1.5"), undefined, "符号が無ければ短い線は芯にしない");
+};

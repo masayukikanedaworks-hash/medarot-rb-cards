@@ -35,6 +35,9 @@ function makeSpec() {
       { label: "Y1", mm: 0 },
       { label: "Y2", mm: 6000 },
     ],
+    // vAxes/hAxes の要素には次を指定できる:
+    //   from/to  … 芯線の範囲（省略時は全長）。実図面の部分的な通り芯を模す
+    //   sides    … 符号バブルを置く辺（省略時は両端）。例: ["top"]
     dims: {}, // {v:[...], h:[...]} 下辺/左辺の通り芯間寸法の注記上書き
     dimsTop: null, // [...] 上辺の注記上書き（省略時は下辺と同じ値）
     dimsRight: null, // [...] 右辺の注記上書き（省略時は左辺と同じ値）
@@ -115,23 +118,28 @@ function drawingOps(spec, textEnc, useTJ) {
   // 通り芯（縦）
   for (const a of pos.v) {
     const specAx = spec.vAxes[pos.v.indexOf(a)];
+    const from = specAx.from != null ? specAx.from : V_FROM;
+    const to = specAx.to != null ? specAx.to : V_TO;
     ops.push("0.5 w");
     if (specAx.pieces) {
       ops.push("[] 0 d");
-      for (let y = V_FROM; y < V_TO; y += 23.5) {
-        const y2 = Math.min(y + 18, V_TO);
+      for (let y = from; y < to; y += 23.5) {
+        const y2 = Math.min(y + 18, to);
         ops.push(`${fmt(a.pos)} ${fmt(y)} m ${fmt(a.pos)} ${fmt(y2)} l S`);
       }
     } else {
       ops.push("[6 3 1.5 3] 0 d");
-      ops.push(`${fmt(a.pos)} ${fmt(V_FROM)} m ${fmt(a.pos)} ${fmt(V_TO)} l S`);
+      ops.push(`${fmt(a.pos)} ${fmt(from)} m ${fmt(a.pos)} ${fmt(to)} l S`);
       ops.push("[] 0 d");
     }
   }
   // 通り芯（横）
   for (const a of pos.h) {
+    const specAx = spec.hAxes[pos.h.indexOf(a)];
+    const from = specAx.from != null ? specAx.from : H_FROM;
+    const to = specAx.to != null ? specAx.to : H_TO;
     ops.push("0.5 w [6 3 1.5 3] 0 d");
-    ops.push(`${fmt(H_FROM)} ${fmt(a.pos)} m ${fmt(H_TO)} ${fmt(a.pos)} l S`);
+    ops.push(`${fmt(from)} ${fmt(a.pos)} m ${fmt(to)} ${fmt(a.pos)} l S`);
     ops.push("[] 0 d");
   }
 
@@ -142,12 +150,14 @@ function drawingOps(spec, textEnc, useTJ) {
     textAt(cx - str.length * 2.5, cy - 3.5, str, false);
   };
   for (const a of pos.v) {
-    label(a.pos, 40, a.label); // 下端
-    label(a.pos, 516, a.label); // 上端
+    const sides = spec.vAxes[pos.v.indexOf(a)].sides || ["bottom", "top"];
+    if (sides.includes("bottom")) label(a.pos, 40, a.label);
+    if (sides.includes("top")) label(a.pos, 516, a.label);
   }
   for (const a of pos.h) {
-    label(72, a.pos, a.label); // 左端
-    label(780, a.pos, a.label); // 右端
+    const sides = spec.hAxes[pos.h.indexOf(a)].sides || ["left", "right"];
+    if (sides.includes("left")) label(72, a.pos, a.label);
+    if (sides.includes("right")) label(780, a.pos, a.label);
   }
 
   // ---- 寸法（4辺） ----
@@ -176,20 +186,26 @@ function drawingOps(spec, textEnc, useTJ) {
         textRotAt(colX - 2.5, mid - str.length * 2.5, str);
       }
     };
-    const vPts = pos.v.map((a) => a.pos);
-    const vValues = [];
-    for (let i = 0; i + 1 < spec.vAxes.length; i++) {
-      vValues.push(
-        spec.dims.v && spec.dims.v[i] != null ? spec.dims.v[i] : fmtDim(spec.vAxes[i + 1].mm - spec.vAxes[i].mm)
-      );
-    }
-    const hPts = pos.h.map((a) => a.pos);
-    const hValues = [];
-    for (let i = 0; i + 1 < spec.hAxes.length; i++) {
-      hValues.push(
-        spec.dims.h && spec.dims.h[i] != null ? spec.dims.h[i] : fmtDim(spec.hAxes[i + 1].mm - spec.hAxes[i].mm)
-      );
-    }
+    // 辺ごとに、その辺に符号がある芯だけを寸法線の点にする
+    const forSide = (axes, positions, side, defSides) =>
+      axes
+        .map((ax, i) => ({ ax, pos: positions[i].pos }))
+        .filter((o) => (o.ax.sides || defSides).includes(side));
+    const valuesOf = (list, override) => {
+      const out = [];
+      for (let i = 0; i + 1 < list.length; i++) {
+        out.push(override && override[i] != null ? override[i] : fmtDim(list[i + 1].ax.mm - list[i].ax.mm));
+      }
+      return out;
+    };
+    const vBottom = forSide(spec.vAxes, pos.v, "bottom", ["bottom", "top"]);
+    const vTop = forSide(spec.vAxes, pos.v, "top", ["bottom", "top"]);
+    const hLeft = forSide(spec.hAxes, pos.h, "left", ["left", "right"]);
+    const hRight = forSide(spec.hAxes, pos.h, "right", ["left", "right"]);
+    const vPts = vBottom.map((o) => o.pos);
+    const vValues = valuesOf(vBottom, spec.dims.v);
+    const hPts = hLeft.map((o) => o.pos);
+    const hValues = valuesOf(hLeft, spec.dims.h);
     // 下辺: 分割段 + 通り芯間の段
     if (spec.splitsV0 && vPts.length >= 2) {
       const pts = [vPts[0]];
@@ -202,12 +218,12 @@ function drawingOps(spec, textEnc, useTJ) {
     }
     if (vPts.length >= 2 && !spec.noRow2) hDimRow(BOTTOM_SPAN_Y, vPts, vValues, true);
     // 上辺: 通り芯間の段
-    if (vPts.length >= 2) hDimRow(TOP_SPAN_Y, vPts, spec.dimsTop || vValues, false);
+    const vTopPts = vTop.map((o) => o.pos);
+    if (vTopPts.length >= 2) hDimRow(TOP_SPAN_Y, vTopPts, spec.dimsTop || valuesOf(vTop, null), false);
     // 左辺・右辺
-    if (hPts.length >= 2) {
-      vDimCol(LEFT_COL_X, hPts, hValues);
-      vDimCol(RIGHT_COL_X, hPts, spec.dimsRight || hValues);
-    }
+    if (hPts.length >= 2) vDimCol(LEFT_COL_X, hPts, hValues);
+    const hRightPts = hRight.map((o) => o.pos);
+    if (hRightPts.length >= 2) vDimCol(RIGHT_COL_X, hRightPts, spec.dimsRight || valuesOf(hRight, null));
   } else {
     // 旧式: ドット無しの浮き注記（フォールバック経路の検証用）
     for (let i = 0; i + 1 < pos.v.length; i++) {
