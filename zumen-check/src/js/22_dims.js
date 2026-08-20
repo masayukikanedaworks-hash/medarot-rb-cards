@@ -17,9 +17,8 @@
     AXIS_SNAP: 1.6,       // ドットと通り芯位置の一致判定(pt)
     CHAIN_TOL: 1.2,       // 分割寸法の連続性の許容(pt)
     CONFLICT_MM: 0.6,     // 寸法段どうしの食い違い検出(mm)
+    RATIO_TOL: 0.03,      // 段内の「記載値÷図上長さ」のばらつき許容（読み取りミスの段を捨てる）
     MERGE_GAP: 0.25,      // 数字ランの結合: 文字サイズ×この値までの隙間（TJ分割を壊さない値に）
-    SCALE_MIN_GAP: 8,     // 縮尺推定に使うスパンの最小(pt)
-    SCALE_MIN_VALUE: 100, // 縮尺推定に使う寸法値の最小(mm)
   };
 
   // 近接する数字ラン（"3" "000" など）を同一ベースラインで結合する
@@ -182,7 +181,7 @@
       if (!byRow.has(key)) byRow.set(key, []);
       byRow.get(key).push(e);
     }
-    const candidates = [];
+    let candidates = [];
     for (const list of byRow.values()) {
       list.sort((a, b) => a.p1 - b.p1);
       if (Math.abs(list[0].p1 - lo) > AX) continue;
@@ -198,25 +197,29 @@
         sum += list[i].value;
         parts.push(list[i].value);
       }
-      if (ok) candidates.push({ sum, parts });
+      if (ok) {
+        // 段内の整合: 各区間の「記載値 ÷ 図上長さ」が揃っているか（縮尺は使わず比率だけ見る）
+        const ratios = list.map((e) => e.value / Math.max(e.p2 - e.p1, 1e-9));
+        const rMin = Math.min(...ratios);
+        const rMax = Math.max(...ratios);
+        const consistent = list.length < 2 || rMax - rMin <= rMax * PARAMS.RATIO_TOL;
+        candidates.push({ sum, parts, consistent });
+      }
     }
     if (!candidates.length) return null;
+    // 段内が整合している候補があればそれだけを使う（値の読み違いがある段を除外）
+    const consistent = candidates.filter((c) => c.consistent);
+    if (consistent.length) candidates = consistent;
     candidates.sort((a, b) => a.parts.length - b.parts.length);
-    const best = candidates[0];
+    const best = candidates[0]; // 通り芯間の値は分割数の少ない段（通り寸法の段）を採用
     const conflict = candidates.some((c) => Math.abs(c.sum - best.sum) > PARAMS.CONFLICT_MM);
-    return { value: best.sum, parts: best.parts, conflict };
-  }
-
-  // 縮尺推定用サンプル: 各エントリの 記載値 ÷ ドット間隔
-  function scaleSamples(entries) {
-    const out = [];
-    for (const e of entries) {
-      const gap = e.p2 - e.p1;
-      if (gap < PARAMS.SCALE_MIN_GAP || e.value < PARAMS.SCALE_MIN_VALUE) continue;
-      out.push({ dir: e.dir, gapPt: gap, value: e.value, mmPerPt: e.value / gap });
+    // 内訳は「合計が一致する最も細かい段」を採用する（例: 6000（2730.5+3269.5））
+    let parts = best.parts;
+    for (const c of candidates) {
+      if (c.parts.length > parts.length && Math.abs(c.sum - best.sum) <= PARAMS.CONFLICT_MM) parts = c.parts;
     }
-    return out;
+    return { value: best.sum, parts, conflict };
   }
 
-  ZC.dims = { extract, spanValue, scaleSamples, mergeTexts, PARAMS };
+  ZC.dims = { extract, spanValue, mergeTexts, PARAMS };
 })(globalThis.ZC = globalThis.ZC || {});

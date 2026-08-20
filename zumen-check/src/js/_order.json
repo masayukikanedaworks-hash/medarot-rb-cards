@@ -7,9 +7,9 @@
   "13_fonts.js",
   "14_content.js",
   "20_axis.js",
-  "21_scale.js",
   "22_dims.js",
-  "23_compare.js",
+  "23_sides.js",
+  "24_compare.js",
   "30_ui.js",
   "31_app.js"
 ]

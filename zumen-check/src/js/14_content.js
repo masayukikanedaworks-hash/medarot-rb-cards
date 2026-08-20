@@ -8,6 +8,8 @@
 
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
+  const CIRCLE_MIN = 3;   // 符号バブルとみなす円の最小サイズ(pt)
+  const CIRCLE_MAX = 60;  // 〃 最大サイズ(pt)
   // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
   // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
   const TJ_SPLIT = 400;
@@ -21,6 +23,7 @@
       this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
       this.texts = []; // {str,x,y,ex,ey,size}
       this.dots = []; // {x,y} 小さな塗り潰し図形（寸法線端点の黒丸など）
+      this.circles = []; // {x,y,r} 通り芯符号のバブル（円）
       this.imageCount = 0;
       this._fontCache = new Map();
     }
@@ -63,6 +66,7 @@
         segments: this.segments,
         texts: this.texts,
         dots: this.dots,
+        circles: this.circles,
         width: outW,
         height: outH,
         rotate: rot,
@@ -131,7 +135,38 @@
         cur = null;
         lastPt = null;
       };
+      // 閉じた円形サブパス（符号バブル）を記録する。ベジェでも多角形近似でも拾う
+      const scanCircles = () => {
+        if (this.circles.length >= 5000) return;
+        for (const sp of subpaths) {
+          if (sp.length < 5) continue;
+          const first = sp[0];
+          const last = sp[sp.length - 1];
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of sp) {
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+            y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+          }
+          const w = x1 - x0;
+          const h = y1 - y0;
+          if (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX) continue;
+          if (Math.abs(w - h) > Math.max(w, h) * 0.25) continue; // 正方形に近いこと
+          if (Math.hypot(last.x - first.x, last.y - first.y) > Math.max(w, h) * 0.2) continue; // 閉じていること
+          const cx = (x0 + x1) / 2;
+          const cy = (y0 + y1) / 2;
+          const r = (w + h) / 4;
+          // 各頂点が中心から等距離か（円/正多角形らしさ）
+          let ok = true;
+          for (const p of sp) {
+            const d = Math.hypot(p.x - cx, p.y - cy);
+            if (Math.abs(d - r) > r * 0.3) { ok = false; break; }
+          }
+          if (ok) this.circles.push({ x: cx, y: cy, r });
+        }
+      };
+
       const strokePath = () => {
+        scanCircles();
         const wDev = gs.w * MAT.scaleOf(gs.ctm);
         for (const sp of subpaths) {
           // 太線での極小ストローク（丸キャップのドット表現）も黒ドットとして拾う

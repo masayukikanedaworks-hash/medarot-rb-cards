@@ -97,7 +97,37 @@
     display: none;
     z-index: 5;
   }
-  .axis-list { max-height: 260px; overflow: auto; margin-top: 8px; }
+  .pickup { margin-top: 10px; }
+  .pickup-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .pickup-head .copy-btn {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pickup-text {
+    margin: 0;
+    padding: 8px 10px;
+    background: #fbfcfd;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.7;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  }
+  .axis-list { max-height: 240px; overflow: auto; margin-top: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
   th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
@@ -166,10 +196,9 @@
   <section id="check">
     <h2>3. チェック項目を選んで照合</h2>
     <div class="check-row">
-      <label><input type="checkbox" id="ck-labels" checked> 通り芯符号の対応</label>
-      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法</label>
-      <label><input type="checkbox" id="ck-total" checked> 全体寸法</label>
-      <label><input type="checkbox" id="ck-dims"> 寸法注記と作図位置の整合（各図面内）</label>
+      <label><input type="checkbox" id="ck-labels" checked> 通り芯（X○○・Y○○）の対応</label>
+      <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法（記載値）</label>
+      <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
     </div>
     <button id="run-check" disabled>照合する</button>
@@ -177,7 +206,7 @@
     <div id="result"></div>
   </section>
   <footer>
-    <p>ベクターPDF専用（スキャンPDFは読み取れません）。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
+    <p>ベクターPDF専用（スキャンPDFは読み取れません）。通り芯は円で囲まれた X○○・Y○○ のみ、寸法は図面に記載された数字（黒ドット間の直線の上）のみを拾います。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
   </footer>
 </main>
 <script>
@@ -187,7 +216,7 @@
 (function (g) {
   "use strict";
   g.ZC = g.ZC || {};
-  g.ZC.VERSION = "1.2.0";
+  g.ZC.VERSION = "1.3.0";
 })(globalThis);
 
 /* ===== 01_util.js ===== */
@@ -1406,6 +1435,8 @@
 
   const BEZIER_STEPS = 8; // 曲線の折れ線近似の分割数
   const MAX_FORM_DEPTH = 8;
+  const CIRCLE_MIN = 3;   // 符号バブルとみなす円の最小サイズ(pt)
+  const CIRCLE_MAX = 60;  // 〃 最大サイズ(pt)
   // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
   // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
   const TJ_SPLIT = 400;
@@ -1419,6 +1450,7 @@
       this.segments = []; // {x1,y1,x2,y2,w,dashed,curve}
       this.texts = []; // {str,x,y,ex,ey,size}
       this.dots = []; // {x,y} 小さな塗り潰し図形（寸法線端点の黒丸など）
+      this.circles = []; // {x,y,r} 通り芯符号のバブル（円）
       this.imageCount = 0;
       this._fontCache = new Map();
     }
@@ -1461,6 +1493,7 @@
         segments: this.segments,
         texts: this.texts,
         dots: this.dots,
+        circles: this.circles,
         width: outW,
         height: outH,
         rotate: rot,
@@ -1529,7 +1562,38 @@
         cur = null;
         lastPt = null;
       };
+      // 閉じた円形サブパス（符号バブル）を記録する。ベジェでも多角形近似でも拾う
+      const scanCircles = () => {
+        if (this.circles.length >= 5000) return;
+        for (const sp of subpaths) {
+          if (sp.length < 5) continue;
+          const first = sp[0];
+          const last = sp[sp.length - 1];
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of sp) {
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+            y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+          }
+          const w = x1 - x0;
+          const h = y1 - y0;
+          if (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX) continue;
+          if (Math.abs(w - h) > Math.max(w, h) * 0.25) continue; // 正方形に近いこと
+          if (Math.hypot(last.x - first.x, last.y - first.y) > Math.max(w, h) * 0.2) continue; // 閉じていること
+          const cx = (x0 + x1) / 2;
+          const cy = (y0 + y1) / 2;
+          const r = (w + h) / 4;
+          // 各頂点が中心から等距離か（円/正多角形らしさ）
+          let ok = true;
+          for (const p of sp) {
+            const d = Math.hypot(p.x - cx, p.y - cy);
+            if (Math.abs(d - r) > r * 0.3) { ok = false; break; }
+          }
+          if (ok) this.circles.push({ x: cx, y: cy, r });
+        }
+      };
+
       const strokePath = () => {
+        scanCircles();
         const wDev = gs.w * MAT.scaleOf(gs.ctm);
         for (const sp of subpaths) {
           // 太線での極小ストローク（丸キャップのドット表現）も黒ドットとして拾う
@@ -1898,7 +1962,8 @@
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 20_axis.js ===== */
-// 通り芯検出: 軸平行の線分を束ねて長い「芯」を推定し、符号ラベルを対応付ける
+// 通り芯検出: 軸平行の線分を束ねて長い「芯」を推定し、
+// 「円（バブル）で囲まれた X○○ / Y○○」の符号だけを対応付ける。
 (function (ZC) {
   "use strict";
 
@@ -1913,12 +1978,16 @@
     MIN_LEN_RATIO: 0.28,   // 内容範囲に対する最小長さ比
     MIN_LEN_ABS: 80,       // 最小長さの絶対値
     FRAME_EDGE_TOL: 3,     // 内容範囲の端からこの距離以内なら図枠の疑い
-    LABEL_RADIUS: 40,      // 端点から符号ラベルを探す半径
-    LABEL_LATERAL: 30,     // 芯の位置とラベルの横ずれの許容
+    LABEL_LATERAL: 30,     // 芯の位置とバブル中心の横ずれの許容
+    BUBBLE_REACH: 120,     // 芯の端点からバブル中心までの最大距離
+    BUBBLE_TEXT_IN: 1.15,  // 文字がバブル内にあるとみなす半径倍率
     CHAIN_MIN_PIECES: 4,   // 分割描画の鎖線とみなす最小の線分本数
     CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
   };
+
+  const SIDES = ["top", "bottom", "left", "right"];
+  const SIDE_NAME = { top: "上辺", bottom: "下辺", left: "左辺", right: "右辺" };
 
   // extract: ContentExtractor.run() の結果
   function detect(extract) {
@@ -1972,15 +2041,14 @@
     const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1);
     const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1);
 
-    // 符号ラベルの対応付け（縦横まとめて貪欲法で最短距離から割り当て）
-    assignLabels(vAxes.concat(hAxes), extract.texts);
+    // 符号（円で囲まれた X○○/Y○○）の対応付け
+    assignLabels(vAxes.concat(hAxes), extract.texts, extract.circles || []);
 
     for (const list of [vAxes, hAxes]) {
       list.sort((p, q) => p.pos - q.pos);
       list.forEach((ax, i) => {
         ax.index = i;
-        // 照合対象の既定は「X○○/Y○○の符号が付いた芯」のみ。
-        // 符号なしの鎖線などは候補一覧に出すが既定OFF（利用者がONにできる）
+        // 照合対象は「円で囲まれた符号が付いた芯」のみ
         ax.defaultOn = !ax.frameSuspect && ax.label != null;
       });
     }
@@ -2048,187 +2116,78 @@
           Math.abs(pos - edge1) <= PARAMS.FRAME_EDGE_TOL,
         label: null,
         labelXY: null,
+        bubbles: [], // {label, x, y, side}
       });
     }
     return axes;
   }
 
-  // 符号は「縦芯 = X○○ / 横芯 = Y○○」の記載のみを対象にする（小数点付きも可）。
-  // 方向が一致しない符号（縦芯に Y1 など）は割り当てない。
-  function assignLabels(axes, texts) {
+  // 符号は「円で囲まれた X○○（縦芯）/ Y○○（横芯）」のみを採用する。
+  // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
+  function assignLabels(axes, texts, circles) {
+    if (!circles.length) return;
+    // 円 → その中にある符号テキスト
     const cands = [];
     for (const t of texts) {
       const lab = U.axisLabelOf(t.str);
       if (!lab) continue;
-      cands.push({
-        norm: lab.label,
-        dir: lab.dir,
-        x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
-        y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
-        size: t.size || 10,
-        used: false,
-      });
+      const tx = (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2;
+      const ty = (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2;
+      let host = null;
+      let hostD = Infinity;
+      for (const c of circles) {
+        const d = Math.hypot(tx - c.x, ty - c.y);
+        if (d <= c.r * PARAMS.BUBBLE_TEXT_IN && d < hostD) {
+          hostD = d;
+          host = c;
+        }
+      }
+      if (!host) continue; // 円で囲まれていない符号は拾わない
+      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, used: false });
     }
     if (!cands.length) return;
+
     const pairs = [];
     for (const ax of axes) {
-      const ends =
-        ax.dir === "v"
-          ? [
-              [ax.pos, ax.from],
-              [ax.pos, ax.to],
-            ]
-          : [
-              [ax.from, ax.pos],
-              [ax.to, ax.pos],
-            ];
       for (const t of cands) {
         if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
         if (lateral > PARAMS.LABEL_LATERAL) continue;
-        for (const [ex, ey] of ends) {
-          const d = Math.hypot(t.x - ex, t.y - ey);
-          if (d <= PARAMS.LABEL_RADIUS + t.size) {
-            // 符号バブルは芯の延長線上に載るため、横ずれの小ささを最優先にする
-            // （壁線などが少し離れた符号を横取りしないように）
-            pairs.push({ ax, t, lateral, score: lateral * 3 + d });
-          }
-        }
+        const along = ax.dir === "v" ? t.y : t.x;
+        // 芯の延長線上（端点から BUBBLE_REACH 以内）にあること
+        const dFrom = ax.from - along; // 正なら from より外側
+        const dTo = along - ax.to; // 正なら to より外側
+        const outside = Math.max(dFrom, dTo);
+        if (outside > PARAMS.BUBBLE_REACH) continue;
+        const side =
+          ax.dir === "v"
+            ? along >= (ax.from + ax.to) / 2 ? "top" : "bottom"
+            : along >= (ax.from + ax.to) / 2 ? "right" : "left";
+        pairs.push({ ax, t, side, score: lateral * 3 + Math.max(0, outside) });
       }
     }
     pairs.sort((p, q) => p.score - q.score);
-    // 同じ符号（X2 など）は上下両端に2回書かれることがあるため、
-    // 方向ごとに同一符号は1本の芯にのみ割り当てる
-    const usedLabels = new Set();
+    const usedSide = new Set(); // 「符号+辺」は1つの芯にのみ
     for (const p of pairs) {
-      const key = p.ax.dir + ":" + p.t.norm;
-      if (p.ax.label != null || usedLabels.has(key)) continue;
+      const key = p.t.norm + ":" + p.side;
+      if (usedSide.has(key) || p.t.used) continue;
+      if (p.ax.label != null && p.ax.label !== p.t.norm) continue; // 別符号は割り当てない
+      if (p.ax.bubbles.some((b) => b.side === p.side)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      usedLabels.add(key);
+      p.ax.bubbles.push({ label: p.t.norm, x: p.t.x, y: p.t.y, side: p.side });
+      usedSide.add(key);
+      p.t.used = true;
     }
   }
 
-  // 表示名（符号が無い芯は方向+連番）
+  // 表示名（符号のみ。符号なしの芯は方向+連番）
   function displayName(ax) {
     if (ax.label != null) return ax.label;
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, PARAMS };
-})(globalThis.ZC = globalThis.ZC || {});
-
-/* ===== 21_scale.js ===== */
-// 縮尺推定: 寸法値と紙上距離から mm/pt を求める。
-// 通常は 22_dims.js の黒ドット基準のサンプルを使い、ドットが無い図面では
-// collectDimSamples（芯間の中央付近にある数字を拾う近似）にフォールバックする。
-(function (ZC) {
-  "use strict";
-
-  const U = ZC.util;
-  const PT_PER_MM = 72 / 25.4;
-
-  // よく使われる縮尺の分母
-  const STD_SCALES = [10, 20, 25, 30, 40, 50, 60, 75, 100, 120, 125, 150, 200, 250, 300, 400, 500, 600, 1000, 1200];
-
-  const PARAMS = {
-    MIN_GAP: 8,        // 寸法探索の対象にする最小の芯間隔(pt)
-    MID_RATIO: 0.35,   // 寸法値は区間中央からこの比率以内にあること
-    PERP_MARGIN: 80,   // 芯の長さ方向の探索マージン(pt)
-    CLUSTER_REL: 0.025 // 同一縮尺とみなす mm/pt の相対差
-  };
-
-  // 有効な芯リストと全テキストから「芯ペアに対応する寸法値」を集める
-  // 戻り値: [{dir, i, aName, bName, value, gapPt, mmPerPt, dist}]
-  function collectDimSamples(vAxes, hAxes, texts) {
-    const dims = [];
-    for (const t of texts) {
-      const value = U.parseDimNumber(t.str);
-      if (value == null || value < 100) continue; // 位置アンカーが無いため小さい値は使わない
-      dims.push({
-        value,
-        x: (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2,
-        y: (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2,
-      });
-    }
-    if (!dims.length) return [];
-    const samples = [];
-    for (const [dir, axes] of [["v", vAxes], ["h", hAxes]]) {
-      const sorted = axes.slice().sort((p, q) => p.pos - q.pos);
-      for (let i = 0; i + 1 < sorted.length; i++) {
-        const a = sorted[i];
-        const b = sorted[i + 1];
-        const gap = b.pos - a.pos;
-        if (gap < PARAMS.MIN_GAP) continue;
-        const mid = (a.pos + b.pos) / 2;
-        const perpLo = Math.min(a.from, b.from) - PARAMS.PERP_MARGIN;
-        const perpHi = Math.max(a.to, b.to) + PARAMS.PERP_MARGIN;
-        let bestDim = null;
-        let bestDist = Infinity;
-        for (const d of dims) {
-          const along = dir === "v" ? d.x : d.y;
-          const perp = dir === "v" ? d.y : d.x;
-          if (perp < perpLo || perp > perpHi) continue;
-          const off = Math.abs(along - mid);
-          if (off > gap * PARAMS.MID_RATIO) continue;
-          if (off < bestDist) {
-            bestDist = off;
-            bestDim = d;
-          }
-        }
-        if (bestDim) {
-          samples.push({
-            dir,
-            i,
-            a,
-            b,
-            value: bestDim.value,
-            gapPt: gap,
-            mmPerPt: bestDim.value / gap,
-            dist: bestDist,
-          });
-        }
-      }
-    }
-    return samples;
-  }
-
-  // サンプル群から縮尺を推定する
-  // 戻り値: {den, mmPerPt, snapped, count} または den=null（推定不能）
-  function infer(samples) {
-    if (!samples.length) return { den: null, mmPerPt: null, snapped: false, count: 0 };
-    const vals = samples.map((s) => s.mmPerPt).sort((a, b) => a - b);
-    // 相対差 CLUSTER_REL 以内に収まる最大の窓を探す
-    let bestLo = 0;
-    let bestN = 1;
-    for (let lo = 0, hi = 0; lo < vals.length; lo++) {
-      if (hi < lo) hi = lo;
-      while (hi + 1 < vals.length && vals[hi + 1] <= vals[lo] * (1 + PARAMS.CLUSTER_REL)) hi++;
-      if (hi - lo + 1 > bestN) {
-        bestN = hi - lo + 1;
-        bestLo = lo;
-      }
-    }
-    const win = vals.slice(bestLo, bestLo + bestN);
-    let mmPerPt = U.median(win);
-    let den = mmPerPt * PT_PER_MM;
-    let snapped = false;
-    for (const s of STD_SCALES) {
-      if (Math.abs(den / s - 1) <= 0.02) {
-        den = s;
-        mmPerPt = s / PT_PER_MM;
-        snapped = true;
-        break;
-      }
-    }
-    return { den, mmPerPt, snapped, count: bestN };
-  }
-
-  function mmPerPtFromDen(den) {
-    return den / PT_PER_MM;
-  }
-
-  ZC.scale = { collectDimSamples, infer, mmPerPtFromDen, PT_PER_MM, PARAMS, STD_SCALES };
+  ZC.axis = { detect, displayName, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 22_dims.js ===== */
@@ -2251,9 +2210,8 @@
     AXIS_SNAP: 1.6,       // ドットと通り芯位置の一致判定(pt)
     CHAIN_TOL: 1.2,       // 分割寸法の連続性の許容(pt)
     CONFLICT_MM: 0.6,     // 寸法段どうしの食い違い検出(mm)
+    RATIO_TOL: 0.03,      // 段内の「記載値÷図上長さ」のばらつき許容（読み取りミスの段を捨てる）
     MERGE_GAP: 0.25,      // 数字ランの結合: 文字サイズ×この値までの隙間（TJ分割を壊さない値に）
-    SCALE_MIN_GAP: 8,     // 縮尺推定に使うスパンの最小(pt)
-    SCALE_MIN_VALUE: 100, // 縮尺推定に使う寸法値の最小(mm)
   };
 
   // 近接する数字ラン（"3" "000" など）を同一ベースラインで結合する
@@ -2416,7 +2374,7 @@
       if (!byRow.has(key)) byRow.set(key, []);
       byRow.get(key).push(e);
     }
-    const candidates = [];
+    let candidates = [];
     for (const list of byRow.values()) {
       list.sort((a, b) => a.p1 - b.p1);
       if (Math.abs(list[0].p1 - lo) > AX) continue;
@@ -2432,144 +2390,224 @@
         sum += list[i].value;
         parts.push(list[i].value);
       }
-      if (ok) candidates.push({ sum, parts });
+      if (ok) {
+        // 段内の整合: 各区間の「記載値 ÷ 図上長さ」が揃っているか（縮尺は使わず比率だけ見る）
+        const ratios = list.map((e) => e.value / Math.max(e.p2 - e.p1, 1e-9));
+        const rMin = Math.min(...ratios);
+        const rMax = Math.max(...ratios);
+        const consistent = list.length < 2 || rMax - rMin <= rMax * PARAMS.RATIO_TOL;
+        candidates.push({ sum, parts, consistent });
+      }
     }
     if (!candidates.length) return null;
+    // 段内が整合している候補があればそれだけを使う（値の読み違いがある段を除外）
+    const consistent = candidates.filter((c) => c.consistent);
+    if (consistent.length) candidates = consistent;
     candidates.sort((a, b) => a.parts.length - b.parts.length);
-    const best = candidates[0];
+    const best = candidates[0]; // 通り芯間の値は分割数の少ない段（通り寸法の段）を採用
     const conflict = candidates.some((c) => Math.abs(c.sum - best.sum) > PARAMS.CONFLICT_MM);
-    return { value: best.sum, parts: best.parts, conflict };
+    // 内訳は「合計が一致する最も細かい段」を採用する（例: 6000（2730.5+3269.5））
+    let parts = best.parts;
+    for (const c of candidates) {
+      if (c.parts.length > parts.length && Math.abs(c.sum - best.sum) <= PARAMS.CONFLICT_MM) parts = c.parts;
+    }
+    return { value: best.sum, parts, conflict };
   }
 
-  // 縮尺推定用サンプル: 各エントリの 記載値 ÷ ドット間隔
-  function scaleSamples(entries) {
-    const out = [];
-    for (const e of entries) {
-      const gap = e.p2 - e.p1;
-      if (gap < PARAMS.SCALE_MIN_GAP || e.value < PARAMS.SCALE_MIN_VALUE) continue;
-      out.push({ dir: e.dir, gapPt: gap, value: e.value, mmPerPt: e.value / gap });
+  ZC.dims = { extract, spanValue, mergeTexts, PARAMS };
+})(globalThis.ZC = globalThis.ZC || {});
+
+/* ===== 23_sides.js ===== */
+// 辺別の拾い出し: 上辺・下辺・左辺・右辺それぞれについて、
+// その辺に符号バブルがある通り芯を並べ、その辺の寸法線から芯間寸法を読む。
+(function (ZC) {
+  "use strict";
+
+  const SIDES = ZC.axis.SIDES;
+  const SIDE_NAME = ZC.axis.SIDE_NAME;
+
+  // 通り芯の端からこの範囲にある寸法段だけを「その辺の通り芯寸法」として使う(pt)。
+  // 室内寸法など図面内部の寸法段を拾わないための帯。芯の長さが場所で変わる図面
+  // （平面が2区画に分かれている等）に対応するため、区間ごとにその2本の芯の端で判定する。
+  const SIDE_BAND = 72;
+
+  // 表示用の数値整形（整数はそのまま、小数は必要な桁だけ）
+  function fmtVal(v) {
+    if (v == null || !isFinite(v)) return "—";
+    const r = Math.round(v * 1000) / 1000;
+    return Number.isInteger(r) ? String(r) : String(r);
+  }
+
+  // det: ZC.axis.detect の結果 / entries: ZC.dims.extract().entries
+  // opts.enabled: 照合対象の芯の Set（省略時は defaultOn の芯）
+  function build(det, entries, opts) {
+    const enabled = opts && opts.enabled;
+    const isOn = (ax) => (enabled ? enabled.has(ax) : ax.defaultOn);
+    const pick = (list) => list.filter((ax) => ax.label != null && isOn(ax));
+    const vAxes = pick(det.v || []);
+    const hAxes = pick(det.h || []);
+    const out = {};
+    for (const side of SIDES) {
+      const dir = side === "top" || side === "bottom" ? "v" : "h";
+      const axes = (dir === "v" ? vAxes : hAxes)
+        .filter((ax) => ax.bubbles.some((b) => b.side === side))
+        .sort((a, b) => a.pos - b.pos);
+      const dirEntries = (entries || []).filter((e) => e.dir === dir);
+      const outward = side === "top" || side === "right";
+      // その2本の芯の「外側の端」の近くにある寸法段だけを使う。
+      // 芯の長さは場所によって違うので、中点も含めて2本の芯自身の範囲で判定する。
+      const nearAxes = (a, b) => {
+        const lo = Math.min(a.from, b.from);
+        const hi = Math.max(a.to, b.to);
+        const mid = (lo + hi) / 2;
+        const edge = outward ? hi : lo;
+        return dirEntries.filter(
+          (e) => (outward ? e.row >= mid : e.row < mid) && Math.abs(e.row - edge) <= SIDE_BAND
+        );
+      };
+      const spans = [];
+      for (let i = 0; i + 1 < axes.length; i++) {
+        const a = axes[i];
+        const b = axes[i + 1];
+        const annot = ZC.dims.spanValue(nearAxes(a, b), dir, a.pos, b.pos);
+        spans.push({
+          from: a.label,
+          to: b.label,
+          fromAx: a,
+          toAx: b,
+          value: annot ? annot.value : null,
+          parts: annot ? annot.parts : null,
+          conflict: annot ? annot.conflict : false,
+        });
+      }
+      let total = null;
+      if (axes.length >= 2) {
+        const t = ZC.dims.spanValue(
+          nearAxes(axes[0], axes[axes.length - 1]),
+          dir,
+          axes[0].pos,
+          axes[axes.length - 1].pos
+        );
+        total = t
+          ? { from: axes[0].label, to: axes[axes.length - 1].label, value: t.value, parts: t.parts }
+          : { from: axes[0].label, to: axes[axes.length - 1].label, value: null, parts: null };
+      }
+      out[side] = { side, name: SIDE_NAME[side], dir, axes, spans, total, entryCount: dirEntries.length };
     }
     return out;
   }
 
-  ZC.dims = { extract, spanValue, scaleSamples, mergeTexts, PARAMS };
+  // 1区間の表記: 「X1~X2：5917（2730.5+3186.5）」
+  function formatSpan(sp) {
+    const val = sp.value == null ? "記載なし" : fmtVal(sp.value);
+    const parts = sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(fmtVal).join("+") + "）" : "";
+    return sp.from + "~" + sp.to + "：" + val + parts + (sp.conflict ? " ※寸法段で食い違い" : "");
+  }
+
+  // 拾い出し結果をテキストにする（上辺→右辺→下辺→左辺の順）
+  function formatText(sides) {
+    const order = ["top", "right", "bottom", "left"];
+    const lines = [];
+    for (const key of order) {
+      const s = sides[key];
+      if (!s) continue;
+      lines.push(s.name);
+      if (!s.axes.length) {
+        lines.push("  （通り芯なし）");
+      } else if (!s.spans.length) {
+        lines.push("  " + s.axes.map((a) => a.label).join(" ") + "（区間なし）");
+      } else {
+        for (const sp of s.spans) lines.push(formatSpan(sp));
+      }
+      lines.push("");
+    }
+    return lines.join("\n").trim();
+  }
+
+  ZC.sides = { build, formatSpan, formatText, fmtVal, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});
 
-/* ===== 23_compare.js ===== */
-// 照合: 基準図面と比較図面の通り芯を対応付け、符号・芯々寸法・全体寸法の差異を洗い出す。
-// 芯々寸法・全体寸法は「図面に記載された寸法値（黒ドット間の注記、分割は合計）」を第一に使い、
-// 注記が見つからない側だけ作図距離×縮尺で補う。
+/* ===== 24_compare.js ===== */
+// 照合: 辺（上辺/下辺/左辺/右辺）ごとに、通り芯の並びと「図面に記載された寸法」を突き合わせる。
+// 縮尺は使わない。寸法は記載値どうしの比較のみ。
 (function (ZC) {
   "use strict";
 
-  const U = ZC.util;
+  const F = ZC.sides.fmtVal;
 
-  const PARAMS = {
-    MATCH_TOL_MM: 25, // 位置による対応付けの最大ずれ(mm)
-  };
-
-  const DIR_NAME = { v: "縦(X方向の並び)", h: "横(Y方向の並び)" };
-
-  // side: {v:[axes], h:[axes], mmPerPt, entries, name}
-  // opts: {tol, checks:{labels, spacing, total, dims}}
+  // base / cmp: {sides: ZC.sides.build(...), name}
+  // opts: {tol, checks:{labels, spacing, total}}
   function compare(base, cmp, opts) {
-    const tol = opts.tol > 0 ? opts.tol : 1;
-    const checks = opts.checks || {};
+    const tol = opts && opts.tol > 0 ? opts.tol : 1;
+    const checks = (opts && opts.checks) || {};
     const rows = [];
 
-    for (const dir of ["v", "h"]) {
-      const bList = prep(base[dir], base.mmPerPt);
-      const cList = prep(cmp[dir], cmp.mmPerPt);
-      const { matches, bOnly, cOnly } = matchAxes(bList, cList);
+    for (const key of ["top", "right", "bottom", "left"]) {
+      const b = base.sides[key];
+      const c = cmp.sides[key];
+      if (!b || !c) continue;
+      const sideName = b.name;
 
       if (checks.labels !== false) {
-        let ngCount = 0;
-        for (const m of matches) {
-          if (m.b.label != null && m.c.label != null && m.b.label !== m.c.label) {
-            rows.push(
-              row("符号", dir, m.b.name + " ↔ " + m.c.name, m.b.label, m.c.label, null, "NG", "符号が一致しません", {
-                b: [m.b.ax],
-                c: [m.c.ax],
-              })
-            );
-            ngCount++;
-          }
-        }
-        for (const b of bOnly) {
+        const bl = b.axes.map((a) => a.label);
+        const cl = c.axes.map((a) => a.label);
+        const bSet = new Set(bl);
+        const cSet = new Set(cl);
+        const onlyB = bl.filter((l) => !cSet.has(l));
+        const onlyC = cl.filter((l) => !bSet.has(l));
+        for (const l of onlyB) {
           rows.push(
-            row("符号", dir, b.name, "あり", "なし", null, b.label != null ? "NG" : "WARN", "比較図面に対応する芯がありません", {
-              b: [b.ax],
+            row(sideName, "通り芯", l, "あり", "なし", null, "NG", "比較図面のこの辺に同じ符号がありません", {
+              b: b.axes.filter((a) => a.label === l),
               c: [],
             })
           );
-          ngCount++;
         }
-        for (const c of cOnly) {
+        for (const l of onlyC) {
           rows.push(
-            row("符号", dir, c.name, "なし", "あり", null, c.label != null ? "NG" : "WARN", "基準図面に対応する芯がありません", {
+            row(sideName, "通り芯", l, "なし", "あり", null, "NG", "基準図面のこの辺に同じ符号がありません", {
               b: [],
-              c: [c.ax],
+              c: c.axes.filter((a) => a.label === l),
             })
           );
-          ngCount++;
         }
-        if (!ngCount && matches.length) {
+        if (!onlyB.length && !onlyC.length && bl.length) {
+          const sameOrder = bl.join(",") === cl.join(",");
           rows.push(
-            row("符号", dir, "全" + matches.length + "本", matches.map((m) => m.b.name).join(" "), "対応あり", null, "OK", "", {
-              b: matches.map((m) => m.b.ax),
-              c: matches.map((m) => m.c.ax),
-            })
+            row(
+              sideName,
+              "通り芯",
+              "全" + bl.length + "本",
+              bl.join(" "),
+              sameOrder ? "一致" : cl.join(" "),
+              null,
+              sameOrder ? "OK" : "NG",
+              sameOrder ? "" : "並び順が異なります",
+              { b: b.axes, c: c.axes }
+            )
           );
         }
       }
 
       if (checks.spacing !== false) {
-        for (let i = 0; i + 1 < matches.length; i++) {
-          const p = matches[i];
-          const q = matches[i + 1];
-          const bv = pairValue(base, dir, p.b, q.b);
-          const cv = pairValue(cmp, dir, p.c, q.c);
-          pushValueRow(rows, "芯々寸法", dir, p, q, bv, cv, tol);
+        const cByKey = new Map(c.spans.map((s) => [s.from + "~" + s.to, s]));
+        const seen = new Set();
+        for (const bs of b.spans) {
+          const k = bs.from + "~" + bs.to;
+          seen.add(k);
+          const cs = cByKey.get(k);
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol);
+        }
+        for (const cs of c.spans) {
+          const k = cs.from + "~" + cs.to;
+          if (seen.has(k)) continue;
+          pushSpanRow(rows, sideName, "芯々寸法", k, null, cs, tol);
         }
       }
 
-      if (checks.total !== false && matches.length >= 2) {
-        const p = matches[0];
-        const q = matches[matches.length - 1];
-        const bv = pairValue(base, dir, p.b, q.b);
-        const cv = pairValue(cmp, dir, p.c, q.c);
-        pushValueRow(rows, "全体寸法", dir, p, q, bv, cv, tol);
-      }
-    }
-
-    // 記載寸法と作図位置の食い違い（各図面ごと・注記が読めた区間のみ）
-    if (checks.dims) {
-      for (const side of [base, cmp]) {
-        const isBase = side === base;
-        for (const dir of ["v", "h"]) {
-          const list = prep(side[dir], side.mmPerPt);
-          for (let i = 0; i + 1 < list.length; i++) {
-            const a = list[i];
-            const b = list[i + 1];
-            const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
-            if (!annot) continue;
-            const geom = b.mm - a.mm;
-            const diff = geom - annot.value;
-            rows.push(
-              row(
-                "寸法値整合(" + side.name + ")",
-                dir,
-                a.name + "〜" + b.name,
-                U.fmtMm(annot.value),
-                U.fmtMm(geom),
-                diff,
-                Math.abs(diff) <= tol ? "OK" : "NG",
-                "記載寸法" + partsNote(annot) + "と作図上の距離×縮尺の比較",
-                { b: isBase ? [a.ax, b.ax] : [], c: isBase ? [] : [a.ax, b.ax] }
-              )
-            );
-          }
-        }
+      if (checks.total !== false && b.total && c.total) {
+        const k = b.total.from + "~" + b.total.to;
+        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol);
       }
     }
 
@@ -2582,113 +2620,55 @@
     return { rows, summary };
   }
 
-  // 芯ペア間の値: 記載寸法（分割は合計）を優先し、無ければ作図距離×縮尺
-  function pairValue(side, dir, a, b) {
-    const annot = ZC.dims.spanValue(side.entries || [], dir, a.ax.pos, b.ax.pos);
-    if (annot) {
-      return { value: annot.value, parts: annot.parts, conflict: annot.conflict, annotated: true };
-    }
-    return { value: Math.abs(b.mm - a.mm), parts: null, conflict: false, annotated: false };
-  }
-
-  function pushValueRow(rows, check, dir, p, q, bv, cv, tol) {
-    const diff = cv.value - bv.value;
+  function pushSpanRow(rows, sideName, check, item, bs, cs, tol) {
+    const bv = bs ? bs.value : null;
+    const cv = cs ? cs.value : null;
     const notes = [];
-    if (bv.parts && bv.parts.length > 1) notes.push("基準=" + bv.parts.join("+"));
-    if (cv.parts && cv.parts.length > 1) notes.push("比較=" + cv.parts.join("+"));
-    if (!bv.annotated && !cv.annotated) notes.push("記載寸法が見つからないため作図距離×縮尺で比較");
-    else if (!bv.annotated) notes.push("基準は記載寸法が見つからず作図距離×縮尺");
-    else if (!cv.annotated) notes.push("比較は記載寸法が見つからず作図距離×縮尺");
-    if (bv.conflict || cv.conflict) notes.push("図面内の寸法段で値が食い違っています（要確認）");
+    if (bs && bs.parts && bs.parts.length > 1) notes.push("基準=" + bs.parts.map(F).join("+"));
+    if (cs && cs.parts && cs.parts.length > 1) notes.push("比較=" + cs.parts.map(F).join("+"));
+    if (bs && bs.conflict) notes.push("基準の寸法段で値が食い違い");
+    if (cs && cs.conflict) notes.push("比較の寸法段で値が食い違い");
+
+    let status;
+    let diff = null;
+    if (bv == null && cv == null) {
+      status = "WARN";
+      notes.push("両図面ともこの辺に記載寸法が見つかりません");
+    } else if (bv == null || cv == null) {
+      status = "WARN";
+      notes.push((bv == null ? "基準" : "比較") + "にこの区間の記載寸法が見つかりません");
+    } else {
+      diff = cv - bv;
+      status = Math.abs(diff) <= tol ? "OK" : "NG";
+    }
+    if (!bs) notes.push("基準にこの区間がありません");
+    if (!cs) notes.push("比較にこの区間がありません");
     rows.push(
       row(
+        sideName,
         check,
-        dir,
-        p.b.name + "〜" + q.b.name,
-        U.fmtMm(bv.value),
-        U.fmtMm(cv.value),
+        item,
+        bv == null ? "—" : F(bv),
+        cv == null ? "—" : F(cv),
         diff,
-        Math.abs(diff) <= tol ? "OK" : "NG",
+        status,
         notes.join(" / "),
-        { b: [p.b.ax, q.b.ax], c: [p.c.ax, q.c.ax] }
+        {
+          b: bs ? [bs.fromAx, bs.toAx].filter(Boolean) : [],
+          c: cs ? [cs.fromAx, cs.toAx].filter(Boolean) : [],
+        }
       )
     );
   }
 
-  function partsNote(annot) {
-    return annot.parts && annot.parts.length > 1 ? "（" + annot.parts.join("+") + "）" : "";
-  }
-
-  function prep(axes, mmPerPt) {
-    const sorted = (axes || []).slice().sort((p, q) => p.pos - q.pos);
-    return sorted.map((ax) => ({
-      ax,
-      label: ax.label != null ? ax.label : null,
-      // UI の一覧と同じ表示名（検出時の連番）を使う
-      name: nameOf(ax),
-      mm: ax.pos * mmPerPt,
-    }));
-  }
-
-  function nameOf(ax) {
-    return ax.label != null ? ax.label : ZC.axis.displayName(ax);
-  }
-
-  // 符号一致を優先し、残りは位置（オフセット補正後）で対応付ける
-  function matchAxes(bList, cList) {
-    const matches = [];
-    const usedC = new Set();
-    const byLabel = new Map();
-    for (const c of cList) {
-      if (c.label != null && !byLabel.has(c.label)) byLabel.set(c.label, c);
-    }
-    const bRest = [];
-    for (const b of bList) {
-      const c = b.label != null ? byLabel.get(b.label) : undefined;
-      if (c && !usedC.has(c)) {
-        matches.push({ b, c });
-        usedC.add(c);
-      } else {
-        bRest.push(b);
-      }
-    }
-    let offset = 0;
-    if (matches.length) {
-      offset = U.median(matches.map((m) => m.c.mm - m.b.mm));
-    } else if (bList.length && cList.length) {
-      offset = cList[0].mm - bList[0].mm;
-    }
-    const cRest = cList.filter((c) => !usedC.has(c));
-    for (const b of bRest) {
-      let best = null;
-      let bestD = PARAMS.MATCH_TOL_MM;
-      for (const c of cRest) {
-        if (usedC.has(c)) continue;
-        const d = Math.abs(c.mm - (b.mm + offset));
-        if (d <= bestD) {
-          bestD = d;
-          best = c;
-        }
-      }
-      if (best) {
-        matches.push({ b, c: best });
-        usedC.add(best);
-      }
-    }
-    matches.sort((p, q) => p.b.mm - q.b.mm);
-    const bOnly = bList.filter((b) => !matches.some((m) => m.b === b));
-    const cOnly = cList.filter((c) => !usedC.has(c));
-    return { matches, bOnly, cOnly };
-  }
-
-  function row(check, dir, item, baseVal, cmpVal, diffMm, status, note, refs) {
+  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs) {
     const r = {
+      side: sideName,
       check,
-      dir: DIR_NAME[dir] || dir,
       item,
       base: baseVal,
       cmp: cmpVal,
-      diff: diffMm == null ? null : diffMm,
+      diff: diff == null ? null : diff,
       status,
       note: note || "",
     };
@@ -2699,16 +2679,16 @@
     return r;
   }
 
-  ZC.compare = { compare, matchAxes, PARAMS };
+  ZC.compare = { compare };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 30_ui.js ===== */
-// UI 層: ファイル読み込み・対話ビュワー（ズーム/パン/測定/寸法表示）・芯リスト・照合結果表示
+// UI 層: ファイル読み込み・対話ビュワー（ズーム/パン/測定）・辺別の拾い出し・照合結果表示
 // DOM を触るのはこのファイルと 31_app.js のみ（テストは 2x系までのロジックを対象とする）
 (function (ZC) {
   "use strict";
 
-  const U = ZC.util;
+  const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
   const COLORS = {
     seg: "#b9c0c7",
@@ -2751,19 +2731,21 @@
       this.pages = [];
       this.extract = null;
       this.axes = { v: [], h: [] };
+      this.det = { v: [], h: [] };
       this.dimsInfo = { dots: [], entries: [] };
+      this.sides = null;
       this.enabled = new Set();
       this.fileName = "";
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.showDims = true;
       this.measuring = false;
-      this.measure = null; // {a:{x,y}, b:{x,y}} ページ座標
+      this.measure = null;
       this.measureTemp = null;
       this._measureCursor = null;
       this.hoverAx = null;
-      this.highlightAxes = null; // 照合結果ホバーからの強調
-      this._rowMap = new Map(); // axis -> {tr, cb}
+      this.highlightAxes = null;
+      this._rowMap = new Map();
       this._drag = null;
       this._raf = 0;
       this._build();
@@ -2775,31 +2757,28 @@
         '<label class="file-btn">PDFを選択<input type="file" accept=".pdf,application/pdf" hidden></label>' +
         '<span class="fname">未選択</span>' +
         "</div>" +
-        '<div class="ctrl-row">' +
-        '<label>ページ <select class="page-sel" disabled></select></label>' +
-        '<label>縮尺 1/<input class="scale-in" type="number" value="100" min="1" step="any"></label>' +
-        '<span class="scale-note"></span>' +
-        "</div>" +
+        '<div class="ctrl-row"><label>ページ <select class="page-sel" disabled></select></label></div>' +
         '<div class="status"></div>' +
         '<div class="viewer-bar">' +
         '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
-        '<label title="チェック中の芯の芯々寸法を図上に表示"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
+        '<label title="辺ごとの記載寸法を図上に表示"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
         '<span class="zoom-label">—</span>' +
-        '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:照合ON/OFF</span>' +
+        '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:拾い出しON/OFF</span>' +
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
+        '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><pre class="pickup-text"></pre></div>' +
         '<div class="axis-list"></div>';
       this.$file = this.root.querySelector('input[type="file"]');
       this.$fname = this.root.querySelector(".fname");
       this.$page = this.root.querySelector(".page-sel");
-      this.$scale = this.root.querySelector(".scale-in");
-      this.$scaleNote = this.root.querySelector(".scale-note");
       this.$status = this.root.querySelector(".status");
       this.$wrap = this.root.querySelector(".viewer-wrap");
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
+      this.$pickup = this.root.querySelector(".pickup-text");
+      this.$copy = this.root.querySelector(".copy-btn");
       this.$zoom = this.root.querySelector(".zoom-label");
       this.$fit = this.root.querySelector(".vb-fit");
       this.$measureBtn = this.root.querySelector(".vb-measure");
@@ -2807,11 +2786,6 @@
 
       this.$file.addEventListener("change", () => this._onFile());
       this.$page.addEventListener("change", () => this.loadPage(Number(this.$page.value)));
-      this.$scale.addEventListener("input", () => {
-        this.requestRender();
-        this.renderList();
-        ZC.ui.updateRunButton();
-      });
       this.$fit.addEventListener("click", () => {
         this.fit();
         this.requestRender();
@@ -2820,6 +2794,12 @@
       this.$dims.addEventListener("change", () => {
         this.showDims = this.$dims.checked;
         this.requestRender();
+      });
+      this.$copy.addEventListener("click", () => {
+        const txt = this.$pickup.textContent || "";
+        if (navigator.clipboard) navigator.clipboard.writeText(txt);
+        this.$copy.textContent = "コピーしました";
+        setTimeout(() => (this.$copy.textContent = "コピー"), 1200);
       });
 
       const cv = this.$canvas;
@@ -2832,7 +2812,6 @@
         this.hoverAx = null;
         this._measureCursor = null;
         this._tip(null);
-        this._syncRowHl();
         this.requestRender();
       });
       cv.addEventListener("dblclick", () => {
@@ -2857,7 +2836,6 @@
       this.requestRender();
     }
 
-    // Esc: 測定の解除
     cancelMeasure() {
       if (!this.measuring && !this.measure) return;
       this.measure = null;
@@ -2871,12 +2849,7 @@
       this.fileName = f.name;
       this.$fname.textContent = f.name;
       this.setStatus("読み込み中…");
-      this.doc = null;
-      this.pages = [];
-      this.extract = null;
-      this.axes = { v: [], h: [] };
-      this.dimsInfo = { dots: [], entries: [] };
-      this.enabled.clear();
+      this._reset();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
         this.doc = await ZC.pdf.PDFDocument.load(buf);
@@ -2892,8 +2865,20 @@
         this.setStatus("読み込みに失敗しました: " + (e && e.message ? e.message : e), "error");
         this.requestRender();
         this.renderList();
+        this.renderPickup();
         ZC.ui.updateRunButton();
       }
+    }
+
+    _reset() {
+      this.doc = null;
+      this.pages = [];
+      this.extract = null;
+      this.axes = { v: [], h: [] };
+      this.det = { v: [], h: [] };
+      this.dimsInfo = { dots: [], entries: [] };
+      this.sides = null;
+      this.enabled.clear();
     }
 
     async loadPage(index) {
@@ -2903,34 +2888,14 @@
         const ex = new ZC.content.ContentExtractor(this.doc);
         this.extract = await ex.run(this.pages[index]);
         const det = ZC.axis.detect(this.extract);
+        this.det = det;
         this.axes = { v: det.v, h: det.h };
         this.enabled.clear();
         for (const ax of det.v.concat(det.h)) {
           if (ax.defaultOn) this.enabled.add(ax);
         }
-        this.view = null; // 再フィット
-        this.measure = null;
-        this.measureTemp = null;
-        this.highlightAxes = null;
-        // 記載寸法（黒ドット間の注記）の抽出
         this.dimsInfo = ZC.dims.extract(this.extract);
-        // 縮尺の自動推定: ドット基準の寸法があればそれを、無ければ近似（芯間中央の数字）で
-        let samples = ZC.dims.scaleSamples(this.dimsInfo.entries);
-        let src = "記載寸法" + samples.length + "件より";
-        if (!samples.length) {
-          const onV = det.v.filter((a) => this.enabled.has(a));
-          const onH = det.h.filter((a) => this.enabled.has(a));
-          samples = ZC.scale.collectDimSamples(onV, onH, this.extract.texts);
-          src = "寸法値" + samples.length + "件より（近似）";
-        }
-        const inf = ZC.scale.infer(samples);
-        if (inf.den != null) {
-          const den = inf.snapped ? inf.den : Math.round(inf.den * 10) / 10;
-          this.$scale.value = String(den);
-          this.$scaleNote.textContent = "自動推定 1/" + den + "（" + src + "）";
-        } else {
-          this.$scaleNote.textContent = "縮尺を推定できません。手入力してください。";
-        }
+        this.rebuildSides();
         const nSeg = this.extract.segments.length;
         if (nSeg === 0) {
           this.setStatus(
@@ -2940,41 +2905,41 @@
             "error"
           );
         } else {
-          const on = this.enabled.size;
+          const labeled = det.v.concat(det.h).filter((a) => a.label != null).length;
           this.setStatus(
-            "通り芯候補: 縦" + det.v.length + "本 / 横" + det.h.length + "本（うち" + on + "本をチェック済み）" +
-              " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取。誤検出はチェックを外してください。"
+            "円で囲まれた符号の通り芯: " + labeled + "本" +
+              "（縦" + det.v.filter((a) => a.label != null).length +
+              " / 横" + det.h.filter((a) => a.label != null).length + "）" +
+              " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取" +
+              (this.extract.circles ? " / 符号バブル " + this.extract.circles.length + "個" : "")
           );
         }
       } catch (e) {
         this.extract = null;
         this.axes = { v: [], h: [] };
+        this.det = { v: [], h: [] };
         this.dimsInfo = { dots: [], entries: [] };
+        this.sides = null;
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
       this.requestRender();
       this.renderList();
+      this.renderPickup();
       ZC.ui.updateRunButton();
     }
 
-    allAxes() {
-      return this.axes.v.concat(this.axes.h);
+    rebuildSides() {
+      this.sides = ZC.sides.build(this.det, this.dimsInfo.entries, { enabled: this.enabled });
     }
 
-    enabledAxes() {
-      return {
-        v: this.axes.v.filter((a) => this.enabled.has(a)),
-        h: this.axes.h.filter((a) => this.enabled.has(a)),
-      };
-    }
-
-    mmPerPt() {
-      const den = Number(this.$scale.value);
-      return den > 0 ? ZC.scale.mmPerPtFromDen(den) : null;
+    // 符号付きの芯だけを一覧・照合の対象にする
+    labeledAxes() {
+      return this.axes.v.concat(this.axes.h).filter((a) => a.label != null);
     }
 
     ready() {
-      return !!(this.extract && this.enabled.size >= 1 && this.mmPerPt());
+      if (!this.sides) return false;
+      return SIDE_ORDER.some((k) => this.sides[k] && this.sides[k].axes.length >= 1);
     }
 
     setHighlight(axes) {
@@ -2990,12 +2955,13 @@
         row.cb.checked = this.enabled.has(ax);
         row.tr.classList.toggle("off", !this.enabled.has(ax));
       }
+      this.rebuildSides();
+      this.renderPickup();
       this.requestRender();
       ZC.ui.updateRunButton();
     }
 
     // ---- 座標変換 -------------------------------------------------------
-    // ページ座標(pt, y上向き) ⇔ キャンバスCSS座標(y下向き)
 
     toScreen(x, y) {
       const v = this.view;
@@ -3068,7 +3034,6 @@
         this.requestRender();
         return;
       }
-      // ホバー判定
       const hit = this._hitAxis(mx, my);
       if (hit !== this.hoverAx) {
         this.hoverAx = hit;
@@ -3103,16 +3068,16 @@
       const hit = this._hitAxis(mx, my);
       if (hit) {
         this.toggleAxis(hit);
-        this._tip(hit, mx, my); // ON/OFF後の状態をツールチップへ即反映
+        this._tip(hit, mx, my);
       }
     }
 
-    // 画面座標での芯のヒットテスト（6px以内）
+    // 画面座標での芯のヒットテスト（符号付きの芯のみ・6px以内）
     _hitAxis(mx, my) {
       if (!this.view) return null;
       let best = null;
       let bestD = 6;
-      for (const ax of this.allAxes()) {
+      for (const ax of this.labeledAxes()) {
         let d;
         if (ax.dir === "v") {
           const [sx] = this.toScreen(ax.pos, 0);
@@ -3143,7 +3108,7 @@
       let dx = tol;
       let dy = tol;
       let snapped = false;
-      for (const ax of this.allAxes()) {
+      for (const ax of this.labeledAxes()) {
         if (ax.dir === "v") {
           const d = Math.abs(px - ax.pos);
           if (d < dx) {
@@ -3161,7 +3126,6 @@
         }
       }
       if (this.extract.segments.length <= 30000) {
-        // 端点は「現在のスナップ結果より近い」場合のみ採用する
         let bd = snapped ? Math.hypot(sx - px, sy - py) : tol;
         for (const s of this.extract.segments) {
           const d1 = Math.hypot(px - s.x1, py - s.y1);
@@ -3188,15 +3152,11 @@
         this.$tip.style.display = "none";
         return;
       }
-      const mmp = this.mmPerPt();
-      const pos = mmp ? U.fmtMm(ax.pos * mmp, 0) + " mm" : U.fmtMm(ax.pos, 1) + " pt";
-      const len = mmp ? U.fmtMm(ax.extent * mmp, 0) + " mm" : U.fmtMm(ax.extent, 1) + " pt";
+      const sides = ax.bubbles.map((b) => ZC.axis.SIDE_NAME[b.side]).join("・");
       this.$tip.textContent =
-        ZC.axis.displayName(ax) +
-        "  位置 " + pos + " / 長さ " + len +
+        ax.label + "  " + (sides ? "符号: " + sides : "") +
         " / " + (ax.dashed ? "鎖線" : "実線") +
-        (ax.frameSuspect ? "・図枠?" : "") +
-        (this.enabled.has(ax) ? " / 照合対象" : " / 対象外（クリックでON）");
+        (this.enabled.has(ax) ? " / 拾い出し対象" : " / 対象外（クリックでON）");
       this.$tip.style.display = "block";
       const ww = this.$wrap.clientWidth;
       const tw = this.$tip.offsetWidth;
@@ -3250,7 +3210,6 @@
       const v = this.view;
       this.$zoom.textContent = Math.round((v.scale / v.fitScale) * 100) + "%";
 
-      // 可視範囲（ページ座標）— 範囲外の線分は描かない
       const [px0, py1] = this.toPage(0, 0);
       const [px1, py0] = this.toPage(cssW, cssH);
       const m = 2 / v.scale;
@@ -3292,7 +3251,7 @@
 
     _drawAxes(ctx) {
       const hl = this.highlightAxes;
-      for (const ax of this.allAxes()) {
+      for (const ax of this.labeledAxes()) {
         const on = this.enabled.has(ax);
         const hover = this.hoverAx === ax || (hl && hl.includes(ax));
         ctx.lineWidth = hover ? 2.5 : on ? 1.6 : 1;
@@ -3304,22 +3263,17 @@
         ctx.lineTo(x2, y2);
         ctx.stroke();
         ctx.setLineDash([]);
-        if (on || hover) {
-          const name = ZC.axis.displayName(ax);
-          ctx.fillStyle = hover ? COLORS.hover : ax.dir === "v" ? COLORS.v : COLORS.h;
-          ctx.font = "bold 11px sans-serif";
-          if (ax.dir === "v") {
-            ctx.textAlign = "center";
-            haloText(ctx, name, x1, y1 - 4);
-          } else {
-            ctx.textAlign = "right";
-            haloText(ctx, name, x1 - 4, y1 + 4);
-          }
+        ctx.fillStyle = hover ? COLORS.hover : ax.dir === "v" ? COLORS.v : COLORS.h;
+        ctx.font = "bold 11px sans-serif";
+        // 符号バブルの位置に表示（上下・左右の両方）
+        for (const b of ax.bubbles) {
+          const [bx, by] = this.toScreen(b.x, b.y);
+          ctx.textAlign = "center";
+          haloText(ctx, ax.label, bx, by + 4);
         }
       }
     }
 
-    // 照合結果ホバー時の強調帯（2本ならその間を塗る）
     _drawHighlightBand(ctx) {
       const hl = this.highlightAxes;
       if (!hl || hl.length < 2) return;
@@ -3344,82 +3298,72 @@
       }
     }
 
-    // 隣接ペアの表示値: 記載寸法（分割は合計）を優先、無ければ作図距離×縮尺に「≈」を付ける
-    _pairText(dir, a, b, mmp) {
-      const annot = ZC.dims.spanValue(this.dimsInfo.entries, dir, a.pos, b.pos);
-      if (annot) {
-        const v = annot.value;
-        return U.fmtMm(v, Number.isInteger(v) ? 0 : 1) + (annot.parts.length > 1 ? "*" : "");
-      }
-      if (!mmp) return "";
-      return "≈" + U.fmtMm(Math.abs(b.pos - a.pos) * mmp, 0);
-    }
-
-    // 芯々寸法のオーバーレイ（チェック中の芯のみ・値は図面の記載寸法を優先）
+    // 辺ごとの記載寸法を図上に表示
     _drawDims(ctx) {
-      const mmp = this.mmPerPt();
-      const en = this.enabledAxes();
+      if (!this.sides) return;
       ctx.font = "11px sans-serif";
       ctx.strokeStyle = COLORS.dim;
       ctx.fillStyle = COLORS.dim;
       ctx.lineWidth = 1;
-
-      // 縦芯（上側に水平の寸法線）
-      const vs = en.v.slice().sort((a, b) => a.pos - b.pos);
-      if (vs.length >= 2) {
-        const topPage = Math.max(...vs.map((a) => a.to));
-        const [, yDim] = this.toScreen(0, topPage);
-        const y = yDim - 22;
-        const [xs] = this.toScreen(vs[0].pos, 0);
-        const [xe] = this.toScreen(vs[vs.length - 1].pos, 0);
-        ctx.beginPath();
-        ctx.moveTo(xs, y);
-        ctx.lineTo(xe, y);
-        for (const ax of vs) {
-          const [sx] = this.toScreen(ax.pos, 0);
-          ctx.moveTo(sx, y - 4);
-          ctx.lineTo(sx, y + 4);
-        }
-        ctx.stroke();
-        ctx.textAlign = "center";
-        for (let i = 0; i + 1 < vs.length; i++) {
-          const [x1] = this.toScreen(vs[i].pos, 0);
-          const [x2] = this.toScreen(vs[i + 1].pos, 0);
-          if (x2 - x1 < 34) continue; // 狭すぎる区間は省略
-          const val = this._pairText("v", vs[i], vs[i + 1], mmp);
-          if (val) haloText(ctx, val, (x1 + x2) / 2, y - 4);
-        }
-      }
-
-      // 横芯（左側に垂直の寸法線・文字は90度回転）
-      const hs = en.h.slice().sort((a, b) => a.pos - b.pos);
-      if (hs.length >= 2) {
-        const leftPage = Math.min(...hs.map((a) => a.from));
-        const [xDim] = this.toScreen(leftPage, 0);
-        const x = xDim - 22;
-        const [, ys] = this.toScreen(0, hs[0].pos);
-        const [, ye] = this.toScreen(0, hs[hs.length - 1].pos);
-        ctx.beginPath();
-        ctx.moveTo(x, ys);
-        ctx.lineTo(x, ye);
-        for (const ax of hs) {
-          const [, sy] = this.toScreen(0, ax.pos);
-          ctx.moveTo(x - 4, sy);
-          ctx.lineTo(x + 4, sy);
-        }
-        ctx.stroke();
-        for (let i = 0; i + 1 < hs.length; i++) {
-          const [, y1] = this.toScreen(0, hs[i].pos);
-          const [, y2] = this.toScreen(0, hs[i + 1].pos);
-          if (y1 - y2 < 34) continue;
-          const val = this._pairText("h", hs[i], hs[i + 1], mmp);
-          if (!val) continue;
-          ctx.save();
-          ctx.translate(x - 4, (y1 + y2) / 2);
-          ctx.rotate(-Math.PI / 2);
+      for (const key of SIDE_ORDER) {
+        const s = this.sides[key];
+        if (!s || s.axes.length < 2) continue;
+        if (s.dir === "v") {
+          const outer =
+            key === "top"
+              ? Math.max(...s.axes.map((a) => a.to))
+              : Math.min(...s.axes.map((a) => a.from));
+          const [, yBase] = this.toScreen(0, outer);
+          const y = key === "top" ? yBase - 20 : yBase + 22;
+          const [xs] = this.toScreen(s.axes[0].pos, 0);
+          const [xe] = this.toScreen(s.axes[s.axes.length - 1].pos, 0);
+          ctx.beginPath();
+          ctx.moveTo(xs, y);
+          ctx.lineTo(xe, y);
+          for (const ax of s.axes) {
+            const [sx] = this.toScreen(ax.pos, 0);
+            ctx.moveTo(sx, y - 4);
+            ctx.lineTo(sx, y + 4);
+          }
+          ctx.stroke();
           ctx.textAlign = "center";
-          haloText(ctx, val, 0, 0);
-          ctx.restore();
+          for (const sp of s.spans) {
+            const [x1] = this.toScreen(sp.fromAx.pos, 0);
+            const [x2] = this.toScreen(sp.toAx.pos, 0);
+            if (x2 - x1 < 34) continue;
+            const val = sp.value == null ? "—" : ZC.sides.fmtVal(sp.value) + (sp.parts && sp.parts.length > 1 ? "*" : "");
+            haloText(ctx, val, (x1 + x2) / 2, y - 4);
+          }
+        } else {
+          const outer =
+            key === "right"
+              ? Math.max(...s.axes.map((a) => a.to))
+              : Math.min(...s.axes.map((a) => a.from));
+          const [xBase] = this.toScreen(outer, 0);
+          const x = key === "right" ? xBase + 20 : xBase - 20;
+          const [, ys] = this.toScreen(0, s.axes[0].pos);
+          const [, ye] = this.toScreen(0, s.axes[s.axes.length - 1].pos);
+          ctx.beginPath();
+          ctx.moveTo(x, ys);
+          ctx.lineTo(x, ye);
+          for (const ax of s.axes) {
+            const [, sy] = this.toScreen(0, ax.pos);
+            ctx.moveTo(x - 4, sy);
+            ctx.lineTo(x + 4, sy);
+          }
+          ctx.stroke();
+          for (const sp of s.spans) {
+            const [, y1] = this.toScreen(0, sp.fromAx.pos);
+            const [, y2] = this.toScreen(0, sp.toAx.pos);
+            if (y1 - y2 < 34) continue;
+            const val = sp.value == null ? "—" : ZC.sides.fmtVal(sp.value) + (sp.parts && sp.parts.length > 1 ? "*" : "");
+            ctx.save();
+            ctx.translate(x - 4, (y1 + y2) / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = "center";
+            haloText(ctx, val, 0, 0);
+            ctx.restore();
+          }
         }
       }
     }
@@ -3448,36 +3392,37 @@
       ctx.lineTo(pB[0], pB[1]);
       ctx.stroke();
       ctx.setLineDash([]);
-      const mmp = this.mmPerPt();
-      const f = (val) => U.fmtMm(val * (mmp || 1), 1);
-      const unit = mmp ? "mm" : "pt";
+      // 縮尺を使わないため図面上の長さ(pt)で表示する
       const dx = Math.abs(b.x - a.x);
       const dy = Math.abs(b.y - a.y);
-      const len = Math.hypot(dx, dy);
-      const label = f(len) + " " + unit + "（ΔX " + f(dx) + " / ΔY " + f(dy) + "）";
+      const label =
+        Math.hypot(dx, dy).toFixed(1) + " pt（ΔX " + dx.toFixed(1) + " / ΔY " + dy.toFixed(1) + "）";
       ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "left";
-      const mx = (pA[0] + pB[0]) / 2 + 8;
-      const my = (pA[1] + pB[1]) / 2 - 8;
-      haloText(ctx, label, mx, my);
+      haloText(ctx, label, (pA[0] + pB[0]) / 2 + 8, (pA[1] + pB[1]) / 2 - 8);
     }
 
-    // ---- 一覧 ------------------------------------------------------------
+    // ---- 拾い出し結果・一覧 ---------------------------------------------
+
+    renderPickup() {
+      if (!this.sides) {
+        this.$pickup.textContent = "";
+        return;
+      }
+      this.$pickup.textContent = ZC.sides.formatText(this.sides);
+    }
 
     renderList() {
       this.$list.innerHTML = "";
       this._rowMap = new Map();
-      const axes = this.allAxes();
+      const axes = this.labeledAxes();
       if (!axes.length) return;
       const table = el("table", { class: "axes" });
       const thead = el("thead");
-      thead.innerHTML =
-        "<tr><th>照合</th><th>方向</th><th>符号</th><th>位置(mm)</th><th>長さ(mm)</th><th>線種</th></tr>";
+      thead.innerHTML = "<tr><th>拾い出し</th><th>方向</th><th>符号</th><th>符号の辺</th><th>線種</th></tr>";
       table.appendChild(thead);
       const tbody = el("tbody");
-      const mmPerPt = this.mmPerPt() || 0;
-      const list = this.axes.v.concat(this.axes.h);
-      for (const ax of list) {
+      for (const ax of axes) {
         const tr = el("tr", {
           class: this.enabled.has(ax) ? "" : "off",
           onmouseenter: () => {
@@ -3495,20 +3440,17 @@
           if (cb.checked) this.enabled.add(ax);
           else this.enabled.delete(ax);
           tr.className = cb.checked ? "" : "off";
+          this.rebuildSides();
+          this.renderPickup();
           this.requestRender();
           ZC.ui.updateRunButton();
         });
         this._rowMap.set(ax, { tr, cb });
         tr.appendChild(el("td", {}, [cb]));
-        tr.appendChild(el("td", { text: ax.dir === "v" ? "縦" : "横" }));
-        tr.appendChild(el("td", { text: ZC.axis.displayName(ax) + (ax.label == null ? "（符号なし）" : "") }));
-        tr.appendChild(el("td", { text: mmPerPt ? U.fmtMm(ax.pos * mmPerPt, 0) : "—" }));
-        tr.appendChild(el("td", { text: mmPerPt ? U.fmtMm(ax.extent * mmPerPt, 0) : "—" }));
-        tr.appendChild(
-          el("td", {
-            text: (ax.dashed ? "鎖線/破線" : "実線") + (ax.frameSuspect ? "・図枠?" : ""),
-          })
-        );
+        tr.appendChild(el("td", { text: ax.dir === "v" ? "縦(X)" : "横(Y)" }));
+        tr.appendChild(el("td", { text: ax.label }));
+        tr.appendChild(el("td", { text: ax.bubbles.map((b) => ZC.axis.SIDE_NAME[b.side]).join("・") }));
+        tr.appendChild(el("td", { text: ax.dashed ? "鎖線/破線" : "実線" }));
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -3545,29 +3487,18 @@
       if (btn) btn.disabled = !(ui.base && ui.cmp && ui.base.ready() && ui.cmp.ready());
     },
 
-    gatherSide(panel, name) {
-      const en = panel.enabledAxes();
-      const mmPerPt = panel.mmPerPt();
-      return {
-        v: en.v,
-        h: en.h,
-        mmPerPt,
-        entries: panel.dimsInfo.entries,
-        name,
-      };
-    },
-
     runCheck() {
       const tol = Number(document.getElementById("tol").value) || 1;
       const checks = {
         labels: document.getElementById("ck-labels").checked,
         spacing: document.getElementById("ck-spacing").checked,
         total: document.getElementById("ck-total").checked,
-        dims: document.getElementById("ck-dims").checked,
       };
-      const base = ui.gatherSide(ui.base, "基準");
-      const cmp = ui.gatherSide(ui.cmp, "比較");
-      const result = ZC.compare.compare(base, cmp, { tol, checks });
+      const result = ZC.compare.compare(
+        { sides: ui.base.sides, name: "基準" },
+        { sides: ui.cmp.sides, name: "比較" },
+        { tol, checks }
+      );
       ui.lastResult = result;
       ui.renderResult(result, tol);
     },
@@ -3588,7 +3519,7 @@
         })
       );
       if (!result.rows.length) {
-        wrap.appendChild(el("p", { text: "チェック項目が選択されていないか、対応する芯がありません。" }));
+        wrap.appendChild(el("p", { text: "チェック項目が選択されていないか、対応する通り芯がありません。" }));
         document.getElementById("csv-dl").hidden = true;
         return;
       }
@@ -3598,7 +3529,7 @@
       const table = el("table", { class: "result" });
       const thead = el("thead");
       thead.innerHTML =
-        "<tr><th>判定</th><th>チェック</th><th>方向</th><th>対象</th><th>基準</th><th>比較</th><th>差(mm)</th><th>備考</th></tr>";
+        "<tr><th>判定</th><th>辺</th><th>チェック</th><th>対象</th><th>基準</th><th>比較</th><th>差(mm)</th><th>備考</th></tr>";
       table.appendChild(thead);
       const tbody = el("tbody");
       for (const r of result.rows) {
@@ -3614,12 +3545,12 @@
           });
         }
         tr.appendChild(el("td", { text: r.status === "WARN" ? "要確認" : r.status, class: "st" }));
+        tr.appendChild(el("td", { text: r.side }));
         tr.appendChild(el("td", { text: r.check }));
-        tr.appendChild(el("td", { text: r.dir }));
         tr.appendChild(el("td", { text: r.item }));
         tr.appendChild(el("td", { text: String(r.base) }));
         tr.appendChild(el("td", { text: String(r.cmp) }));
-        tr.appendChild(el("td", { text: r.diff == null ? "—" : (r.diff > 0 ? "+" : "") + U.fmtMm(r.diff) }));
+        tr.appendChild(el("td", { text: r.diff == null ? "—" : (r.diff > 0 ? "+" : "") + ZC.sides.fmtVal(r.diff) }));
         tr.appendChild(el("td", { text: r.note }));
         tbody.appendChild(tr);
       }
@@ -3630,23 +3561,23 @@
 
     downloadCsv() {
       if (!ui.lastResult) return;
-      const head = ["判定", "チェック", "方向", "対象", "基準", "比較", "差(mm)", "備考"];
+      const head = ["判定", "辺", "チェック", "対象", "基準", "比較", "差(mm)", "備考"];
       const lines = [head.join(",")];
       for (const r of ui.lastResult.rows) {
         const cells = [
           r.status,
+          r.side,
           r.check,
-          r.dir,
           r.item,
           String(r.base),
           String(r.cmp),
-          r.diff == null ? "" : U.fmtMm(r.diff),
+          r.diff == null ? "" : ZC.sides.fmtVal(r.diff),
           r.note,
         ].map((c) => '"' + String(c).replace(/"/g, '""') + '"');
         lines.push(cells.join(","));
       }
       // Excel で文字化けしないよう BOM 付き UTF-8
-      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv" });
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "zumen-check.csv";
