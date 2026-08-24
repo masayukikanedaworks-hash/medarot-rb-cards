@@ -128,6 +128,7 @@
           const t = texts[ti];
           const value = U.parseDimNumber(t.str);
           if (value == null) continue;
+          const width = U.isWidthNote(t.str); // 「W＝1650」= 開口幅
           let tm; // 測る方向の中心
           let off; // 線からの浮き（上側/左側が正）。回転文字は線に近い側の端で測る
           if (dir === "v") {
@@ -144,12 +145,12 @@
           const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0) + (rotated ? 1 : 0);
           if (score < bestScore) {
             bestScore = score;
-            best = { ti, value };
+            best = { ti, value, width };
           }
         }
         if (best) {
           usedTexts.add(best.ti);
-          entries.push({ dir, row: r.c, p1, p2, value: best.value });
+          entries.push({ dir, row: r.c, p1, p2, value: best.value, width: best.width });
         }
       }
     }
@@ -176,6 +177,8 @@
     const byRow = new Map();
     for (const e of entries) {
       if (e.dir !== dir) continue;
+      // 開口幅（W＝）は通り芯間の分割寸法ではないので、芯々の値・内訳には使わない
+      if (e.width) continue;
       if (e.p1 < lo - AX || e.p2 > hi + AX) continue;
       const key = Math.round(e.row * 4);
       if (!byRow.has(key)) byRow.set(key, []);
@@ -203,7 +206,7 @@
         const rMin = Math.min(...ratios);
         const rMax = Math.max(...ratios);
         const consistent = list.length < 2 || rMax - rMin <= rMax * PARAMS.RATIO_TOL;
-        candidates.push({ sum, parts, consistent });
+        candidates.push({ sum, parts, consistent, list });
       }
     }
     if (!candidates.length) return null;
@@ -214,12 +217,41 @@
     const best = candidates[0]; // 通り芯間の値は分割数の少ない段（通り寸法の段）を採用
     const conflict = candidates.some((c) => Math.abs(c.sum - best.sum) > PARAMS.CONFLICT_MM);
     // 内訳は「合計が一致する最も細かい段」を採用する（例: 6000（2730.5+3269.5））
-    let parts = best.parts;
+    let detail = best;
     for (const c of candidates) {
-      if (c.parts.length > parts.length && Math.abs(c.sum - best.sum) <= PARAMS.CONFLICT_MM) parts = c.parts;
+      if (c.parts.length > detail.parts.length && Math.abs(c.sum - best.sum) <= PARAMS.CONFLICT_MM) detail = c;
     }
-    return { value: best.sum, parts, conflict };
+    // used: この区間の値と内訳に実際に使った注記（「その他の寸法」から除くため）
+    const used = best === detail ? best.list.slice() : best.list.concat(detail.list);
+    return { value: best.sum, parts: detail.parts, conflict, used };
   }
 
-  ZC.dims = { extract, spanValue, mergeTexts, PARAMS };
+  // 注記を「寸法線（段）」ごとにまとめる。skip に入っている注記は除く。
+  // 通り芯間として拾えなかった寸法線（室内寸法・開口幅 W= など）の一覧に使う。
+  function groupRows(entries, skip) {
+    const byRow = new Map();
+    for (const e of entries || []) {
+      if (skip && skip.has(e)) continue;
+      const key = e.dir + ":" + Math.round(e.row * 4);
+      if (!byRow.has(key)) byRow.set(key, { dir: e.dir, row: e.row, items: [] });
+      byRow.get(key).items.push(e);
+    }
+    const rows = [];
+    for (const r of byRow.values()) {
+      r.items.sort((a, b) => a.p1 - b.p1);
+      r.from = r.items[0].p1;
+      r.to = r.items[r.items.length - 1].p2;
+      // 端から端までつながっている段だけ合計を出す（飛び飛びの段は合計に意味が無い）
+      let chained = true;
+      for (let i = 1; i < r.items.length; i++) {
+        if (Math.abs(r.items[i].p1 - r.items[i - 1].p2) > PARAMS.CHAIN_TOL) chained = false;
+      }
+      r.total = chained && r.items.length > 1 ? r.items.reduce((a, e) => a + e.value, 0) : null;
+      rows.push(r);
+    }
+    rows.sort((a, b) => (a.dir === b.dir ? a.row - b.row || a.from - b.from : a.dir < b.dir ? -1 : 1));
+    return rows;
+  }
+
+  ZC.dims = { extract, spanValue, mergeTexts, groupRows, PARAMS };
 })(globalThis.ZC = globalThis.ZC || {});

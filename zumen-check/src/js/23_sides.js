@@ -27,6 +27,7 @@
     const vAxes = pick(det.v || []);
     const hAxes = pick(det.h || []);
     const out = {};
+    const used = new Set(); // 通り芯間の寸法として使った注記
     for (const side of SIDES) {
       const dir = side === "top" || side === "bottom" ? "v" : "h";
       const axes = (dir === "v" ? vAxes : hAxes)
@@ -58,6 +59,7 @@
         const a = axes[i];
         const b = axes[i + 1];
         const annot = ZC.dims.spanValue(nearAxes(a, b), dir, a.pos, b.pos);
+        if (annot) for (const e of annot.used) used.add(e);
         spans.push({
           from: a.label,
           to: b.label,
@@ -76,13 +78,30 @@
           axes[0].pos,
           axes[axes.length - 1].pos
         );
+        if (t) for (const e of t.used) used.add(e);
         total = t
           ? { from: axes[0].label, to: axes[axes.length - 1].label, value: t.value, parts: t.parts }
           : { from: axes[0].label, to: axes[axes.length - 1].label, value: null, parts: null };
       }
       out[side] = { side, name: SIDE_NAME[side], dir, axes, spans, total, entryCount: dirEntries.length };
     }
+    // 通り芯間として使った注記は JSON/CSV に出さない（列挙不可）
+    Object.defineProperty(out, "used", { value: used, enumerable: false });
     return out;
+  }
+
+  // 通り芯間として拾えなかった寸法線（室内寸法・開口幅 W= など）を段ごとにまとめる。
+  // dir="v" は横向きの寸法線（X方向を測る段）、dir="h" は縦向きの寸法線。
+  function otherRows(sides, entries) {
+    const rows = ZC.dims.groupRows(entries, sides && sides.used);
+    return { v: rows.filter((r) => r.dir === "v"), h: rows.filter((r) => r.dir === "h") };
+  }
+
+  // 1段の表記: 「1650 + 900 + 1650 ＝ 4200」（1区間だけなら値のみ）
+  function formatRow(r) {
+    const vals = r.items.map((e) => fmtVal(e.value));
+    if (vals.length === 1) return vals[0];
+    return vals.join(" + ") + (r.total != null ? " ＝ " + fmtVal(r.total) : "");
   }
 
   // 1区間の表記: 「X1~X2：5917（2730.5+3186.5）」
@@ -120,5 +139,5 @@
     return lines.join("\n").trim();
   }
 
-  ZC.sides = { build, formatSpan, formatText, fmtVal, SIDES, SIDE_NAME };
+  ZC.sides = { build, otherRows, formatSpan, formatRow, formatText, fmtVal, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});

@@ -12,6 +12,7 @@
     off: "#c7c7c7",
     hover: "#f5820a",
     dim: "#a15c00",
+    other: "#7a3fa8",
     measure: "#d81b60",
   };
 
@@ -75,6 +76,35 @@
     return block;
   }
 
+  // 通り芯以外の寸法線（室内寸法・開口幅 W＝ など）を段ごとに一覧する。
+  // 段数が多いので、ここだけはスクロールできる箱にする。
+  function renderOtherDims(container, others) {
+    container.innerHTML = "";
+    if (!others) return;
+    for (const g of [
+      { title: "X方向の寸法線（横向き）", rows: others.v },
+      { title: "Y方向の寸法線（縦向き）", rows: others.h },
+    ]) {
+      const group = el("div", { class: "dir-group" });
+      group.appendChild(
+        el("div", { class: "dir-title", text: g.title + "　" + g.rows.length + "段" })
+      );
+      if (!g.rows.length) {
+        group.appendChild(el("div", { class: "side-empty", text: "（ありません）" }));
+      } else {
+        const box = el("div", { class: "other-list" });
+        for (const r of g.rows) {
+          const line = el("div", { class: "other-row" });
+          line.appendChild(el("span", { class: "other-n", text: r.items.length + "区間" }));
+          line.appendChild(el("span", { class: "other-v", text: ZC.sides.formatRow(r) }));
+          box.appendChild(line);
+        }
+        group.appendChild(box);
+      }
+      container.appendChild(group);
+    }
+  }
+
   function renderSideBlocks(container, sidesLike) {
     container.innerHTML = "";
     if (!sidesLike) return;
@@ -114,6 +144,7 @@
       this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
+      this.others = null; // 通り芯以外の寸法線（段ごと）
       this.autoHeightPx = null; // ビュワー高さの自動調整値
       this.userSizedViewer = false; // 利用者が高さを変えたか
       this.showDims = true;
@@ -140,12 +171,18 @@
         '<div class="viewer-bar">' +
         '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
-        '<label title="辺ごとの記載寸法を図上に表示"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
+        '<label title="記載寸法を図上に表示（表示する種類は下のチェックに従う）"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
         '<span class="zoom-label">—</span>' +
         '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:拾い出しON/OFF</span>' +
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
-        '<div class="pickup"><div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button></div><div class="pickup-grid"></div></div>' +
+        '<div class="pickup">' +
+        '<div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button>' +
+        '<span class="pickup-show">表示:' +
+        '<label title="円で囲まれた符号(X○○/Y○○)と、その芯々寸法"><input type="checkbox" class="sh-grid" checked> 通り芯</label>' +
+        '<label title="通り芯間として拾えなかった寸法線（室内寸法・開口幅 W＝ など）"><input type="checkbox" class="sh-other"> その他の寸法</label>' +
+        "</span></div>" +
+        '<div class="pickup-grid"></div><div class="other-dims"></div></div>' +
         '<div class="ai-box">' +
         '<div class="ai-head">' +
         '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
@@ -163,6 +200,9 @@
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
       this.$pickup = this.root.querySelector(".pickup-grid");
+      this.$others = this.root.querySelector(".other-dims");
+      this.$shGrid = this.root.querySelector(".sh-grid");
+      this.$shOther = this.root.querySelector(".sh-other");
       this.$copy = this.root.querySelector(".copy-btn");
       this.$aiRun = this.root.querySelector(".ai-run");
       this.$aiResult = this.root.querySelector(".ai-result");
@@ -182,9 +222,15 @@
         this.showDims = this.$dims.checked;
         this.requestRender();
       });
+      for (const cb of [this.$shGrid, this.$shOther]) {
+        cb.addEventListener("change", () => {
+          this.renderPickup();
+          this.requestRender(); // 図上の寸法オーバーレイも表示対象に合わせる
+        });
+      }
       this.$aiRun.addEventListener("click", () => this.runAi());
       this.$copy.addEventListener("click", () => {
-        const txt = this.sides ? ZC.sides.formatText(this.sides) : "";
+        const txt = this.pickupText();
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
         this.$copy.textContent = "コピーしました";
         setTimeout(() => (this.$copy.textContent = "コピー"), 1200);
@@ -319,6 +365,7 @@
         this.sides = null;
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
+      if (!this.sides) this.others = null;
       this.autoHeight();
       this.view = null; // 高さが変わるので次の描画でフィットし直す
       this.requestRender();
@@ -402,6 +449,8 @@
 
     rebuildSides() {
       this.sides = ZC.sides.build(this.det, this.dimsInfo.entries, { enabled: this.enabled });
+      // 芯のON/OFFで通り芯間に使う注記が変わるため、その他の寸法も作り直す
+      this.others = ZC.sides.otherRows(this.sides, this.dimsInfo.entries);
     }
 
     // 符号付きの芯だけを一覧・照合の対象にする
@@ -715,7 +764,10 @@
 
       this._drawHighlightBand(ctx);
       this._drawAxes(ctx);
-      if (this.showDims) this._drawDims(ctx);
+      if (this.showDims) {
+        if (!this.$shGrid || this.$shGrid.checked) this._drawDims(ctx);
+        if (this.$shOther && this.$shOther.checked) this._drawOtherDims(ctx);
+      }
       this._drawMeasure(ctx);
     }
 
@@ -782,6 +834,74 @@
     }
 
     // 辺ごとの記載寸法を図上に表示
+    // 通り芯以外の寸法線を、図面上のその位置に描く（拡大時のみ数値を出す）
+    _drawOtherDims(ctx) {
+      if (!this.others) return;
+      ctx.font = "10px sans-serif";
+      ctx.strokeStyle = COLORS.other;
+      ctx.fillStyle = COLORS.other;
+      ctx.lineWidth = 1;
+      const W = this.$canvas.clientWidth;
+      const H = this.$canvas.clientHeight;
+      for (const dir of ["v", "h"]) {
+        for (const r of this.others[dir]) {
+          if (dir === "v") {
+            const [, y] = this.toScreen(0, r.row);
+            if (y < -20 || y > H + 20) continue;
+            const [x1] = this.toScreen(r.from, 0);
+            const [x2] = this.toScreen(r.to, 0);
+            if (x2 - x1 < 8 || x2 < -20 || x1 > W + 20) continue;
+            ctx.beginPath();
+            ctx.moveTo(x1, y);
+            ctx.lineTo(x2, y);
+            for (const e of r.items) {
+              const [px] = this.toScreen(e.p1, 0);
+              ctx.moveTo(px, y - 3);
+              ctx.lineTo(px, y + 3);
+            }
+            ctx.moveTo(x2, y - 3);
+            ctx.lineTo(x2, y + 3);
+            ctx.stroke();
+            ctx.textAlign = "center";
+            for (const e of r.items) {
+              const [a] = this.toScreen(e.p1, 0);
+              const [b] = this.toScreen(e.p2, 0);
+              if (b - a < 26) continue;
+              haloText(ctx, ZC.sides.fmtVal(e.value), (a + b) / 2, y - 3);
+            }
+          } else {
+            const [x] = this.toScreen(r.row, 0);
+            if (x < -20 || x > W + 20) continue;
+            const [, y1] = this.toScreen(0, r.from);
+            const [, y2] = this.toScreen(0, r.to);
+            if (y1 - y2 < 8 || y1 < -20 || y2 > H + 20) continue;
+            ctx.beginPath();
+            ctx.moveTo(x, y1);
+            ctx.lineTo(x, y2);
+            for (const e of r.items) {
+              const [, py] = this.toScreen(0, e.p1);
+              ctx.moveTo(x - 3, py);
+              ctx.lineTo(x + 3, py);
+            }
+            ctx.moveTo(x - 3, y2);
+            ctx.lineTo(x + 3, y2);
+            ctx.stroke();
+            for (const e of r.items) {
+              const [, a] = this.toScreen(0, e.p1);
+              const [, b] = this.toScreen(0, e.p2);
+              if (a - b < 26) continue;
+              ctx.save();
+              ctx.translate(x - 3, (a + b) / 2);
+              ctx.rotate(-Math.PI / 2);
+              ctx.textAlign = "center";
+              haloText(ctx, ZC.sides.fmtVal(e.value), 0, 0);
+              ctx.restore();
+            }
+          }
+        }
+      }
+    }
+
     _drawDims(ctx) {
       if (!this.sides) return;
       ctx.font = "11px sans-serif";
@@ -887,8 +1007,32 @@
 
     // ---- 拾い出し結果・一覧 ---------------------------------------------
 
+    // コピー用テキスト（表示チェックに合わせる）
+    pickupText() {
+      const out = [];
+      if ((!this.$shGrid || this.$shGrid.checked) && this.sides) out.push(ZC.sides.formatText(this.sides));
+      if (this.$shOther && this.$shOther.checked && this.others) {
+        for (const g of [
+          { title: "X方向の寸法線（横向き）", rows: this.others.v },
+          { title: "Y方向の寸法線（縦向き）", rows: this.others.h },
+        ]) {
+          out.push("■その他の寸法 " + g.title + "（" + g.rows.length + "段）");
+          for (const r of g.rows) out.push(ZC.sides.formatRow(r));
+          out.push("");
+        }
+      }
+      return out.join("\n").trim();
+    }
+
     renderPickup() {
-      renderSideBlocks(this.$pickup, this.sides);
+      const showGrid = !this.$shGrid || this.$shGrid.checked;
+      const showOther = this.$shOther && this.$shOther.checked;
+      this.$pickup.hidden = !showGrid;
+      if (showGrid) renderSideBlocks(this.$pickup, this.sides);
+      else this.$pickup.innerHTML = "";
+      this.$others.hidden = !showOther;
+      if (showOther) renderOtherDims(this.$others, this.others);
+      else this.$others.innerHTML = "";
     }
 
     renderList() {
