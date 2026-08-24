@@ -30,3 +30,12 @@ exports.記載寸法が無い区間は要確認になる = async () => {
   assert.ok(warn[0].note.includes("記載寸法が見つかりません"));
   assert.equal(r.summary.ng, 0, "値が読めない区間はNGにしない");
 };
+
+exports["W＝の開口幅は数字だけを寸法として読む"] = () => {
+  assert.equal(ZC.util.parseDimNumber("W= 1650"), 1650, "W＝付きは数字だけ読む");
+  assert.equal(ZC.util.parseDimNumber("Ｗ＝1650"), 1650, "全角も同じ");
+  assert.equal(ZC.util.parseDimNumber("1650"), 1650);
+  assert.equal(ZC.util.parseDimNumber("H=1650"), null, "W＝以外の接頭辞は拾わない");
+  assert.equal(ZC.util.isWidthNote("W= 900"), true);
+  assert.equal(ZC.util.isWidthNote("900"), false);
+};

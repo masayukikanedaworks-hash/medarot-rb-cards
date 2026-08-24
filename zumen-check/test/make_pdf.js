@@ -48,6 +48,9 @@ function makeSpec() {
     // 右下の小さなキープラン（本図とは別の図）。{labels:{v:[],h:[]}} を与えると
     // 本図より小さい符号バブル付きの縮小図を描く。拾い出しから除外されるべきもの。
     keyPlan: null,
+    // 通り芯とは無関係の寸法線（室内寸法・開口幅 W＝）。
+    // [{ dir:"v"|"h", at:段の位置, points:[座標...], values:["1650","W= 900"...] }]
+    extraDims: null,
   };
 }
 
@@ -227,6 +230,11 @@ function drawingOps(spec, textEnc, useTJ) {
     if (hPts.length >= 2) vDimCol(LEFT_COL_X, hPts, hValues);
     const hRightPts = hRight.map((o) => o.pos);
     if (hRightPts.length >= 2) vDimCol(RIGHT_COL_X, hRightPts, spec.dimsRight || valuesOf(hRight, null));
+    // 通り芯と関係のない寸法線（室内寸法・開口幅）
+    for (const ed of spec.extraDims || []) {
+      if (ed.dir === "h") vDimCol(ed.at, ed.points, ed.values);
+      else hDimRow(ed.at, ed.points, ed.values, false);
+    }
   } else {
     // 旧式: ドット無しの浮き注記（フォールバック経路の検証用）
     for (let i = 0; i + 1 < pos.v.length; i++) {

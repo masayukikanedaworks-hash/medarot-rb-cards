@@ -19,8 +19,11 @@
 
   // 寸法値らしい文字列を mm 数値へ（"6,000" → 6000、"2730.5" → 2730.5）。該当しなければ null
   // 小数点付きの寸法にも対応する。判定は寸法線（黒ドット間の直線）への位置付けと併用する前提。
+  // 寸法値として読む文字列。数字のみが原則だが、開口幅の「W＝1650」のように
+  // W= が前に付くものは数字だけを取り出して寸法として扱う（normalizeLabel が
+  // 全角と空白を落とすので "Ｗ＝ 1650" もここに来る）。
   function parseDimNumber(s) {
-    const t = normalizeLabel(s).replace(/,/g, "");
+    const t = normalizeLabel(s).replace(/,/g, "").replace(/^W=/, "");
     if (!/^\d{2,5}(\.\d{1,3})?$/.test(t)) return null;
     const v = Number(t);
     return v >= 10 && v <= 99999 ? v : null;
@@ -104,5 +107,10 @@
     return (Object.is(r, -0) ? 0 : r).toFixed(d); // "-0.0" を出さない
   }
 
-  ZC.util = { normalizeLabel, parseDimNumber, axisLabelOf, median, MAT, latin1, indexOfBytes, fmtMm };
+  // 開口幅の注記（「W＝1650」）かどうか。値そのものは parseDimNumber で数字だけ取る。
+  function isWidthNote(s) {
+    return /^W=/.test(normalizeLabel(s).replace(/,/g, ""));
+  }
+
+  ZC.util = { normalizeLabel, parseDimNumber, isWidthNote, axisLabelOf, median, MAT, latin1, indexOfBytes, fmtMm };
 })(globalThis.ZC = globalThis.ZC || {});

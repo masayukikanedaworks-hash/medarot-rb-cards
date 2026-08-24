@@ -110,3 +110,37 @@ exports.キープランが無い図面では全ての符号を拾う = async () 
   assert.equal(det.groups.length <= 1, true, "1つの図なら分割しない");
   assert.equal(det.droppedBubbles, 0);
 };
+
+exports.通り芯以外の寸法線を段ごとに拾う = async () => {
+  const spec = mk.makeSpec();
+  const pos = mk.axisPositions(spec);
+  const x1 = pos.v[0].pos;
+  // 室内寸法の段（通り芯には合わない位置）と、開口幅 W＝ の段
+  spec.extraDims = [
+    { dir: "v", at: 300, points: [x1 + 20, x1 + 40, x1 + 70], values: ["706", "1059"] },
+    { dir: "v", at: 330, points: [x1 + 25, x1 + 71], values: ["W= 1623"] },
+  ];
+  const { dims, sides } = await analyze(mk.makeBasicPdf(spec));
+  const others = ZC.sides.otherRows(sides, dims.entries);
+  const flat = others.v.map((r) => ZC.sides.formatRow(r));
+  assert.ok(flat.includes("706 + 1059 ＝ 1765"), "室内寸法の段が段ごとに並ぶ: " + JSON.stringify(flat));
+  assert.ok(flat.includes("1623"), "W＝の開口幅も数字で拾う: " + JSON.stringify(flat));
+  // 通り芯間の寸法は「その他」に混ざらない
+  assert.equal(flat.some((t) => t === "6000"), false, "通り芯で使った注記は除かれる");
+};
+
+exports["開口幅は通り芯間の内訳に使わない"] = async () => {
+  const spec = mk.makeSpec();
+  const pos = mk.axisPositions(spec);
+  const x1 = pos.v[0].pos;
+  const x2 = pos.v[1].pos;
+  // X1〜X2 をちょうど分割する「W＝」の段を置いても、内訳には採用されない
+  spec.extraDims = [
+    { dir: "v", at: mk.BOTTOM_SPAN_Y - 8, points: [x1, (x1 + x2) / 2, x2], values: ["W= 3000", "W= 3000"] },
+  ];
+  const { sides } = await analyze(mk.makeBasicPdf(spec));
+  const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
+  assert.equal(sp.value, 6000, "芯々の値は通り段のまま");
+  assert.deepEqual(sp.parts, [2730.5, 3269.5], "内訳は分割段のまま（W＝は使わない）");
+  assert.equal(sp.conflict, false, "W＝の段は食い違い判定にも使わない");
+};

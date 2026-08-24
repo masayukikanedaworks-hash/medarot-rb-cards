@@ -21,6 +21,7 @@ function usage() {
   --page N / --page2 N    対象ページ（1始まり、既定 1）
   --tol T                 照合の許容差 mm（既定 1）
   --axes                  通り芯の一覧も表示
+  --others                通り芯以外の寸法線（室内寸法・開口幅W＝）も表示
   --json                  JSONで出力
 
 通り芯は「円で囲まれた X○○ / Y○○」のみを拾います。寸法は図面に記載された
@@ -28,13 +29,14 @@ function usage() {
 }
 
 function parseArgs(argv) {
-  const opt = { files: [], page: 1, page2: 1, tol: 1, axes: false, json: false };
+  const opt = { files: [], page: 1, page2: 1, tol: 1, axes: false, others: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--page") opt.page = Number(argv[++i]);
     else if (a === "--page2") opt.page2 = Number(argv[++i]);
     else if (a === "--tol") opt.tol = Number(argv[++i]);
     else if (a === "--axes") opt.axes = true;
+    else if (a === "--others") opt.others = true;
     else if (a === "--json") opt.json = true;
     else if (a === "--help" || a === "-h") return null;
     else if (a.startsWith("--")) throw new Error("不明なオプション: " + a);
@@ -57,7 +59,8 @@ async function analyze(file, pageNo) {
   const det = ZC.axis.detect(extract);
   const dims = ZC.dims.extract(extract);
   const sides = ZC.sides.build(det, dims.entries);
-  return { file, pageNo, pageCount: pages.length, extract, det, dims, sides };
+  const others = ZC.sides.otherRows(sides, dims.entries);
+  return { file, pageNo, pageCount: pages.length, extract, det, dims, sides, others };
 }
 
 function reportOne(r, opt) {
@@ -96,6 +99,16 @@ function reportOne(r, opt) {
       }
     }
     lines.push("");
+  }
+  if (opt.others) {
+    for (const g of [
+      { title: "X方向の寸法線（横向き）", rows: r.others.v },
+      { title: "Y方向の寸法線（縦向き）", rows: r.others.h },
+    ]) {
+      lines.push(`■ その他の寸法 ${g.title} ${g.rows.length}段`);
+      for (const row of g.rows) lines.push(`  ${String(row.items.length).padStart(3)}区間  ${ZC.sides.formatRow(row)}`);
+      lines.push("");
+    }
   }
   if (opt.axes) {
     lines.push("■ 通り芯一覧");
