@@ -51,3 +51,22 @@ exports.回転ページでも同じ検出結果 = async () => {
   assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"]);
   assert.deepEqual(labels(det, "h"), ["Y1", "Y2"]);
 };
+
+exports.構造図の部材符号は通り芯として拾わない = async () => {
+  const spec = mk.makeSpec();
+  // 構造図の縦枠符号のように X○.○ / Y○.○ を円無しで大量に散らす
+  const marks = [];
+  for (let i = 0; i < 5; i++) {
+    for (let j = 1; j <= 5; j++) {
+      marks.push({ str: "Y" + (i + 1) + "." + j, x: 200 + i * 70, y: 160 + j * 18 });
+      marks.push({ str: "X" + (i + 1) + "." + j, x: 200 + j * 40, y: 300 + i * 22 });
+    }
+  }
+  spec.memberMarks = marks;
+  const { det, sides } = await analyze(mk.makeBasicPdf(spec));
+  const labels = det.v.concat(det.h).filter((a) => a.label != null).map((a) => a.label).sort();
+  assert.deepEqual(labels, ["X1", "X2", "X3", "Y1", "Y2"], "円囲みの通り芯だけ: " + JSON.stringify(labels));
+  // 通り芯の寸法読み取りは部材符号に影響されない
+  const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
+  assert.equal(sp.value, 6000);
+};

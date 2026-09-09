@@ -193,6 +193,18 @@
   .other-row:last-child { border-bottom: none; }
   .other-n { flex: none; width: 44px; text-align: right; color: var(--sub); font-size: 11px; }
   .other-v { font-variant-numeric: tabular-nums; word-break: break-all; }
+  /* 文字データが無い図面の案内 */
+  .no-text {
+    border: 1px solid #e6c98a;
+    background: #fdf6e3;
+    border-radius: 5px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #6b4b00;
+  }
+  .no-text-title { font-weight: 700; margin-bottom: 4px; }
+  .no-text p { margin: 0 0 6px; }
+  .no-text ul { margin: 0; padding-left: 18px; }
   .ai-box { margin-top: 10px; }
   .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ai-head .ai-run {
