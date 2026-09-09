@@ -145,6 +145,7 @@
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.others = null; // 通り芯以外の寸法線（段ごと）
+      this.diag = null; // 文字データの有無の診断
       this.autoHeightPx = null; // ビュワー高さの自動調整値
       this.userSizedViewer = false; // 利用者が高さを変えたか
       this.showDims = true;
@@ -349,13 +350,18 @@
           );
         } else {
           const labeled = det.v.concat(det.h).filter((a) => a.label != null).length;
-          this.setStatus(
+          this.diag = ZC.content.diagnose(this.extract);
+          const info =
             "円で囲まれた符号の通り芯: " + labeled + "本" +
-              "（縦" + det.v.filter((a) => a.label != null).length +
-              " / 横" + det.h.filter((a) => a.label != null).length + "）" +
-              " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取" +
-              (this.extract.circles ? " / 符号バブル " + this.extract.circles.length + "個" : "")
-          );
+            "（縦" + det.v.filter((a) => a.label != null).length +
+            " / 横" + det.h.filter((a) => a.label != null).length + "）" +
+            " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取" +
+            (this.extract.circles ? " / 符号バブル " + this.extract.circles.length + "個" : "");
+          if (this.diag.outlined) {
+            this.setStatus("このページには文字データがありません（数字が線で描かれています）／ " + info, "error");
+          } else {
+            this.setStatus(info);
+          }
         }
       } catch (e) {
         this.extract = null;
@@ -363,6 +369,7 @@
         this.det = { v: [], h: [] };
         this.dimsInfo = { dots: [], entries: [] };
         this.sides = null;
+        this.diag = null;
         this.setStatus("解析に失敗しました: " + (e && e.message ? e.message : e), "error");
       }
       if (!this.sides) this.others = null;
@@ -388,8 +395,12 @@
       try {
         const data = await ZC.ai.analyze(this.pdfBytes, page);
         this.aiSides = ZC.ai.normalize(data.result);
-        const tol = Number(document.getElementById("tol").value) || 1;
-        this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
+        if (this.localEmpty()) {
+          this.renderAiOnly(data);
+        } else {
+          const tol = Number(document.getElementById("tol").value) || 1;
+          this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
+        }
       } catch (e) {
         this.$aiResult.innerHTML = "";
         this.$aiResult.appendChild(
@@ -399,6 +410,34 @@
         this.$aiRun.disabled = false;
         this.$aiRun.textContent = "AIで総ざらい";
       }
+    }
+
+    // 自動読み取りが1本も拾えていない図面（文字データ無しなど）では、
+    // 「AIのみ」だらけの差分表ではなく、AIの結果そのものを拾い出し結果として出す。
+    localEmpty() {
+      if (!this.sides) return true;
+      return !SIDE_ORDER.some((k) => this.sides[k] && this.sides[k].axes.length);
+    }
+
+    renderAiOnly(data) {
+      const wrap = this.$aiResult;
+      wrap.innerHTML = "";
+      wrap.appendChild(
+        el("div", {
+          class: "ai-summary warn",
+          text:
+            "自動読み取りは0本のため、AIの読み取り結果を表示しています" +
+            (data && data.model ? "（" + data.model + "）" : ""),
+        })
+      );
+      const notes = data && data.result && data.result.notes;
+      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
+      wrap.appendChild(
+        el("p", { class: "ai-msg", text: "AIの読み取りにも誤りがあります。数値は必ず図面でご確認ください。" })
+      );
+      const grid = el("div", { class: "pickup-grid" });
+      renderSideBlocks(grid, this.aiSides);
+      wrap.appendChild(grid);
     }
 
     renderAi(diff, data) {
@@ -1027,6 +1066,29 @@
     renderPickup() {
       const showGrid = !this.$shGrid || this.$shGrid.checked;
       const showOther = this.$shOther && this.$shOther.checked;
+      // 文字が線で描かれている図面は、寸法も符号も読み取れない。黙って0件にしない。
+      if (this.diag && this.diag.outlined) {
+        this.$pickup.hidden = false;
+        this.$others.hidden = true;
+        this.$others.innerHTML = "";
+        this.$pickup.innerHTML = "";
+        const box = el("div", { class: "no-text" });
+        box.appendChild(el("div", { class: "no-text-title", text: "このページからは寸法を読み取れません" }));
+        box.appendChild(
+          el("p", {
+            text:
+              "PDFに文字データが入っておらず、数字も通り芯の符号も「線の集まり」として" +
+              "描かれています（CADのシングルストローク／SHXフォントのまま出力された図面）。" +
+              "文字が無いため、記載寸法の読み取りができません。",
+          })
+        );
+        const ul = el("ul");
+        ul.appendChild(el("li", { text: "CADからTrueTypeフォント（MSゴシック等）で書き出し直すと読めるようになります" }));
+        ul.appendChild(el("li", { text: "そのままの図面を読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" }));
+        box.appendChild(ul);
+        this.$pickup.appendChild(box);
+        return;
+      }
       this.$pickup.hidden = !showGrid;
       if (showGrid) renderSideBlocks(this.$pickup, this.sides);
       else this.$pickup.innerHTML = "";

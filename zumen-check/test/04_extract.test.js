@@ -52,3 +52,19 @@ exports.回転ページは表示向きに補正される = async () => {
   near(tRot.x, tBase.x, 0.5, "回転補正後のx");
   near(tRot.y, tBase.y, 0.5, "回転補正後のy");
 };
+
+exports.文字が線で描かれた図面を見分ける = async () => {
+  const spec = mk.makeSpec();
+  const { extract } = await loadFirstPage(mk.makeBasicPdf(spec));
+  const ok = ZC.content.diagnose(extract);
+  assert.equal(ok.outlined, false, "文字のある図面は誤判定しない");
+  assert.ok(ok.numericTexts > 0, "数値テキストがある");
+
+  // 符号の文字を消し、円の中に短い線分だけを描いた図面（SHXフォント出力の再現）
+  const spec2 = mk.makeSpec();
+  spec2.outlinedText = true;
+  const { extract: ex2 } = await loadFirstPage(mk.makeBasicPdf(spec2));
+  const ng = ZC.content.diagnose(ex2);
+  assert.equal(ng.outlined, true, "文字が線の図面を検出する: " + JSON.stringify(ng));
+  assert.ok(ng.outlinedBubbles >= 3, "中身が線だけのバブルを数える: " + ng.outlinedBubbles);
+};

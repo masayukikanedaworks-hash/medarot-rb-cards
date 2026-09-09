@@ -531,5 +531,70 @@
     return [Math.min(n[0], n[2]), Math.min(n[1], n[3]), Math.max(n[0], n[2]), Math.max(n[1], n[3])];
   }
 
-  ZC.content = { ContentExtractor };
+  // CADの文字が「線」として書き出された図面かどうかを見分ける。
+  // シングルストローク(SHX)フォントのままPDF化すると、数字も符号も線分の集まりに
+  // なり、PDFに文字データが残らない。この場合は寸法も通り芯も読み取れないので、
+  // 黙って0件を出すのではなく利用者に知らせる。
+  // 決め手は「符号バブルの円の中に文字が無く、短い線分だけが入っている」こと。
+  function diagnose(ex) {
+    const segs = (ex && ex.segments) || [];
+    const texts = (ex && ex.texts) || [];
+    const circles = (ex && ex.circles) || [];
+    // 線分の中点をグリッドに入れて、円の近くだけ調べられるようにする
+    const CELL = 8;
+    const grid = new Map();
+    let tiny = 0;
+    for (const s of segs) {
+      const mx = (s.x1 + s.x2) / 2;
+      const my = (s.y1 + s.y2) / 2;
+      if (Math.hypot(s.x2 - s.x1, s.y2 - s.y1) < 3) tiny++;
+      const k = Math.floor(mx / CELL) + "," + Math.floor(my / CELL);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(s);
+    }
+    let outlinedBubbles = 0;
+    for (const c of circles) {
+      const cx = Math.floor(c.x / CELL);
+      const cy = Math.floor(c.y / CELL);
+      const hasText = texts.some((t) => {
+        const tx = (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2;
+        const ty = (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2;
+        return Math.hypot(tx - c.x, ty - c.y) <= c.r * 1.3;
+      });
+      if (hasText) continue;
+      let strokes = 0;
+      for (let dx = -1; dx <= 1 && strokes < 3; dx++) {
+        for (let dy = -1; dy <= 1 && strokes < 3; dy++) {
+          for (const s of grid.get(cx + dx + "," + (cy + dy)) || []) {
+            const mx = (s.x1 + s.x2) / 2;
+            const my = (s.y1 + s.y2) / 2;
+            if (Math.hypot(mx - c.x, my - c.y) <= c.r * 0.9) strokes++;
+          }
+        }
+      }
+      if (strokes >= 3) outlinedBubbles++;
+    }
+    const tinyFrac = segs.length ? tiny / segs.length : 0;
+    const numericTexts = texts.reduce(
+      (n, t) => n + (ZC.util.parseDimNumber(t.str) != null ? 1 : 0),
+      0
+    );
+    // 「中身が線だけのバブル」が円全体のうち相応の割合を占めるか（設備記号などの
+    // 円が数個混ざっても誤判定しないよう割合でも見る）、図面と呼べる本数がありながら
+    // 数値の文字が1つも無いまま極小の線分ばかりが並んでいる場合。
+    const outlined =
+      (segs.length > 200 && outlinedBubbles >= 3 && outlinedBubbles >= circles.length * 0.2) ||
+      (segs.length > 2000 && numericTexts === 0 && tinyFrac > 0.5);
+    return {
+      outlined,
+      outlinedBubbles,
+      tinyFrac,
+      numericTexts,
+      textCount: texts.length,
+      segCount: segs.length,
+      circleCount: circles.length,
+    };
+  }
+
+  ZC.content = { ContentExtractor, diagnose };
 })(globalThis.ZC = globalThis.ZC || {});

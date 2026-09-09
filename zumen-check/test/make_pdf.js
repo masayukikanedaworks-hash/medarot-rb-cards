@@ -51,6 +51,9 @@ function makeSpec() {
     // 通り芯とは無関係の寸法線（室内寸法・開口幅 W＝）。
     // [{ dir:"v"|"h", at:段の位置, points:[座標...], values:["1650","W= 900"...] }]
     extraDims: null,
+    // true で「文字を線で描いた図面」を模す（CADのSHXフォント出力の再現）:
+    // 符号の文字を出さず、円の中に短い線分だけを置く。診断ロジックの検証用。
+    outlinedText: false,
     // 構造図の部材符号（縦枠 Y1.1 / X2.1 など）。円で囲まない文字として散らす。
     // 通り芯の符号と同じ書式なので、円が無ければ拾わないことの検証に使う。
     // [{ str:"Y1.1", x, y }]
@@ -157,6 +160,16 @@ function drawingOps(spec, textEnc, useTJ) {
   ops.push("0.5 w");
   const label = (cx, cy, str) => {
     if (!spec.noBubbles) ops.push(circleOps(cx, cy, BUBBLE_R, false));
+    if (spec.outlinedText) {
+      // 文字の代わりに短い線分（グリフのストローク）を円の中に描く
+      ops.push("0.3 w");
+      for (let i = 0; i < 4; i++) {
+        const x = cx - 3 + i * 1.6;
+        ops.push(`${fmt(x)} ${fmt(cy - 2.5)} m ${fmt(x + 1.1)} ${fmt(cy + 2.5)} l S`);
+        ops.push(`${fmt(x)} ${fmt(cy + 2.5)} m ${fmt(x + 1.1)} ${fmt(cy - 2.5)} l S`);
+      }
+      return;
+    }
     textAt(cx - str.length * 2.5, cy - 3.5, str, false);
   };
   for (const a of pos.v) {
