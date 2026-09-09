@@ -51,6 +51,10 @@ function makeSpec() {
     // 通り芯とは無関係の寸法線（室内寸法・開口幅 W＝）。
     // [{ dir:"v"|"h", at:段の位置, points:[座標...], values:["1650","W= 900"...] }]
     extraDims: null,
+    // 構造図の部材符号（縦枠 Y1.1 / X2.1 など）。円で囲まない文字として散らす。
+    // 通り芯の符号と同じ書式なので、円が無ければ拾わないことの検証に使う。
+    // [{ str:"Y1.1", x, y }]
+    memberMarks: null,
   };
 }
 
@@ -249,6 +253,11 @@ function drawingOps(spec, textEnc, useTJ) {
         spec.dims.h && spec.dims.h[i] != null ? spec.dims.h[i] : fmtDim(spec.hAxes[i + 1].mm - spec.hAxes[i].mm);
       textAt(120, mid - 3, str, false);
     }
+  }
+
+  // ---- 構造図の部材符号（円で囲まない X○.○ / Y○.○） ----
+  for (const m of spec.memberMarks || []) {
+    textAt(m.x, m.y, m.str, false);
   }
 
   // ---- 右下の小さなキープラン（本図より小さい符号バブル） ----
