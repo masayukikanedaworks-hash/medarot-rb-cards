@@ -60,7 +60,7 @@ async function analyze(file, pageNo) {
   const dims = ZC.dims.extract(extract);
   const sides = ZC.sides.build(det, dims.entries);
   const others = ZC.sides.otherRows(sides, dims.entries);
-  const diag = ZC.content.diagnose(extract);
+  const diag = ZC.content.diagnose(extract, det, dims);
   return { file, pageNo, pageCount: pages.length, extract, det, dims, sides, others, diag };
 }
 
@@ -77,13 +77,12 @@ function reportOne(r, opt) {
       `符号バブル(円) ${(e.circles || []).length} 個 / 画像 ${e.imageCount} 個`
   );
   lines.push(`寸法読取 : 黒ドット ${r.dims.dots.length} 点 / 記載寸法 ${r.dims.entries.length} 区間`);
-  if (r.diag && r.diag.outlined) {
-    lines.push(
-      `※ このページには文字データがありません（数字が線で描かれています）。` +
-        `文字が無いため寸法・符号は読み取れません。CADからTrueTypeフォントで` +
-        `書き出し直すか、UIの「AIで総ざらい」をお使いください。` +
-        `［中身が線だけの符号バブル ${r.diag.outlinedBubbles} 個 / 数値テキスト ${r.diag.numericTexts} 件］`
-    );
+  if (r.diag && !r.diag.readable) {
+    lines.push("※ 読み取り条件の診断");
+    for (const c of r.diag.checks) {
+      lines.push(`   ${c.ok ? "○" : "×"} ${c.label}  — ${c.detail}`);
+    }
+    for (const c of r.diag.failed) lines.push(`   → ${c.hint}`);
   }
   const labeled = r.det.v.concat(r.det.h).filter((a) => a.label != null);
   lines.push(

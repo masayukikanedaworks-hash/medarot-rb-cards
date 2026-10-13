@@ -68,3 +68,30 @@ exports.文字が線で描かれた図面を見分ける = async () => {
   assert.equal(ng.outlined, true, "文字が線の図面を検出する: " + JSON.stringify(ng));
   assert.ok(ng.outlinedBubbles >= 3, "中身が線だけのバブルを数える: " + ng.outlinedBubbles);
 };
+
+exports.読み取り条件の診断 = async () => {
+  const run = async (spec) => {
+    const { extract } = await loadFirstPage(mk.makeBasicPdf(spec));
+    const det = ZC.axis.detect(extract);
+    const dims = ZC.dims.extract(extract);
+    return ZC.content.diagnose(extract, det, dims);
+  };
+  const keys = (d) => d.failed.map((c) => c.key).sort();
+
+  const ok = await run(mk.makeSpec());
+  assert.equal(ok.readable, true, "条件を満たす図面: " + JSON.stringify(keys(ok)));
+  assert.equal(ok.checks.length, 5, "5項目を判定する");
+  assert.ok(ok.checks.every((c) => c.label && c.detail && c.hint), "各項目に説明と対処がある");
+
+  const noCircle = mk.makeSpec();
+  noCircle.noBubbles = true;
+  assert.deepEqual(keys(await run(noCircle)), ["circle", "label"], "円囲みが無い図面");
+
+  const noDots = mk.makeSpec();
+  noDots.dots = false;
+  assert.deepEqual(keys(await run(noDots)), ["dims"], "寸法線に黒ドットが無い図面");
+
+  const outlined = mk.makeSpec();
+  outlined.outlinedText = true;
+  assert.ok(keys(await run(outlined)).includes("text"), "文字が線の図面");
+};
