@@ -193,8 +193,8 @@
   .other-row:last-child { border-bottom: none; }
   .other-n { flex: none; width: 44px; text-align: right; color: var(--sub); font-size: 11px; }
   .other-v { font-variant-numeric: tabular-nums; word-break: break-all; }
-  /* 文字データが無い図面の案内 */
-  .no-text {
+  /* 読み取り条件の診断 */
+  .diag {
     border: 1px solid #e6c98a;
     background: #fdf6e3;
     border-radius: 5px;
@@ -202,9 +202,17 @@
     font-size: 12px;
     color: #6b4b00;
   }
-  .no-text-title { font-weight: 700; margin-bottom: 4px; }
-  .no-text p { margin: 0 0 6px; }
-  .no-text ul { margin: 0; padding-left: 18px; }
+  .diag-title { font-weight: 700; margin-bottom: 6px; }
+  table.diag-table { width: auto; background: none; border-collapse: collapse; margin-bottom: 6px; }
+  table.diag-table td { border: none; padding: 1px 0; font-size: 12px; white-space: normal; }
+  table.diag-table td.mk { width: 1.4em; text-align: center; font-weight: 700; }
+  table.diag-table td.lb { padding-right: 10px; white-space: nowrap; }
+  table.diag-table td.dt { color: #8a7030; }
+  table.diag-table tr.ok td.mk { color: #0a7a3d; }
+  table.diag-table tr.ng td.mk { color: #b30021; }
+  table.diag-table tr.ng td.lb { font-weight: 700; }
+  .diag-hints { margin: 0; padding-left: 18px; }
+  .diag-hints li { margin-bottom: 2px; }
   .ai-box { margin-top: 10px; }
   .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ai-head .ai-run {

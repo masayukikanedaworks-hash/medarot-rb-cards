@@ -536,7 +536,7 @@
   // なり、PDFに文字データが残らない。この場合は寸法も通り芯も読み取れないので、
   // 黙って0件を出すのではなく利用者に知らせる。
   // 決め手は「符号バブルの円の中に文字が無く、短い線分だけが入っている」こと。
-  function diagnose(ex) {
+  function diagnose(ex, det, dims) {
     const segs = (ex && ex.segments) || [];
     const texts = (ex && ex.texts) || [];
     const circles = (ex && ex.circles) || [];
@@ -585,6 +585,62 @@
     const outlined =
       (segs.length > 200 && outlinedBubbles >= 3 && outlinedBubbles >= circles.length * 0.2) ||
       (segs.length > 2000 && numericTexts === 0 && tinyFrac > 0.5);
+    // このツールが読める図面かどうかを条件ごとに判定する。
+    // 他社・他CADの図面を入れたときに「0件」ではなく何が足りないかを出すため。
+    const checks = [];
+    const add = (key, label, ok, detail, hint) => checks.push({ key, label, ok, detail, hint });
+
+    const imageCount = ex.imageCount || 0;
+    add(
+      "vector",
+      "ベクターPDF（線のデータがある）",
+      segs.length >= 20,
+      (segs.length ? `線分 ${segs.length} 本` : "線分なし") +
+        (imageCount ? ` / 画像 ${imageCount} 個` : ""),
+      imageCount
+        ? "スキャン（画像）PDFは読み取れません。CADからベクターPDFで出力してください。"
+        : "このページには図形がほとんどありません。図面のページを選び直してください。"
+    );
+    add(
+      "text",
+      "文字が文字として入っている",
+      !outlined,
+      outlined
+        ? `数字が線で描かれています（中身が線だけの符号バブル ${outlinedBubbles} 個）`
+        : `テキスト ${texts.length} 件 / うち数値 ${numericTexts} 件`,
+      "CADのシングルストローク（SHX）フォントのまま出力された図面です。" +
+        "TrueTypeフォント（MSゴシック等）で書き出し直すか、「AIで総ざらい」をお使いください。"
+    );
+    add(
+      "circle",
+      "通り芯の符号が円で囲まれている",
+      circles.length > 0,
+      `円 ${circles.length} 個`,
+      "円（バブル）で囲まれた符号だけを拾う仕様です。四角囲みや囲みなしの図面は対象外です。"
+    );
+    if (det) {
+      const labeled = (det.v || []).concat(det.h || []).filter((a) => a.label != null).length;
+      add(
+        "label",
+        "符号が X○○ / Y○○ の書式",
+        labeled > 0,
+        labeled ? `${labeled} 本` : "円の中に X○○ / Y○○ が見つかりません",
+        "縦方向 X○○・横方向 Y○○ のみ対象です。A通り・1通り・い通りなど" +
+          "別の符号体系の図面は読み取れません。"
+      );
+    }
+    if (dims) {
+      const entries = (dims.entries || []).length;
+      add(
+        "dims",
+        "寸法線が黒ドット＋直線＋数字",
+        entries > 0,
+        `黒ドット ${(dims.dots || []).length} 点 / 読めた寸法 ${entries} 区間`,
+        "寸法線の端が黒いドットで、その間の線の上に数字がある形式を読みます。" +
+          "端部が斜線（／）や矢印の図面は読み取れません。"
+      );
+    }
+    const failed = checks.filter((c) => !c.ok);
     return {
       outlined,
       outlinedBubbles,
@@ -593,6 +649,9 @@
       textCount: texts.length,
       segCount: segs.length,
       circleCount: circles.length,
+      checks,
+      failed,
+      readable: failed.length === 0,
     };
   }
 

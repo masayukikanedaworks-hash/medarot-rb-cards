@@ -193,8 +193,8 @@
   .other-row:last-child { border-bottom: none; }
   .other-n { flex: none; width: 44px; text-align: right; color: var(--sub); font-size: 11px; }
   .other-v { font-variant-numeric: tabular-nums; word-break: break-all; }
-  /* 文字データが無い図面の案内 */
-  .no-text {
+  /* 読み取り条件の診断 */
+  .diag {
     border: 1px solid #e6c98a;
     background: #fdf6e3;
     border-radius: 5px;
@@ -202,9 +202,17 @@
     font-size: 12px;
     color: #6b4b00;
   }
-  .no-text-title { font-weight: 700; margin-bottom: 4px; }
-  .no-text p { margin: 0 0 6px; }
-  .no-text ul { margin: 0; padding-left: 18px; }
+  .diag-title { font-weight: 700; margin-bottom: 6px; }
+  table.diag-table { width: auto; background: none; border-collapse: collapse; margin-bottom: 6px; }
+  table.diag-table td { border: none; padding: 1px 0; font-size: 12px; white-space: normal; }
+  table.diag-table td.mk { width: 1.4em; text-align: center; font-weight: 700; }
+  table.diag-table td.lb { padding-right: 10px; white-space: nowrap; }
+  table.diag-table td.dt { color: #8a7030; }
+  table.diag-table tr.ok td.mk { color: #0a7a3d; }
+  table.diag-table tr.ng td.mk { color: #b30021; }
+  table.diag-table tr.ng td.lb { font-weight: 700; }
+  .diag-hints { margin: 0; padding-left: 18px; }
+  .diag-hints li { margin-bottom: 2px; }
   .ai-box { margin-top: 10px; }
   .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .ai-head .ai-run {
@@ -2076,7 +2084,7 @@
   // なり、PDFに文字データが残らない。この場合は寸法も通り芯も読み取れないので、
   // 黙って0件を出すのではなく利用者に知らせる。
   // 決め手は「符号バブルの円の中に文字が無く、短い線分だけが入っている」こと。
-  function diagnose(ex) {
+  function diagnose(ex, det, dims) {
     const segs = (ex && ex.segments) || [];
     const texts = (ex && ex.texts) || [];
     const circles = (ex && ex.circles) || [];
@@ -2125,6 +2133,62 @@
     const outlined =
       (segs.length > 200 && outlinedBubbles >= 3 && outlinedBubbles >= circles.length * 0.2) ||
       (segs.length > 2000 && numericTexts === 0 && tinyFrac > 0.5);
+    // このツールが読める図面かどうかを条件ごとに判定する。
+    // 他社・他CADの図面を入れたときに「0件」ではなく何が足りないかを出すため。
+    const checks = [];
+    const add = (key, label, ok, detail, hint) => checks.push({ key, label, ok, detail, hint });
+
+    const imageCount = ex.imageCount || 0;
+    add(
+      "vector",
+      "ベクターPDF（線のデータがある）",
+      segs.length >= 20,
+      (segs.length ? `線分 ${segs.length} 本` : "線分なし") +
+        (imageCount ? ` / 画像 ${imageCount} 個` : ""),
+      imageCount
+        ? "スキャン（画像）PDFは読み取れません。CADからベクターPDFで出力してください。"
+        : "このページには図形がほとんどありません。図面のページを選び直してください。"
+    );
+    add(
+      "text",
+      "文字が文字として入っている",
+      !outlined,
+      outlined
+        ? `数字が線で描かれています（中身が線だけの符号バブル ${outlinedBubbles} 個）`
+        : `テキスト ${texts.length} 件 / うち数値 ${numericTexts} 件`,
+      "CADのシングルストローク（SHX）フォントのまま出力された図面です。" +
+        "TrueTypeフォント（MSゴシック等）で書き出し直すか、「AIで総ざらい」をお使いください。"
+    );
+    add(
+      "circle",
+      "通り芯の符号が円で囲まれている",
+      circles.length > 0,
+      `円 ${circles.length} 個`,
+      "円（バブル）で囲まれた符号だけを拾う仕様です。四角囲みや囲みなしの図面は対象外です。"
+    );
+    if (det) {
+      const labeled = (det.v || []).concat(det.h || []).filter((a) => a.label != null).length;
+      add(
+        "label",
+        "符号が X○○ / Y○○ の書式",
+        labeled > 0,
+        labeled ? `${labeled} 本` : "円の中に X○○ / Y○○ が見つかりません",
+        "縦方向 X○○・横方向 Y○○ のみ対象です。A通り・1通り・い通りなど" +
+          "別の符号体系の図面は読み取れません。"
+      );
+    }
+    if (dims) {
+      const entries = (dims.entries || []).length;
+      add(
+        "dims",
+        "寸法線が黒ドット＋直線＋数字",
+        entries > 0,
+        `黒ドット ${(dims.dots || []).length} 点 / 読めた寸法 ${entries} 区間`,
+        "寸法線の端が黒いドットで、その間の線の上に数字がある形式を読みます。" +
+          "端部が斜線（／）や矢印の図面は読み取れません。"
+      );
+    }
+    const failed = checks.filter((c) => !c.ok);
     return {
       outlined,
       outlinedBubbles,
@@ -2133,6 +2197,9 @@
       textCount: texts.length,
       segCount: segs.length,
       circleCount: circles.length,
+      checks,
+      failed,
+      readable: failed.length === 0,
     };
   }
 
@@ -3224,6 +3291,33 @@
     return block;
   }
 
+  // 読み取り診断: このツールが読める図面かを条件ごとに○×で示し、
+  // 満たしていない条件には対処方法を添える。
+  function renderDiagnosis(diag) {
+    const box = el("div", { class: "diag" });
+    box.appendChild(
+      el("div", { class: "diag-title", text: "この図面からは拾い出しできません（読み取り条件の診断）" })
+    );
+    const table = el("table", { class: "diag-table" });
+    const tbody = el("tbody");
+    for (const c of diag.checks) {
+      const tr = el("tr", { class: c.ok ? "ok" : "ng" });
+      tr.appendChild(el("td", { class: "mk", text: c.ok ? "○" : "×" }));
+      tr.appendChild(el("td", { class: "lb", text: c.label }));
+      tr.appendChild(el("td", { class: "dt", text: c.detail }));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    box.appendChild(table);
+    const ul = el("ul", { class: "diag-hints" });
+    for (const c of diag.failed) ul.appendChild(el("li", { text: c.hint }));
+    ul.appendChild(
+      el("li", { text: "図面のまま読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" })
+    );
+    box.appendChild(ul);
+    return box;
+  }
+
   // 通り芯以外の寸法線（室内寸法・開口幅 W＝ など）を段ごとに一覧する。
   // 段数が多いので、ここだけはスクロールできる箱にする。
   function renderOtherDims(container, others) {
@@ -3498,7 +3592,7 @@
           );
         } else {
           const labeled = det.v.concat(det.h).filter((a) => a.label != null).length;
-          this.diag = ZC.content.diagnose(this.extract);
+          this.diag = ZC.content.diagnose(this.extract, det, this.dimsInfo);
           const info =
             "円で囲まれた符号の通り芯: " + labeled + "本" +
             "（縦" + det.v.filter((a) => a.label != null).length +
@@ -3507,6 +3601,8 @@
             (this.extract.circles ? " / 符号バブル " + this.extract.circles.length + "個" : "");
           if (this.diag.outlined) {
             this.setStatus("このページには文字データがありません（数字が線で描かれています）／ " + info, "error");
+          } else if (!this.diag.readable) {
+            this.setStatus("この図面は読み取り条件を満たしていません（下の診断を参照）／ " + info, "error");
           } else {
             this.setStatus(info);
           }
@@ -4214,27 +4310,13 @@
     renderPickup() {
       const showGrid = !this.$shGrid || this.$shGrid.checked;
       const showOther = this.$shOther && this.$shOther.checked;
-      // 文字が線で描かれている図面は、寸法も符号も読み取れない。黙って0件にしない。
-      if (this.diag && this.diag.outlined) {
+      // 読み取り条件を満たしていない図面は、黙って0件にせず何が足りないかを出す。
+      if (this.diag && !this.diag.readable) {
         this.$pickup.hidden = false;
         this.$others.hidden = true;
         this.$others.innerHTML = "";
         this.$pickup.innerHTML = "";
-        const box = el("div", { class: "no-text" });
-        box.appendChild(el("div", { class: "no-text-title", text: "このページからは寸法を読み取れません" }));
-        box.appendChild(
-          el("p", {
-            text:
-              "PDFに文字データが入っておらず、数字も通り芯の符号も「線の集まり」として" +
-              "描かれています（CADのシングルストローク／SHXフォントのまま出力された図面）。" +
-              "文字が無いため、記載寸法の読み取りができません。",
-          })
-        );
-        const ul = el("ul");
-        ul.appendChild(el("li", { text: "CADからTrueTypeフォント（MSゴシック等）で書き出し直すと読めるようになります" }));
-        ul.appendChild(el("li", { text: "そのままの図面を読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" }));
-        box.appendChild(ul);
-        this.$pickup.appendChild(box);
+        this.$pickup.appendChild(renderDiagnosis(this.diag));
         return;
       }
       this.$pickup.hidden = !showGrid;
