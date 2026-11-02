@@ -76,9 +76,136 @@
     return block;
   }
 
+  // ---- 線で描かれた文字の対応表 --------------------------------------
+  // フォントの指紋ごとに localStorage へ保存する。同じCAD・同じフォントの
+  // 図面なら、一度教えれば次からは自動で読める。
+  const GLYPH_STORE = "zc.glyphmap.";
+
+  function glyphKey(extract) {
+    const info = ZC.glyph.extract(extract);
+    return { info, key: GLYPH_STORE + ZC.glyph.fingerprint(info.shapes) };
+  }
+
+  function loadGlyphMap(extract) {
+    try {
+      if (!extract || !extract.segments || extract.segments.length < 200) return null;
+      const { key } = glyphKey(extract);
+      const raw = globalThis.localStorage && localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveGlyphMap(extract, map) {
+    try {
+      const { key } = glyphKey(extract);
+      if (globalThis.localStorage) localStorage.setItem(key, JSON.stringify(map));
+    } catch (e) {
+      /* 保存できなくても読み取りは動く */
+    }
+  }
+
+  // 字形を一覧にして、1つずつ文字を教えてもらう画面。
+  // 回転した同じ字形には候補を出すが、自動では決めない
+  // （9 が 6 の180度回転のフォントでは取り違えるため、必ず目で確認してもらう）。
+  function renderGlyphTeacher(panel, container) {
+    const info = panel.ensureGlyphInfo();
+    container.innerHTML = "";
+    const box = el("div", { class: "teach" });
+    box.appendChild(el("div", { class: "teach-title", text: "線で描かれた文字を教える" }));
+    box.appendChild(
+      el("p", {
+        text:
+          "この図面は数字が線で描かれているため、形と文字の対応を一度だけ教えてください。" +
+          "各マスの下に、その形が表す文字（0〜9 / . / X / Y）を入力します。" +
+          "入力した内容はこのブラウザに保存され、同じCADの図面では次から自動で読み取ります。",
+      })
+    );
+    const current = panel.glyphMap || {};
+    const grid = el("div", { class: "teach-grid" });
+    const inputs = [];
+    const shapes = info.shapes.slice(0, 80);
+    for (const sh of shapes) {
+      const cell = el("div", { class: "teach-cell" });
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 28 28");
+      svg.setAttribute("width", "28");
+      svg.setAttribute("height", "28");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", ZC.glyph.shapePath(sh.glyph, 28));
+      path.setAttribute("stroke", "#24313d");
+      path.setAttribute("stroke-width", "1.4");
+      path.setAttribute("fill", "none");
+      svg.appendChild(path);
+      cell.appendChild(svg);
+      const inp = el("input", { class: "teach-in", type: "text", maxlength: "1" });
+      inp.value = current[sh.shape] || "";
+      inp.title = sh.count + "回";
+      cell.appendChild(inp);
+      cell.appendChild(el("span", { class: "teach-n", text: String(sh.count) }));
+      grid.appendChild(cell);
+      inputs.push({ sh, inp });
+    }
+    box.appendChild(grid);
+
+    // 入力したら、±90度回した同じ形に候補を入れる（グレー表示・手で直せる）
+    const byShape = new Map(inputs.map((o) => [o.sh.shape, o]));
+    const suggest = () => {
+      for (const o of inputs) {
+        if (o.inp.value && !o.inp.classList.contains("guess")) continue;
+        let found = "";
+        let many = false;
+        for (const src of inputs) {
+          if (src === o || !src.inp.value || src.inp.classList.contains("guess")) continue;
+          if (src.sh.rot.indexOf(o.sh.shape) < 0) continue;
+          if (found && found !== src.inp.value) many = true;
+          found = src.inp.value;
+        }
+        if (many) found = ""; // 複数の文字が候補になるときは出さない
+        o.inp.value = found;
+        o.inp.classList.toggle("guess", !!found);
+      }
+    };
+    for (const o of inputs) {
+      o.inp.addEventListener("input", () => {
+        o.inp.classList.remove("guess");
+        suggest();
+      });
+    }
+    void byShape;
+    suggest();
+
+    const bar = el("div", { class: "teach-bar" });
+    const apply = el("button", { type: "button", class: "teach-apply", text: "この内容で読み取る" });
+    const msg = el("span", { class: "teach-msg" });
+    apply.addEventListener("click", () => {
+      const map = {};
+      for (const { sh, inp } of inputs) {
+        const v = (inp.value || "").trim();
+        if (v) map[sh.shape] = v;
+      }
+      saveGlyphMap(panel.extract, map);
+      const n = panel.applyGlyphMap(map);
+      msg.textContent = n ? n + "件の文字列を読み取りました" : "読み取れた文字列がありません";
+    });
+    bar.appendChild(apply);
+    const clear = el("button", { type: "button", class: "teach-clear", text: "入力を消す" });
+    clear.addEventListener("click", () => {
+      for (const { inp } of inputs) {
+        inp.value = "";
+        inp.classList.remove("guess");
+      }
+    });
+    bar.appendChild(clear);
+    bar.appendChild(msg);
+    box.appendChild(bar);
+    container.appendChild(box);
+  }
+
   // 読み取り診断: このツールが読める図面かを条件ごとに○×で示し、
   // 満たしていない条件には対処方法を添える。
-  function renderDiagnosis(diag) {
+  function renderDiagnosis(diag, panel) {
     const box = el("div", { class: "diag" });
     box.appendChild(
       el("div", { class: "diag-title", text: "この図面からは拾い出しできません（読み取り条件の診断）" })
@@ -100,6 +227,22 @@
       el("li", { text: "図面のまま読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" })
     );
     box.appendChild(ul);
+    // 文字が線で描かれている図面は、形と文字の対応を教えればこのまま読める
+    if (diag.outlined && panel) {
+      const bar = el("div", { class: "diag-act" });
+      const btn = el("button", { type: "button", class: "teach-open", text: "線で描かれた文字を教えて読み取る" });
+      const slot = el("div", { class: "teach-slot" });
+      btn.addEventListener("click", () => {
+        if (slot.childNodes.length) {
+          slot.innerHTML = "";
+          return;
+        }
+        renderGlyphTeacher(panel, slot);
+      });
+      bar.appendChild(btn);
+      box.appendChild(bar);
+      box.appendChild(slot);
+    }
     return box;
   }
 
@@ -173,6 +316,10 @@
       this.view = null; // {scale, ox, oy, fitScale}
       this.others = null; // 通り芯以外の寸法線（段ごと）
       this.diag = null; // 文字データの有無の診断
+      this.glyphInfo = null; // 線で描かれた文字の解析結果
+      this.glyphMap = null; // 形→文字の対応表
+      this.glyphTexts = []; // 対応表で起こした文字列
+      this.baseTexts = null; // PDFに元から入っていた文字
       this.autoHeightPx = null; // ビュワー高さの自動調整値
       this.userSizedViewer = false; // 利用者が高さを変えたか
       this.showDims = true;
@@ -349,6 +496,10 @@
       this.det = { v: [], h: [] };
       this.dimsInfo = { dots: [], entries: [] };
       this.sides = null;
+      this.glyphInfo = null;
+      this.glyphMap = null;
+      this.glyphTexts = [];
+      this.baseTexts = null;
       this.enabled.clear();
     }
 
@@ -358,6 +509,10 @@
       try {
         const ex = new ZC.content.ContentExtractor(this.doc);
         this.extract = await ex.run(this.pages[index]);
+        this.baseTexts = this.extract.texts;
+        // 線で描かれた文字（CADのストロークフォント）があれば、覚えている対応表で読む
+        this.glyphInfo = null;
+        this.applyGlyphMap(loadGlyphMap(this.extract), true);
         const det = ZC.axis.detect(this.extract);
         this.det = det;
         this.axes = { v: det.v, h: det.h };
@@ -513,6 +668,52 @@
       renderSideBlocks(grid, this.aiSides);
       det.appendChild(grid);
       wrap.appendChild(det);
+    }
+
+    // 線で描かれた文字の情報を用意する（必要になったときだけ解析する）
+    ensureGlyphInfo() {
+      if (!this.glyphInfo && this.extract) this.glyphInfo = ZC.glyph.extract(this.extract);
+      return this.glyphInfo;
+    }
+
+    // 形→文字の対応表を当てて、読み取った文字を extract.texts に足す。
+    // quiet=true なら対応表が無いとき何もしない（読み込み時の自動適用）。
+    applyGlyphMap(map, quiet) {
+      if (!this.extract) return 0;
+      this.glyphMap = map || null;
+      const base = this.baseTexts || this.extract.texts;
+      if (!map || !Object.keys(map).length) {
+        this.extract.texts = base;
+        this.glyphTexts = [];
+        return 0;
+      }
+      const info = this.ensureGlyphInfo();
+      this.glyphTexts = ZC.glyph.toTexts(info.runs, map);
+      this.extract.texts = base.concat(this.glyphTexts);
+      if (!quiet) this.reanalyze();
+      return this.glyphTexts.length;
+    }
+
+    // texts を入れ替えたあとに検出からやり直す
+    reanalyze() {
+      const det = ZC.axis.detect(this.extract);
+      this.det = det;
+      this.axes = { v: det.v, h: det.h };
+      this.enabled.clear();
+      for (const ax of det.v.concat(det.h)) if (ax.defaultOn) this.enabled.add(ax);
+      this.dimsInfo = ZC.dims.extract(this.extract);
+      this.rebuildSides();
+      this.diag = ZC.content.diagnose(this.extract, det, this.dimsInfo);
+      const labeled = det.v.concat(det.h).filter((a) => a.label != null).length;
+      this.setStatus(
+        "線で描かれた文字から読み取りました: 通り芯 " + labeled + "本 / " +
+          "記載寸法 " + this.dimsInfo.entries.length + "区間（文字列 " + this.glyphTexts.length + "件）",
+        this.diag.readable ? "" : "error"
+      );
+      this.requestRender();
+      this.renderList();
+      this.renderPickup();
+      ZC.ui.updateRunButton();
     }
 
     rebuildSides() {
@@ -1101,7 +1302,7 @@
         this.$others.hidden = true;
         this.$others.innerHTML = "";
         this.$pickup.innerHTML = "";
-        this.$pickup.appendChild(renderDiagnosis(this.diag));
+        this.$pickup.appendChild(renderDiagnosis(this.diag, this));
         return;
       }
       this.$pickup.hidden = !showGrid;

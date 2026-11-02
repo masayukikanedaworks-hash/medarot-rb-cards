@@ -54,6 +54,10 @@ function makeSpec() {
     // true で「文字を線で描いた図面」を模す（CADのSHXフォント出力の再現）:
     // 符号の文字を出さず、円の中に短い線分だけを置く。診断ロジックの検証用。
     outlinedText: false,
+    // true で符号も寸法も「線で描いた文字」にする（グリフ読み取りの検証用）。
+    // textAt を使わず STROKE_FONT で描くので、PDFに文字データが残らない。
+    strokeFont: false,
+    strokeH: 3.6, // 線で描く文字の高さ(pt)
     // 構造図の部材符号（縦枠 Y1.1 / X2.1 など）。円で囲まない文字として散らす。
     // 通り芯の符号と同じ書式なので、円が無ければ拾わないことの検証に使う。
     // [{ str:"Y1.1", x, y }]
@@ -79,6 +83,59 @@ function fmt(n) {
 
 function fmtDim(mm) {
   return String(Math.round(mm * 10) / 10);
+}
+
+// 線で描かれた文字（CADのシングルストロークフォント）の簡易字形。
+// 単位ボックス幅0.6・高さ1.0。実図面と同じく1文字分のストロークを続けて出力する。
+const STROKE_FONT = (() => {
+  const W = 0.6;
+  const a = [0, 1, W, 1];       // 上
+  const b = [W, 1, W, 0.5];     // 右上
+  const c = [W, 0.5, W, 0];     // 右下
+  const d = [0, 0, W, 0];       // 下
+  const e = [0, 0.5, 0, 0];     // 左下
+  const f = [0, 1, 0, 0.5];     // 左上
+  const g = [0, 0.5, W, 0.5];   // 中
+  return {
+    "0": [a, b, c, d, e, f],
+    "1": [[W * 0.3, 0.8, W * 0.5, 1], [W * 0.5, 1, W * 0.5, 0], [W * 0.15, 0, W * 0.85, 0]],
+    "2": [a, b, g, e, d],
+    "3": [a, b, g, c, d],
+    "4": [f, g, b, c],
+    "5": [a, f, g, c, d],
+    "6": [a, f, g, e, d, c],
+    "7": [a, b, c],
+    "8": [a, b, c, d, e, f, g],
+    "9": [a, b, f, g, c, d],
+    ".": [[W * 0.35, 0, W * 0.5, 0.12]],
+    X: [[0, 1, W, 0], [0, 0, W, 1]],
+    Y: [[0, 1, W / 2, 0.5], [W, 1, W / 2, 0.5], [W / 2, 0.5, W / 2, 0]],
+  };
+})();
+
+// 文字列を線分で描く。rot=true で90度回転（縦向きの寸法注記）。
+// 戻り値は描いた範囲 {x0,y0,x1,y1}
+function strokeTextOps(ops, x, y, str, h, rot) {
+  const adv = h * 0.85; // 字送り（字間は 0.25h 程度になる）
+  ops.push("0.3 w [] 0 d");
+  let i = 0;
+  for (const ch of String(str)) {
+    const glyph = STROKE_FONT[ch];
+    if (glyph) {
+      for (const [sx, sy, ex2, ey2] of glyph) {
+        // 文字ローカル座標(幅0.6/高さ1) → 紙上
+        const px = (u, v) => (rot ? [x - v * h, y + i * adv + u * h] : [x + i * adv + u * h, y + v * h]);
+        const p1 = px(sx, sy);
+        const p2 = px(ex2, ey2);
+        ops.push(`${fmt(p1[0])} ${fmt(p1[1])} m ${fmt(p2[0])} ${fmt(p2[1])} l S`);
+      }
+    }
+    i++;
+  }
+  const n = String(str).length;
+  return rot
+    ? { x0: x - h, y0: y, x1: x, y1: y + (n - 1) * adv + h * 0.6 }
+    : { x0: x, y0: y, x1: x + (n - 1) * adv + h * 0.6, y1: y + h };
 }
 
 // 円（塗り potFill=true なら塗り潰し）
@@ -160,6 +217,11 @@ function drawingOps(spec, textEnc, useTJ) {
   ops.push("0.5 w");
   const label = (cx, cy, str) => {
     if (!spec.noBubbles) ops.push(circleOps(cx, cy, BUBBLE_R, false));
+    if (spec.strokeFont) {
+      const h = spec.strokeH;
+      strokeTextOps(ops, cx - str.length * h * 0.42, cy - h / 2, str, h, false);
+      return;
+    }
     if (spec.outlinedText) {
       // 文字の代わりに短い線分（グリフのストローク）を円の中に描く
       ops.push("0.3 w");
@@ -195,7 +257,13 @@ function drawingOps(spec, textEnc, useTJ) {
         const str = values[i];
         if (str == null) continue;
         const mid = (points[i] + points[i + 1]) / 2;
-        textAt(mid - str.length * 2.5, rowY + 1.5, str, tjFirst && i === 0);
+        if (spec.strokeFont) {
+          const h = spec.strokeH;
+          strokeTextOps(ops, mid - String(str).length * h * 0.42, rowY + 1.2, str, h, false);
+          ops.push("0.4 w");
+        } else {
+          textAt(mid - str.length * 2.5, rowY + 1.5, str, tjFirst && i === 0);
+        }
       }
     };
     // 縦向きの寸法線1列（数字は90度回転で線の左）
@@ -206,7 +274,13 @@ function drawingOps(spec, textEnc, useTJ) {
         const str = values[i];
         if (str == null) continue;
         const mid = (points[i] + points[i + 1]) / 2;
-        textRotAt(colX - 2.5, mid - str.length * 2.5, str);
+        if (spec.strokeFont) {
+          const h = spec.strokeH;
+          strokeTextOps(ops, colX - 1.2, mid - String(str).length * h * 0.42, str, h, true);
+          ops.push("0.4 w");
+        } else {
+          textRotAt(colX - 2.5, mid - str.length * 2.5, str);
+        }
       }
     };
     // 辺ごとに、その辺に符号がある芯だけを寸法線の点にする
@@ -525,4 +599,5 @@ module.exports = {
   LEFT_COL_X,
   RIGHT_COL_X,
   BUBBLE_R,
+  STROKE_FONT,
 };
