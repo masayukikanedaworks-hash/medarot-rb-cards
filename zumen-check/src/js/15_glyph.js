@@ -20,11 +20,17 @@
     RUN_GAP: 0.9, // 同じ文字列とみなす字間（文字高さ比）
     BASE_TOL: 0.3, // 同じ文字列とみなすベースラインのずれ（文字高さ比）
     H_TOL: 0.3, // 同じ文字列とみなす高さの差（比）
-    QUANT: 0.05, // 形の正規化の丸め（高さ=1に正規化した座標）
+    GRID: 16, // 形の指紋に使う格子の目数
+    INK: 0.9, // 格子の中心からこの距離（セル何個分）以内なら塗る（太らせてずれに強くする）
+    // 同じ文字とみなす指紋のずれ（塗りが違う格子の数）。
+    // 実図面の同じ数字どうしは 0〜20、別の数字は 24 以上に分かれるが、
+    // 1ストロークしか違わない字形（合成フォントの 3 と 9 は距離 12）を
+    // まとめてしまうと数字を誤読する。誤読より入力が増えるほうが安全なので
+    // 小さめに取り、同じ数字がいくつかに分かれるのは許容する。
+    MAX_DIST: 10,
     MIN_SHAPE_COUNT: 1, // 一覧に出す形の最小出現回数
   };
 
-  const q = (v) => Math.round(v / PARAMS.QUANT) * PARAMS.QUANT;
   const r2 = (v) => (Math.abs(v) < 1e-9 ? 0 : Math.round(v * 100) / 100);
 
   function segBox(s) {
@@ -83,10 +89,7 @@
       cur = null;
     };
     for (const s of segments || []) {
-      if (s.curve) {
-        closeCur();
-        continue;
-      }
+      // 曲線を折れ線に割ったものも文字の一部（0 や 6 の丸み）。捨ててはいけない。
       const len = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
       if (len > PARAMS.MAX_STROKE || len <= 0) {
         closeCur();
@@ -125,19 +128,80 @@
       });
   }
 
-  // 形の指紋。高さ(横書き)または幅(縦書き)を1に正規化してから丸める。
-  // 同じ文字・同じフォントなら必ず同じ値になる。
-  function shapeOf(glyph) {
+  // 形の指紋。実図面では同じ文字でも座標が僅かに揺れるため、ストロークの座標を
+  // そのまま比べると同じ数字がいくつもの形に分裂する。長辺を基準に正方形へ
+  // 正規化してから粗い格子に塗り、その塗り分け（ビット列）を指紋にする。
+  // 縦横比は保つので「1」と「0」は別の形になる。
+  // 照合は完全一致ではなく、ずれたビット数（ハミング距離）で行う（matchShape）。
+  function bitsOf(glyph) {
+    const n = PARAMS.GRID;
+    const words = new Uint32Array(Math.ceil((n * n) / 32));
     const base = Math.max(glyph.w, glyph.h) || 1;
-    const parts = glyph.segs.map((s) => {
-      const a = [q((s.x1 - glyph.x0) / base), q((s.y1 - glyph.y0) / base)];
-      const b = [q((s.x2 - glyph.x0) / base), q((s.y2 - glyph.y0) / base)];
-      // 線分の向きは文字の形に関係ないので、端点を並べ替えて同じ表現にする
-      const [p, r] = a[0] < b[0] || (a[0] === b[0] && a[1] <= b[1]) ? [a, b] : [b, a];
-      return r2(p[0]) + "," + r2(p[1]) + "," + r2(r[0]) + "," + r2(r[1]);
-    });
-    parts.sort();
-    return parts.join("|");
+    const ox = glyph.x0 - (base - glyph.w) / 2;
+    const oy = glyph.y0 - (base - glyph.h) / 2;
+    const cell = base / n;
+    const reach = cell * PARAMS.INK;
+    for (const s of glyph.segs) {
+      const gx0 = Math.max(0, Math.floor((Math.min(s.x1, s.x2) - reach - ox) / cell));
+      const gx1 = Math.min(n - 1, Math.floor((Math.max(s.x1, s.x2) + reach - ox) / cell));
+      const gy0 = Math.max(0, Math.floor((Math.min(s.y1, s.y2) - reach - oy) / cell));
+      const gy1 = Math.min(n - 1, Math.floor((Math.max(s.y1, s.y2) + reach - oy) / cell));
+      for (let gy = gy0; gy <= gy1; gy++) {
+        for (let gx = gx0; gx <= gx1; gx++) {
+          const i = gy * n + gx;
+          if (words[i >> 5] & (1 << (i & 31))) continue;
+          if (distPointSeg(ox + (gx + 0.5) * cell, oy + (gy + 0.5) * cell, s) <= reach) {
+            words[i >> 5] |= 1 << (i & 31);
+          }
+        }
+      }
+    }
+    return words;
+  }
+
+  function bitsToHex(words) {
+    let out = "";
+    for (let i = 0; i < words.length; i++) out += (words[i] >>> 0).toString(16).padStart(8, "0");
+    return out;
+  }
+
+  function hexToBits(hex) {
+    const n = Math.ceil(hex.length / 8);
+    const words = new Uint32Array(n);
+    for (let i = 0; i < n; i++) words[i] = parseInt(hex.slice(i * 8, i * 8 + 8), 16) >>> 0;
+    return words;
+  }
+
+  function popcount(v) {
+    v = v - ((v >> 1) & 0x55555555);
+    v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+    return (((v + (v >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+  }
+
+  // 2つの指紋のずれ（塗りが違う格子の数）
+  function shapeDistance(a, b) {
+    let d = 0;
+    const n = Math.max(a.length, b.length);
+    for (let i = 0; i < n; i++) d += popcount(((a[i] || 0) ^ (b[i] || 0)) >>> 0);
+    return d;
+  }
+
+  function shapeOf(glyph) {
+    return bitsToHex(bitsOf(glyph));
+  }
+
+  // 指紋の一覧（対応表の鍵）から一番近いものを選ぶ。離れていれば null。
+  function matchShape(bits, keyBits) {
+    let best = null;
+    let bestD = PARAMS.MAX_DIST + 1;
+    for (const k in keyBits) {
+      const d = shapeDistance(bits, keyBits[k]);
+      if (d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    }
+    return best;
   }
 
   // 字形を90度単位で回す（縦書きの寸法注記は90度回転で描かれるため）。
@@ -248,18 +312,40 @@
   // 返り値の shapes は {shape, count, glyph, rot} の配列（出現回数の多い順）。
   function extract(ex) {
     const glyphs = groupGlyphs((ex && ex.segments) || []);
-    for (const g of glyphs) g.shape = shapeOf(g);
-    const runs = buildRuns(glyphs);
-    const inRuns = [];
-    for (const r of runs) for (const g of r.glyphs) inRuns.push(g);
-    const byShape = new Map();
-    for (const g of inRuns) {
-      const e = byShape.get(g.shape);
-      if (e) e.count++;
-      else byShape.set(g.shape, { shape: g.shape, count: 1, glyph: g, rot: rotations(g) });
+    // 指紋が僅かに違うだけの字形をまとめる（実図面では同じ数字でも座標が揺れる）
+    const reps = [];
+    for (const g of glyphs) {
+      g.bits = bitsOf(g);
+      let best = null;
+      let bestD = PARAMS.MAX_DIST + 1;
+      for (const r of reps) {
+        const d = shapeDistance(g.bits, r.bits);
+        if (d < bestD) {
+          bestD = d;
+          best = r;
+        }
+      }
+      if (best) {
+        best.count++;
+        g.shape = best.shape;
+      } else {
+        const rep = { shape: bitsToHex(g.bits), bits: g.bits, glyph: g, count: 1 };
+        reps.push(rep);
+        g.shape = rep.shape;
+      }
     }
-    const shapes = [...byShape.values()]
-      .filter((s) => s.count >= PARAMS.MIN_SHAPE_COUNT)
+    const runs = buildRuns(glyphs);
+    // 一覧に出すのは「2文字以上の行」に入った字形だけ。図面の線の破片が
+    // 1文字の行として大量に残るため、これを外すと一覧が埋まって使えない
+    // （実図面で 93種 → 64種）。寸法も符号も2文字以上なので取りこぼさない。
+    const inRuns = new Map();
+    for (const r of runs) {
+      if (r.glyphs.length < 2) continue;
+      for (const g of r.glyphs) inRuns.set(g.shape, (inRuns.get(g.shape) || 0) + 1);
+    }
+    const shapes = reps
+      .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
+      .map((r) => ({ shape: r.shape, count: inRuns.get(r.shape) || 0, glyph: r.glyph, rot: rotations(r.glyph) }))
       .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
     return { glyphs, runs, shapes };
   }
@@ -269,11 +355,24 @@
   function toTexts(runs, map) {
     const out = [];
     if (!map) return out;
+    // 対応表の鍵をビット列にしておき、一番近い鍵で引く。
+    // 完全一致にすると、別の図面（同じフォント）で僅かに座標が違うだけで読めなくなる。
+    const keyBits = {};
+    for (const k in map) if (map[k]) keyBits[k] = hexToBits(k);
+    if (!Object.keys(keyBits).length) return out;
+    const cache = new Map();
+    const lookup = (g) => {
+      if (cache.has(g.shape)) return cache.get(g.shape);
+      const key = matchShape(g.bits || bitsOf(g), keyBits);
+      const ch = key ? map[key] : null;
+      cache.set(g.shape, ch);
+      return ch;
+    };
     for (const run of runs) {
       let str = "";
       let ok = true;
       for (const g of run.glyphs) {
-        const ch = map[g.shape];
+        const ch = lookup(g);
         if (ch == null || ch === "") {
           ok = false;
           break;
@@ -322,6 +421,10 @@
   ZC.glyph = {
     extract,
     toTexts,
+    bitsOf,
+    hexToBits,
+    shapeDistance,
+    matchShape,
     fingerprint,
     shapePath,
     groupGlyphs,
