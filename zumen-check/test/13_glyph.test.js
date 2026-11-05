@@ -90,3 +90,45 @@ exports.フォントの指紋は同じ図面で一致する = async () => {
   // プレビュー用のSVGパスが出る
   assert.ok(ZC.glyph.shapePath(a.shapes[0].glyph, 24).startsWith("M"));
 };
+
+exports.細い字形は図面の線の破片と区別する = () => {
+  const box = (segs) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s of segs) {
+      x0 = Math.min(x0, s.x1, s.x2); x1 = Math.max(x1, s.x1, s.x2);
+      y0 = Math.min(y0, s.y1, s.y2); y1 = Math.max(y1, s.y1, s.y2);
+    }
+    return { segs, x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+  };
+  // 実図面の X1 の「1」: 幅0.90 x 高さ3.54 の3ストローク
+  const one = box([
+    { x1: 159.51, y1: 96.62, x2: 159.09, y2: 96.62 },
+    { x1: 159.51, y1: 93.62, x2: 159.51, y2: 97.16 },
+    { x1: 159.09, y1: 93.62, x2: 159.99, y2: 93.62 },
+  ]);
+  // 図面の縦線の破片: 幅0 の1ストローク
+  const bar = box([{ x1: 200, y1: 90, x2: 200, y2: 92.52 }]);
+
+  const kOne = ZC.glyph.shapeOf(one);
+  const kBar = ZC.glyph.shapeOf(bar);
+  assert.notEqual(kOne, kBar, "別の鍵になる");
+  // 塗りだけ見ると近い（この近さが X1/X10/X11 を読めなくしていた）
+  const d = ZC.glyph.shapeDistance(ZC.glyph.bitsOf(one), ZC.glyph.bitsOf(bar));
+  assert.ok(d <= ZC.glyph.PARAMS.MAX_DIST, "塗りの距離だけでは区別できない: " + d);
+  // 縦横比を見れば分かれる
+  assert.ok(
+    Math.abs(ZC.glyph.aspectOfGlyph(one) - ZC.glyph.aspectOfGlyph(bar)) > ZC.glyph.PARAMS.ASPECT_TOL,
+    "縦横比が十分に違う"
+  );
+  const keyBits = {};
+  keyBits[kBar] = ZC.glyph.hexToBits(kBar);
+  assert.equal(
+    ZC.glyph.matchShape(ZC.glyph.bitsOf(one), keyBits, ZC.glyph.aspectOfGlyph(one)),
+    null,
+    "細い「1」は線の破片の鍵に吸われない"
+  );
+  // 自分自身の鍵には当たる
+  const own = {};
+  own[kOne] = ZC.glyph.hexToBits(kOne);
+  assert.equal(ZC.glyph.matchShape(ZC.glyph.bitsOf(one), own, ZC.glyph.aspectOfGlyph(one)), kOne);
+};

@@ -28,6 +28,10 @@
     // まとめてしまうと数字を誤読する。誤読より入力が増えるほうが安全なので
     // 小さめに取り、同じ数字がいくつかに分かれるのは許容する。
     MAX_DIST: 10,
+    // 縦横比がこれ以上違う字形は、塗りが似ていても別の字とみなす。
+    // 細い「1」(0.90x3.54 = 0.25) が、図面の縦線の破片(幅0 = 0.00)と
+    // 距離8でまとまってしまい X1/X10/X11 が読めなくなっていた。
+    ASPECT_TOL: 0.12,
     MIN_SHAPE_COUNT: 1, // 一覧に出す形の最小出現回数
   };
 
@@ -165,7 +169,9 @@
     return out;
   }
 
-  function hexToBits(hex) {
+  function hexToBits(key) {
+    const i = String(key).indexOf(".");
+    const hex = i < 0 ? String(key) : String(key).slice(0, i);
     const n = Math.ceil(hex.length / 8);
     const words = new Uint32Array(n);
     for (let i = 0; i < n; i++) words[i] = parseInt(hex.slice(i * 8, i * 8 + 8), 16) >>> 0;
@@ -186,15 +192,33 @@
     return d;
   }
 
+  // 指紋の鍵は「塗りのビット列.縦横比」。縦横比は照合時の足切りに使う。
   function shapeOf(glyph) {
-    return bitsToHex(bitsOf(glyph));
+    const base = Math.max(glyph.w, glyph.h) || 1;
+    const aspect = Math.min(glyph.w, glyph.h) / base;
+    return bitsToHex(bitsOf(glyph)) + "." + aspect.toFixed(3);
+  }
+
+  function aspectOfKey(key) {
+    const i = String(key).indexOf(".");
+    return i < 0 ? -1 : Number(key.slice(i + 1));
+  }
+
+  function aspectOfGlyph(glyph) {
+    const base = Math.max(glyph.w, glyph.h) || 1;
+    return Math.min(glyph.w, glyph.h) / base;
   }
 
   // 指紋の一覧（対応表の鍵）から一番近いものを選ぶ。離れていれば null。
-  function matchShape(bits, keyBits) {
+  // aspect を渡すと、縦横比が違いすぎる鍵は候補から外す。
+  function matchShape(bits, keyBits, aspect) {
     let best = null;
     let bestD = PARAMS.MAX_DIST + 1;
     for (const k in keyBits) {
+      if (aspect != null) {
+        const a = aspectOfKey(k);
+        if (a >= 0 && Math.abs(a - aspect) > PARAMS.ASPECT_TOL) continue;
+      }
       const d = shapeDistance(bits, keyBits[k]);
       if (d < bestD) {
         bestD = d;
@@ -316,9 +340,11 @@
     const reps = [];
     for (const g of glyphs) {
       g.bits = bitsOf(g);
+      g.aspect = aspectOfGlyph(g);
       let best = null;
       let bestD = PARAMS.MAX_DIST + 1;
       for (const r of reps) {
+        if (Math.abs(r.aspect - g.aspect) > PARAMS.ASPECT_TOL) continue;
         const d = shapeDistance(g.bits, r.bits);
         if (d < bestD) {
           bestD = d;
@@ -329,7 +355,7 @@
         best.count++;
         g.shape = best.shape;
       } else {
-        const rep = { shape: bitsToHex(g.bits), bits: g.bits, glyph: g, count: 1 };
+        const rep = { shape: shapeOf(g), bits: g.bits, aspect: g.aspect, glyph: g, count: 1 };
         reps.push(rep);
         g.shape = rep.shape;
       }
@@ -363,7 +389,7 @@
     const cache = new Map();
     const lookup = (g) => {
       if (cache.has(g.shape)) return cache.get(g.shape);
-      const key = matchShape(g.bits || bitsOf(g), keyBits);
+      const key = matchShape(g.bits || bitsOf(g), keyBits, g.aspect != null ? g.aspect : aspectOfGlyph(g));
       const ch = key ? map[key] : null;
       cache.set(g.shape, ch);
       return ch;
@@ -423,6 +449,8 @@
     toTexts,
     bitsOf,
     hexToBits,
+    aspectOfKey,
+    aspectOfGlyph,
     shapeDistance,
     matchShape,
     fingerprint,
