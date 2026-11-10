@@ -273,6 +273,18 @@
   .ai-head .ai-run:disabled { background: #b9c4ce; cursor: not-allowed; }
   .ai-note { color: #9a6b00; font-size: 11px; }
   .ai-result { margin-top: 6px; }
+  /* 分割図面（1つの建物を上下/左右に分けて複数ページに描いたもの）の表示 */
+  .split-box { margin: 6px 0; padding: 8px 10px; border: 1px solid #cfd8e3; border-left: 4px solid #2f6fd0;
+               border-radius: 6px; background: #f4f8ff; font-size: 12px; }
+  .split-title { font-weight: 700; color: #1b4b8f; margin-bottom: 4px; }
+  .split-parts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 4px; }
+  .split-part { color: #33434f; }
+  .split-part.now { font-weight: 700; color: #1b4b8f; }
+  .split-part.now::after { content: "（表示中）"; font-weight: 400; color: var(--sub); }
+  .split-note { color: var(--sub); }
+  .split-merge { display: block; margin-top: 6px; font-weight: 700; }
+  .split-warn { margin-top: 6px; color: #9a6b00; }
+  .split-scan { margin-right: 8px; }
   .ai-summary { font-size: 12px; font-weight: 600; color: #0a7a3d; margin-bottom: 4px; }
   .ai-summary.warn { color: #9a6b00; }
   .ai-msg { font-size: 12px; color: var(--sub); margin: 4px 0; }
@@ -358,6 +370,8 @@
       <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法（記載値）</label>
       <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
+      <label title="辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。平面図と構造図のように符号を書く辺が違う図面どうしは「方向ごと」が向いています。">照合の単位 <select id="cmp-unit"><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
+      <label title="照合で差異が出た箇所を、両方のビュワーに赤い枠で表示します"><input type="checkbox" id="ck-marks" checked> 差異を図面に赤枠で表示</label>
     </div>
     <button id="run-check" disabled>照合する</button>
     <button id="csv-dl" hidden>CSVダウンロード</button>
@@ -3556,6 +3570,43 @@
 
   const F = ZC.sides.fmtVal;
 
+  // その辺の区間を区間名で引けるようにする。merged な辺は「隣り合わなくなった区間」
+  // （分割前の通し寸法）も持っているので、それも引けるようにする。
+  function spanIndex(side) {
+    const m = new Map();
+    for (const sp of (side.spans || []).concat(side.extra || [])) {
+      const k = sp.from + "~" + sp.to;
+      if (!m.has(k) || (m.get(k).value == null && sp.value != null)) m.set(k, sp);
+    }
+    return m;
+  }
+
+  // 片方にしか無い区間を、もう片方の「連続した区間の合計」で作る。
+  // 通り芯の細分がページや図面で違う場合（平面図は X2~X2.2 + X2.2~X3、
+  // 構造図は X2~X3）に、同じ範囲どうしを比べられるようにするため。
+  // 合計するのはどちらも**図面に記載された値**なので、縮尺不使用の方針は崩れない。
+  function chainSpan(side, from, to) {
+    const order = side.axes.map((a) => a.label);
+    const i = order.indexOf(from);
+    const j = order.indexOf(to);
+    if (i < 0 || j < 0 || j <= i + 1) return null;
+    const idx = spanIndex(side);
+    const parts = [];
+    for (let k = i; k < j; k++) {
+      const sp = idx.get(order[k] + "~" + order[k + 1]);
+      if (!sp || sp.value == null) return null;
+      parts.push(sp.value);
+    }
+    return {
+      from, to,
+      fromAx: side.axes[i], toAx: side.axes[j],
+      value: parts.reduce((a, b) => a + b, 0),
+      parts,
+      conflict: false,
+      chain: true,
+    };
+  }
+
   // base / cmp: {sides: ZC.sides.build(...), name}
   // opts: {tol, checks:{labels, spacing, total}}
   function compare(base, cmp, opts) {
@@ -3563,10 +3614,15 @@
     const checks = (opts && opts.checks) || {};
     const rows = [];
 
-    for (const key of ["top", "right", "bottom", "left"]) {
+    // 辺（top/right/bottom/left）でも方向（x/y）でも照合できるよう、
+    // 両方にある区分を順に回す（ZC.split.byDirection は x/y を返す）
+    const ORDER = { top: 0, right: 1, bottom: 2, left: 3 };
+    const keys = Object.keys(base.sides).filter((k) => cmp.sides[k]);
+    keys.sort((a, b) => (ORDER[a] == null ? 9 : ORDER[a]) - (ORDER[b] == null ? 9 : ORDER[b]));
+    for (const key of keys) {
       const b = base.sides[key];
       const c = cmp.sides[key];
-      if (!b || !c) continue;
+      if (!b || !c || !b.axes || !c.axes) continue;
       const sideName = b.name;
 
       if (checks.labels !== false) {
@@ -3611,18 +3667,27 @@
       }
 
       if (checks.spacing !== false) {
-        const cByKey = new Map(c.spans.map((s) => [s.from + "~" + s.to, s]));
+        const bByKey = spanIndex(b);
+        const cByKey = spanIndex(c);
         const seen = new Set();
+        // 相手側にその符号自体が無いのか、符号はあるが寸法が読めないのかを
+        // 区別して注記する（細分の有無が違う図面どうしで何が起きているか分かるように）
+        const bHas = new Set(b.axes.map((a) => a.label));
+        const cHas = new Set(c.axes.map((a) => a.label));
+        const miss = (sp, has, who) =>
+          sp ? [sp.from, sp.to].filter((l) => !has.has(l)).map((l) => who + "に " + l + " の通り芯がありません") : [];
         for (const bs of b.spans) {
           const k = bs.from + "~" + bs.to;
           seen.add(k);
-          const cs = cByKey.get(k);
-          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol);
+          const cs = cByKey.get(k) || chainSpan(c, bs.from, bs.to);
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(bs, cHas, "比較図面"));
         }
         for (const cs of c.spans) {
           const k = cs.from + "~" + cs.to;
           if (seen.has(k)) continue;
-          pushSpanRow(rows, sideName, "芯々寸法", k, null, cs, tol);
+          seen.add(k);
+          const bs = bByKey.get(k) || chainSpan(b, cs.from, cs.to);
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(cs, bHas, "基準図面"));
         }
       }
 
@@ -3641,14 +3706,21 @@
     return { rows, summary };
   }
 
-  function pushSpanRow(rows, sideName, check, item, bs, cs, tol) {
+  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing) {
     const bv = bs ? bs.value : null;
     const cv = cs ? cs.value : null;
     const notes = [];
+    // 相手にこの符号自体が無い場合は、寸法が読めないのではなく細分の違い
+    const noAxis = (missing || []).length > 0;
+    if (noAxis) notes.push(missing.join(" / "));
     if (bs && bs.parts && bs.parts.length > 1) notes.push("基準=" + bs.parts.map(F).join("+"));
     if (cs && cs.parts && cs.parts.length > 1) notes.push("比較=" + cs.parts.map(F).join("+"));
     if (bs && bs.conflict) notes.push("基準の寸法段で値が食い違い");
     if (cs && cs.conflict) notes.push("比較の寸法段で値が食い違い");
+    if (bs && bs.chain) notes.push("基準は細分された区間の合計");
+    if (cs && cs.chain) notes.push("比較は細分された区間の合計");
+    if (bs && bs.summed) notes.push("基準は区間の合計");
+    if (cs && cs.summed) notes.push("比較は区間の合計");
 
     let status;
     let diff = null;
@@ -3657,13 +3729,13 @@
       notes.push("両図面ともこの辺に記載寸法が見つかりません");
     } else if (bv == null || cv == null) {
       status = "WARN";
-      notes.push((bv == null ? "基準" : "比較") + "にこの区間の記載寸法が見つかりません");
+      if (!noAxis) notes.push((bv == null ? "基準" : "比較") + "にこの区間の記載寸法が見つかりません");
     } else {
       diff = cv - bv;
       status = Math.abs(diff) <= tol ? "OK" : "NG";
     }
-    if (!bs) notes.push("基準にこの区間がありません");
-    if (!cs) notes.push("比較にこの区間がありません");
+    if (!bs && !noAxis) notes.push("基準にこの区間がありません");
+    if (!cs && !noAxis) notes.push("比較にこの区間がありません");
     rows.push(
       row(
         sideName,
@@ -3700,7 +3772,7 @@
     return r;
   }
 
-  ZC.compare = { compare };
+  ZC.compare = { compare, chainSpan, spanIndex };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 25_ai.js ===== */
@@ -3859,6 +3931,266 @@
   ZC.ai = { analyze, normalize, diff, formatText, toBase64, SIDE_ORDER, SIDE_NAME, ENDPOINT };
 })(globalThis.ZC = globalThis.ZC || {});
 
+/* ===== 26_split.js ===== */
+// 分割図面の認識と統合。
+// 1 つの建物を上下（または左右）に分けて複数ページに描いた図面（平面詳細図など）を、
+// 1 枚ぶんの拾い出し結果にまとめて、分割していない図面（構造図など）と照合できるようにする。
+(function (ZC) {
+  "use strict";
+
+  const SIDES = ZC.axis.SIDES;
+  const SIDE_NAME = ZC.axis.SIDE_NAME;
+
+  const PARAMS = {
+    SAME_MIN: 0.8, // 「ページ間で同じ範囲」とみなす一致率（Jaccard）
+    DIFF_MAX: 0.75, // 「ページ間で違う範囲」とみなす一致率の上限
+    VALUE_TOL: 0.5, // ページ間で同じ区間の記載値が食い違ったとみなす差(mm)
+  };
+
+  // 符号の番号部分（X2.2 → 2.2）。並べ替えに使う
+  function num(label) {
+    const m = /^[XY](\d+(?:\.\d+)?)$/.exec(String(label));
+    return m ? Number(m[1]) : NaN;
+  }
+
+  function byLabelOrder(a, b) {
+    const d = num(a) - num(b);
+    if (!isNaN(d) && d !== 0) return d;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  // その図面に出てくる方向別の符号（4辺のどこかにバブルがあるもの）
+  function labelsOf(sides, dir) {
+    const set = new Set();
+    for (const k of SIDES) {
+      const s = sides && sides[k];
+      if (!s || s.dir !== dir) continue;
+      for (const a of s.axes) if (a.label != null) set.add(a.label);
+    }
+    return set;
+  }
+
+  function jaccard(a, b) {
+    if (!a.size && !b.size) return 1;
+    let inter = 0;
+    for (const x of a) if (b.has(x)) inter++;
+    return inter / (a.size + b.size - inter);
+  }
+
+  const sortLabels = (set) => [...set].sort(byLabelOrder);
+
+  // pages: [{page, sides}]（sides は ZC.sides.build の結果）
+  // 戻り値: {split, dir, name, parts, union, common, overlap, reason}
+  //   dir "h" … 横方向の芯（Y）の範囲がページごとに違う = 上下に分けてある
+  //   dir "v" … 縦方向の芯（X）の範囲がページごとに違う = 左右に分けてある
+  function detect(pages) {
+    const list = (pages || []).filter((p) => p && p.sides);
+    if (list.length < 2) return { split: false, reason: "ページが1つしかありません" };
+    const info = list.map((p) => ({
+      page: p.page,
+      v: labelsOf(p.sides, "v"),
+      h: labelsOf(p.sides, "h"),
+    }));
+    if (info.some((i) => !i.v.size || !i.h.size)) {
+      return { split: false, reason: "縦横どちらかの通り芯が読めないページがあります" };
+    }
+    const minJ = (dir) => {
+      let m = 1;
+      for (let i = 0; i < info.length; i++) {
+        for (let j = i + 1; j < info.length; j++) m = Math.min(m, jaccard(info[i][dir], info[j][dir]));
+      }
+      return m;
+    };
+    const jv = minJ("v");
+    const jh = minJ("h");
+    const dir = jv <= jh ? "v" : "h"; // 範囲がそろっていないほうが分割方向
+    const jd = dir === "v" ? jv : jh;
+    const jo = dir === "v" ? jh : jv;
+    if (jo < PARAMS.SAME_MIN) {
+      return { split: false, reason: "ページごとに通り芯の範囲が縦横とも違います（別の図面どうしの可能性）" };
+    }
+    if (jd > PARAMS.DIFF_MAX) {
+      return { split: false, reason: "ページどうしで通り芯の範囲がほぼ同じです" };
+    }
+
+    // 分割方向の符号をすべて集め、各ページがその「連続したひと続き」になっているか見る
+    const union = new Set();
+    for (const i of info) for (const l of i[dir]) union.add(l);
+    const all = sortLabels(union);
+    const idx = new Map(all.map((l, i) => [l, i]));
+    const other = dir === "v" ? "h" : "v";
+    const parts = info
+      .map((i) => {
+        const ls = sortLabels(i[dir]);
+        const from = idx.get(ls[0]);
+        const to = idx.get(ls[ls.length - 1]);
+        const contiguous = ls.every((l, k) => idx.get(l) === from + k);
+        return { page: i.page, labels: ls, from, to, contiguous, common: sortLabels(i[other]) };
+      })
+      .sort((a, b) => a.from - b.from || a.page - b.page);
+    if (parts.some((p) => !p.contiguous)) {
+      return { split: false, reason: "ページごとの通り芯がとびとびで、分けかたが読み取れません" };
+    }
+    for (let i = 1; i < parts.length; i++) {
+      if (parts[i].from > parts[i - 1].to + 1) {
+        return { split: false, reason: "ページのあいだに抜けている通り芯があります" };
+      }
+    }
+    const overlap = [];
+    for (let i = 1; i < parts.length; i++) {
+      for (let k = parts[i].from; k <= Math.min(parts[i].to, parts[i - 1].to); k++) overlap.push(all[k]);
+    }
+    return {
+      split: true,
+      dir,
+      // 横方向の芯（Y）で分かれている = 上下に切ってある
+      name: (dir === "h" ? "上下" : "左右") + parts.length + "分割",
+      parts,
+      union: all,
+      common: sortLabels(info[0][dir === "v" ? "h" : "v"]),
+      overlap: [...new Set(overlap)],
+    };
+  }
+
+  // 分割の説明文（画面と CLI で共用）
+  function describe(info) {
+    if (!info || !info.split) return "";
+    const dirName = info.dir === "h" ? "上下" : "左右";
+    const lines = [
+      "この図面は1つの建物を" + dirName + "に" + info.parts.length + "分割して描いています。",
+    ];
+    for (const p of info.parts) {
+      lines.push(
+        "  " + p.page + "ページ目: " + p.labels[0] + "〜" + p.labels[p.labels.length - 1] +
+          "（" + p.labels.length + "本）"
+      );
+    }
+    if (info.overlap.length) lines.push("  重なり: " + info.overlap.join(" "));
+    return lines.join("\n");
+  }
+
+  // 複数の「辺」を 1 つにまとめる共通処理。
+  //   ページをまたぐ統合（1ページ目の上辺 + 2ページ目の上辺）にも、
+  //   方向でまとめる統合（上辺 + 下辺 → X方向）にも使う。
+  // list: [{tag, side}]  tag は食い違いの出どころを示す印（ページ番号や辺の名前）
+  function mergeSideObjects(list, key, name, dir, conflicts) {
+    const byLabel = new Map();
+    for (const { side } of list) {
+      for (const a of side.axes) if (a.label != null && !byLabel.has(a.label)) byLabel.set(a.label, a);
+    }
+    const axes = [...byLabel.keys()].sort(byLabelOrder).map((l) => byLabel.get(l));
+
+    const spanMap = new Map();
+    for (const { tag, side } of list) {
+      for (const sp of side.spans.concat(side.extra || [])) {
+        const k = sp.from + "~" + sp.to;
+        const prev = spanMap.get(k);
+        if (!prev) {
+          spanMap.set(k, {
+            from: sp.from, to: sp.to, fromAx: sp.fromAx, toAx: sp.toAx,
+            value: sp.value, parts: sp.parts, conflict: !!sp.conflict, tags: [tag],
+          });
+          continue;
+        }
+        prev.tags.push(tag);
+        if (prev.value == null && sp.value != null) {
+          prev.value = sp.value;
+          prev.parts = sp.parts;
+          prev.fromAx = sp.fromAx;
+          prev.toAx = sp.toAx;
+        } else if (prev.value != null && sp.value != null &&
+                   Math.abs(prev.value - sp.value) > PARAMS.VALUE_TOL) {
+          prev.conflict = true;
+          if (conflicts) {
+            conflicts.push({ side: key, name, item: k, values: [prev.value, sp.value], tags: prev.tags.slice() });
+          }
+        }
+      }
+    }
+
+    // まとめた並びで隣り合う区間。無い区間は「記載なし」で埋める
+    const spans = [];
+    for (let i = 0; i + 1 < axes.length; i++) {
+      const k = axes[i].label + "~" + axes[i + 1].label;
+      const got = spanMap.get(k);
+      if (got) {
+        spans.push(got);
+        spanMap.delete(k);
+      } else {
+        spans.push({
+          from: axes[i].label, to: axes[i + 1].label, fromAx: axes[i], toAx: axes[i + 1],
+          value: null, parts: null, conflict: false, tags: [],
+        });
+      }
+    }
+    // 隣り合わなくなった区間（細分する前の通し寸法など）も照合に使えるよう残す
+    const extra = [...spanMap.values()];
+
+    let total = null;
+    if (axes.length >= 2) {
+      const first = axes[0].label;
+      const last = axes[axes.length - 1].label;
+      const whole = extra.find((sp) => sp.from === first && sp.to === last);
+      if (whole && whole.value != null) {
+        total = { from: first, to: last, value: whole.value, parts: whole.parts };
+      } else {
+        const vals = spans.map((sp) => sp.value);
+        const sum = vals.every((v) => v != null) ? vals.reduce((a, b) => a + b, 0) : null;
+        total = { from: first, to: last, value: sum, parts: sum != null ? vals.slice() : null, summed: sum != null };
+      }
+    }
+    return { side: key, name, dir, axes, spans, extra, total, entryCount: 0, merged: true };
+  }
+
+  // 分割されたページを 1 枚ぶんの拾い出し結果（sides 相当）にまとめる。
+  // 符号は番号順に並べ直し、区間はページをまたいで同じ区間を 1 つにする。
+  // 同じ区間の記載値がページ間で食い違ったら conflict を立てる（図面自体の不整合）。
+  function merge(pages) {
+    const list = (pages || []).filter((p) => p && p.sides);
+    const out = {};
+    const conflicts = [];
+    for (const key of SIDES) {
+      const dir = key === "top" || key === "bottom" ? "v" : "h";
+      const parts = list.filter((p) => p.sides[key]).map((p) => ({ tag: p.page + "ページ目", side: p.sides[key] }));
+      out[key] = parts.length
+        ? mergeSideObjects(parts, key, SIDE_NAME[key], dir, conflicts)
+        : { side: key, name: SIDE_NAME[key], dir, axes: [], spans: [], extra: [], total: null, entryCount: 0, merged: true };
+    }
+    Object.defineProperty(out, "used", { value: new Set(), enumerable: false });
+    Object.defineProperty(out, "conflicts", { value: conflicts, enumerable: false });
+    return out;
+  }
+
+  // 辺ではなく「方向」でまとめる（上辺+下辺 → X方向 / 右辺+左辺 → Y方向）。
+  // 平面図と構造図のように**符号を書く辺が違う図面どうし**を照合するときに使う。
+  // 辺ごとに照合すると「構造図は符号を下辺にしか書かない」というだけで
+  // 符号の食い違いが大量に出てしまい、本当の差異が埋もれる。
+  // 上辺と下辺で同じ区間の値が違えばその図面自体の不整合なので conflict を立てる。
+  function byDirection(sides) {
+    const out = {};
+    const conflicts = [];
+    const DIRS = [
+      ["x", "X方向", "v", ["top", "bottom"]],
+      ["y", "Y方向", "h", ["right", "left"]],
+    ];
+    for (const [key, name, dir, pair] of DIRS) {
+      const parts = pair
+        .filter((k) => sides[k] && sides[k].axes.length)
+        .map((k) => ({ tag: sides[k].name, side: sides[k] }));
+      out[key] = parts.length
+        ? mergeSideObjects(parts, key, name, dir, conflicts)
+        : { side: key, name, dir, axes: [], spans: [], extra: [], total: null, entryCount: 0, merged: true };
+    }
+    Object.defineProperty(out, "used", { value: (sides && sides.used) || new Set(), enumerable: false });
+    Object.defineProperty(out, "conflicts", {
+      value: ((sides && sides.conflicts) || []).concat(conflicts), enumerable: false,
+    });
+    return out;
+  }
+
+  ZC.split = { detect, describe, merge, byDirection, mergeSideObjects, num, PARAMS };
+})(globalThis.ZC = globalThis.ZC || {});
+
 /* ===== 30_ui.js ===== */
 // UI 層: ファイル読み込み・対話ビュワー（ズーム/パン/測定）・辺別の拾い出し・照合結果表示
 // DOM を触るのはこのファイルと 31_app.js のみ（テストは 2x系までのロジックを対象とする）
@@ -3868,6 +4200,8 @@
   const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
   const COLORS = {
+    diff: "#d4002a",     // 照合でNGになった箇所の枠
+    diffWarn: "#c77700", // 〃 要確認（片方にしか無いなど）
     seg: "#4a5560", // 図面の線。薄くすると寸法線や数字が白っぽくなって読めない
     v: "#1565d8",
     h: "#0a8f4e",
@@ -3881,6 +4215,8 @@
   const SEG_MIN_WIDTH = 0.7; // 図面の線の最小太さ(CSS px)
   const SEG_MAX_WIDTH = 3; // 〃 最大（拡大しても潰れないように）
   const TEXT_MIN_PX = 4; // PDFの文字を描く最小サイズ(px)。これ未満は潰れるだけ
+  const SPLIT_AUTO_PAGES = 4; // このページ数までは読み込み時に自動で分割を判定する
+  const DIFF_PAD = 6;         // 差異の赤枠を区間の外側へ広げる量(px)
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -4304,6 +4640,7 @@
         "</div>" +
         '<div class="ctrl-row"><label>ページ <select class="page-sel" disabled></select></label></div>' +
         '<div class="status"></div>' +
+        '<div class="split-box" hidden></div>' +
         '<div class="viewer-bar">' +
         '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
@@ -4331,6 +4668,7 @@
       this.$fname = this.root.querySelector(".fname");
       this.$page = this.root.querySelector(".page-sel");
       this.$status = this.root.querySelector(".status");
+      this.$split = this.root.querySelector(".split-box");
       this.$wrap = this.root.querySelector(".viewer-wrap");
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
@@ -4436,6 +4774,12 @@
         });
         this.$page.disabled = this.pages.length <= 1;
         await this.loadPage(0);
+        // ページ数が少ない図面は、読み込んだ流れでそのまま分割を判定する。
+        // 多ページ（構造図一式など）は時間がかかるのでボタンにする。
+        if (this.pages.length >= 2) {
+          if (this.pages.length <= SPLIT_AUTO_PAGES) await this.scanPages();
+          else this.renderSplit();
+        }
       } catch (e) {
         this.doc = null;
         this.setStatus("読み込みに失敗しました: " + (e && e.message ? e.message : e), "error");
@@ -4462,6 +4806,14 @@
       this.glyphMap = null;
       this.glyphTexts = [];
       this.baseTexts = null;
+      this.pageSides = new Map(); // ページ番号(1始まり) → {page, sides, det}
+      this.splitInfo = null;
+      this.mergePages = false;
+      this.diffRefs = null;
+      if (this.$split) {
+        this.$split.hidden = true;
+        this.$split.innerHTML = "";
+      }
       this.enabled.clear();
     }
 
@@ -4489,6 +4841,8 @@
         }
         this.dimsInfo = ZC.dims.extract(this.extract);
         this.rebuildSides();
+        this._remember(index, det, this.sides);
+        if (this.splitInfo) this.renderSplit();
         const nSeg = this.extract.segments.length;
         if (nSeg === 0) {
           this.setStatus(
@@ -4533,6 +4887,148 @@
       if (this.$aiResult) this.$aiResult.innerHTML = "";
       this.aiSides = null;
       ZC.ui.updateRunButton();
+    }
+
+    // ---- 分割図面（1つの建物を上下/左右に分けて複数ページに描いたもの）--------
+
+    // そのページの拾い出し結果を控える。芯には何ページ目のものかを付けておく
+    // （まとめて照合したとき、図上の赤枠を「いま表示しているページ」のぶんだけ
+    //   描くために要る。列挙不可なので JSON/CSV には出ない）
+    _remember(index, det, sides) {
+      if (!sides) return;
+      for (const ax of (det.v || []).concat(det.h || [])) {
+        Object.defineProperty(ax, "page", { value: index + 1, enumerable: false, configurable: true });
+      }
+      this.pageSides.set(index + 1, { page: index + 1, sides, det });
+    }
+
+    // 表示を切り替えずに1ページぶんだけ読む（分割の判定に使う）
+    async _analyzePage(index) {
+      const extract = await new ZC.content.ContentExtractor(this.doc).run(this.pages[index]);
+      // 文字が線で描かれたページは、覚えている対応表を当ててから読む
+      if (ZC.content.diagnose(extract).outlined) {
+        const map = loadGlyphMap();
+        if (map && Object.keys(map).length) {
+          const info = ZC.glyph.extract(extract);
+          extract.texts = extract.texts.concat(ZC.glyph.toTexts(info.runs, map));
+        }
+      }
+      const det = ZC.axis.detect(extract);
+      const dims = ZC.dims.extract(extract);
+      const sides = ZC.sides.build(det, dims.entries);
+      return { det, sides };
+    }
+
+    // 全ページを読んで「この図面は分割されているか」を判定する
+    async scanPages() {
+      if (!this.doc || this.pages.length < 2 || this.scanning) return;
+      this.scanning = true;
+      const keep = this.$status.textContent;
+      try {
+        for (let i = 0; i < this.pages.length; i++) {
+          if (this.pageSides.has(i + 1)) continue;
+          this.setStatus("分割の判定中… " + (i + 1) + " / " + this.pages.length + "ページ");
+          const { det, sides } = await this._analyzePage(i);
+          this._remember(i, det, sides);
+        }
+        const list = [...this.pageSides.values()].sort((a, b) => a.page - b.page);
+        this.splitInfo = ZC.split.detect(list);
+        // 分割されていると分かったら、既定でまとめて照合する
+        if (this.splitInfo.split) this.mergePages = true;
+      } finally {
+        this.scanning = false;
+        this.setStatus(keep);
+        this.renderSplit();
+        ZC.ui.updateRunButton();
+      }
+    }
+
+    // 分割の判定結果を画面に出す
+    renderSplit() {
+      const box = this.$split;
+      if (!box) return;
+      box.innerHTML = "";
+      if (!this.doc || this.pages.length < 2) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      const info = this.splitInfo;
+      if (!info) {
+        const btn = el("button", { type: "button", class: "split-scan", text: "全ページを調べて分割を判定" });
+        btn.addEventListener("click", () => this.scanPages());
+        box.appendChild(btn);
+        box.appendChild(el("span", {
+          class: "split-note",
+          text: "この PDF は " + this.pages.length + " ページあります",
+        }));
+        return;
+      }
+      if (!info.split) {
+        box.appendChild(el("span", {
+          class: "split-note",
+          text: "分割された図面ではないようです（" + info.reason + "）。ページを選んで照合してください。",
+        }));
+        return;
+      }
+      const dirName = info.dir === "h" ? "上下" : "左右";
+      box.appendChild(el("div", {
+        class: "split-title",
+        text: "この図面は1つの建物を" + dirName + "に" + info.parts.length + "分割して描いています",
+      }));
+      const ul = el("div", { class: "split-parts" });
+      for (const p of info.parts) {
+        const last = p.labels[p.labels.length - 1];
+        ul.appendChild(el("div", {
+          class: "split-part" + (p.page === Number(this.$page.value || 0) + 1 ? " now" : ""),
+          text: p.page + "ページ目 … " + p.labels[0] + " 〜 " + last + "（" + p.labels.length + "本）",
+        }));
+      }
+      box.appendChild(ul);
+      if (info.overlap.length) {
+        box.appendChild(el("div", { class: "split-note", text: "ページの重なり: " + info.overlap.join(" ") }));
+      }
+      const lab = el("label", { class: "split-merge" });
+      const cb = el("input", { type: "checkbox" });
+      cb.checked = this.mergePages;
+      cb.addEventListener("change", () => {
+        this.mergePages = cb.checked;
+        ZC.ui.updateRunButton();
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(" 全ページをまとめて1つの図面として照合する"));
+      box.appendChild(lab);
+      const merged = this.mergedSides();
+      if (merged && merged.conflicts && merged.conflicts.length) {
+        box.appendChild(el("div", {
+          class: "split-warn",
+          text: "ページ間で記載寸法が食い違う区間があります: " +
+            merged.conflicts.map((c) => c.name + " " + c.item + "（" + c.values.join(" / ") + "）").join(" , "),
+        }));
+      }
+    }
+
+    // 全ページをまとめた拾い出し結果（照合に使う）
+    mergedSides() {
+      if (!this.pageSides.size) return null;
+      const list = [...this.pageSides.values()].sort((a, b) => a.page - b.page);
+      if (list.length < 2) return list[0] ? list[0].sides : null;
+      return ZC.split.merge(list);
+    }
+
+    // 照合に渡す拾い出し結果。分割をまとめる設定ならまとめたほうを返す
+    compareSides() {
+      if (this.mergePages && this.splitInfo && this.splitInfo.split) {
+        const m = this.mergedSides();
+        if (m) return m;
+      }
+      return this.sides;
+    }
+
+    // 照合で差異が出た箇所（図上に赤枠で描く）
+    setDiffs(refs) {
+      this.diffRefs = refs && refs.length ? refs : null;
+      this.requestRender();
     }
 
     // AIに図面を読ませ、自動読み取りの結果と突き合わせる
@@ -5022,6 +5518,7 @@
         if (!this.$shGrid || this.$shGrid.checked) this._drawDims(ctx);
         if (this.$shOther && this.$shOther.checked) this._drawOtherDims(ctx);
       }
+      this._drawDiffBoxes(ctx); // 差異の赤枠は一番上に描く
       this._drawMeasure(ctx);
     }
 
@@ -5061,6 +5558,93 @@
           haloText(ctx, ax.label, bx, by + 4);
         }
       }
+    }
+
+    // 照合で差異が出た箇所を赤い枠で囲む。
+    // 1本の芯だけの差異（相手の図面にその符号が無い）は芯そのものを、
+    // 区間の差異（寸法が違う）はその2本のあいだを囲む。
+    // まとめて照合しているときは、芯に付けた page で「いま見ているページ」の
+    // ぶんだけ描く（別ページの芯は座標の意味が違うため）。
+    _drawDiffBoxes(ctx) {
+      const refs = this.diffRefs;
+      if (!refs || !refs.length) return;
+      const page = Number(this.$page.value || 0) + 1;
+      // まとめて照合しているときは、いま見ているページの芯だけを囲む
+      // （別ページの芯は座標の意味が違う）
+      const mine = (ax) => ax && (ax.page === undefined || ax.page === page);
+      const W = this.$canvas.clientWidth;
+      const H = this.$canvas.clientHeight;
+      const boxes = [];
+      const seen = new Set();
+      for (const d of refs) {
+        const axes = (d.axes || []).filter(mine);
+        if (!axes.length) continue;
+        const dirs = new Set(axes.map((a) => a.dir));
+        if (dirs.size !== 1) continue;
+        const sorted = axes.slice().sort((a, b) => a.pos - b.pos);
+        const a = sorted[0];
+        const b = sorted[sorted.length - 1];
+        let x, y, w, h;
+        if (a.dir === "v") {
+          const [x1] = this.toScreen(a.pos, 0);
+          const [x2] = this.toScreen(b.pos, 0);
+          const [, yTop] = this.toScreen(0, Math.max(a.to, b.to));
+          const [, yBot] = this.toScreen(0, Math.min(a.from, b.from));
+          x = Math.min(x1, x2) - DIFF_PAD;
+          w = Math.abs(x2 - x1) + DIFF_PAD * 2;
+          y = yTop - DIFF_PAD;
+          h = yBot - yTop + DIFF_PAD * 2;
+        } else {
+          const [, y1] = this.toScreen(0, b.pos);
+          const [, y2] = this.toScreen(0, a.pos);
+          const [xL] = this.toScreen(Math.min(a.from, b.from), 0);
+          const [xR] = this.toScreen(Math.max(a.to, b.to), 0);
+          x = xL - DIFF_PAD;
+          w = xR - xL + DIFF_PAD * 2;
+          y = Math.min(y1, y2) - DIFF_PAD;
+          h = Math.abs(y2 - y1) + DIFF_PAD * 2;
+        }
+        w = Math.max(w, 3);
+        h = Math.max(h, 3);
+        if (x > W || y > H || x + w < 0 || y + h < 0) continue; // 画面外
+        const key = d.status + ":" + Math.round(x) + "," + Math.round(y) + "," + Math.round(w) + "," + Math.round(h);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        boxes.push({ x, y, w, h, label: d.label, ng: d.status === "NG", dir: a.dir });
+      }
+      if (!boxes.length) return;
+      ctx.save();
+      // 枠（NG=赤の実線 / 要確認=橙の破線）
+      for (const bx of boxes) {
+        ctx.strokeStyle = bx.ng ? COLORS.diff : COLORS.diffWarn;
+        ctx.fillStyle = bx.ng ? "rgba(212,0,42,0.07)" : "rgba(199,119,0,0.06)";
+        ctx.lineWidth = bx.ng ? 2 : 1.5;
+        ctx.setLineDash(bx.ng ? [] : [5, 3]);
+        ctx.fillRect(bx.x, bx.y, bx.w, bx.h);
+        ctx.strokeRect(bx.x, bx.y, bx.w, bx.h);
+      }
+      ctx.setLineDash([]);
+      // 見出し。重なったら上へずらす（区間が隣り合うと必ず重なるため）
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const placed = [];
+      const hit = (r) =>
+        placed.some((q) => r.x < q.x + q.w + 2 && q.x < r.x + r.w + 2 && r.y < q.y + q.h + 1 && q.y < r.y + r.h + 1);
+      for (const bx of boxes.slice().sort((p1, p2) => p1.x - p2.x || p1.y - p2.y)) {
+        if (!bx.label) continue;
+        const tw = ctx.measureText(bx.label).width + 8;
+        const th = 14;
+        const r = { x: Math.min(Math.max(bx.x, 0), Math.max(W - tw, 0)), y: bx.y - th - 1, w: tw, h: th };
+        for (let i = 0; i < 12 && (hit(r) || r.y < 0); i++) r.y = r.y < 0 ? bx.y + bx.h + 1 + i * (th + 1) : r.y - (th + 1);
+        if (hit(r)) continue; // それでも重なるなら出さない
+        placed.push(r);
+        ctx.fillStyle = bx.ng ? COLORS.diff : COLORS.diffWarn;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(bx.label, r.x + 4, r.y + th / 2 + 0.5);
+      }
+      ctx.restore();
     }
 
     _drawHighlightBand(ctx) {
@@ -5398,6 +5982,8 @@
       ui.cmp = new Panel("cmp", "比較図面", document.getElementById("panel-cmp-body"));
       document.getElementById("run-check").addEventListener("click", () => ui.runCheck());
       document.getElementById("csv-dl").addEventListener("click", () => ui.downloadCsv());
+      const marks = document.getElementById("ck-marks");
+      if (marks) marks.addEventListener("change", () => ui.showDiffMarks(ui.lastResult));
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
           ui.base.cancelMeasure();
@@ -5414,6 +6000,8 @@
     updateRunButton() {
       const btn = document.getElementById("run-check");
       if (btn) btn.disabled = !(ui.base && ui.cmp && ui.base.ready() && ui.cmp.ready());
+      // 表示中の設定で照合し直したときに赤枠も追従させる
+      if (ui.lastResult) ui.showDiffMarks(ui.lastResult);
     },
 
     runCheck() {
@@ -5423,13 +6011,41 @@
         spacing: document.getElementById("ck-spacing").checked,
         total: document.getElementById("ck-total").checked,
       };
+      const unitSel = document.getElementById("cmp-unit");
+      const byDir = unitSel && unitSel.value === "dir";
+      // 分割されたページはまとめ、「方向ごと」なら上辺+下辺・右辺+左辺もまとめる
+      const sidesOf = (panel) => {
+        const s = panel.compareSides();
+        return byDir && s ? ZC.split.byDirection(s) : s;
+      };
       const result = ZC.compare.compare(
-        { sides: ui.base.sides, name: "基準" },
-        { sides: ui.cmp.sides, name: "比較" },
+        { sides: sidesOf(ui.base), name: "基準" },
+        { sides: sidesOf(ui.cmp), name: "比較" },
         { tol, checks }
       );
       ui.lastResult = result;
       ui.renderResult(result, tol);
+      ui.showDiffMarks(result);
+    },
+
+    // 差異が出た箇所を両方のビュワーに赤枠で出す
+    showDiffMarks(result) {
+      const on = document.getElementById("ck-marks");
+      if (!on || !on.checked || !result) {
+        ui.base.setDiffs(null);
+        ui.cmp.setDiffs(null);
+        return;
+      }
+      const b = [];
+      const c = [];
+      for (const r of result.rows) {
+        if (r.status === "OK" || !r.refs) continue;
+        const label = r.item;
+        if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, label, status: r.status });
+        if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, label, status: r.status });
+      }
+      ui.base.setDiffs(b);
+      ui.cmp.setDiffs(c);
     },
 
     renderResult(result, tol) {

@@ -511,6 +511,53 @@ function makeBasicPdf(spec, opts) {
   return b.build(opts);
 }
 
+// 複数ページの PDF（1つの建物を上下/左右に分けて描いた図面の検証用）。
+// specs は makeSpec() の配列で、1要素が1ページになる。
+function makeMultiPagePdf(specs, opts) {
+  opts = opts || {};
+  const list = specs && specs.length ? specs : [makeSpec()];
+  const n = list.length;
+  const b = new PDFBuilder();
+  // 1:Catalog 2:Pages 3..(2+n):Page (3+n)..(2+2n):Contents (3+2n):Font
+  const pageIds = list.map((_, i) => 3 + i);
+  const contentIds = list.map((_, i) => 3 + n + i);
+  const fontId = 3 + 2 * n;
+  b.add({ body: "<< /Type /Catalog /Pages 2 0 R >>" });
+  b.add({ body: `<< /Type /Pages /Kids [${pageIds.map((i) => i + " 0 R").join(" ")}] /Count ${n} >>` });
+  for (let i = 0; i < n; i++) {
+    b.add({
+      body:
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] ` +
+        `/Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentIds[i]} 0 R >>`,
+    });
+  }
+  for (const spec of list) {
+    let bytes = Buffer.from(drawingOps(spec, escLiteral, true), "latin1");
+    let filter = "";
+    if (opts.flate !== false) {
+      bytes = zlib.deflateSync(bytes);
+      filter = "/Filter /FlateDecode";
+    }
+    b.add({ dict: filter, stream: bytes });
+  }
+  b.add({ body: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>" });
+  return b.build(opts);
+}
+
+// 1つの建物を分割して描いた図面の spec を作る。
+//   full … 建物全体の spec（これを分ける）
+//   cuts … [[開始index, 終了index], ...] 分割方向の芯のどこからどこまでを各ページに載せるか
+//   dir  … "h"（上下に分ける＝横芯Yを分割） / "v"（左右に分ける＝縦芯Xを分割）
+function splitSpecs(full, cuts, dir) {
+  const key = dir === "v" ? "vAxes" : "hAxes";
+  return cuts.map(([a, z]) => {
+    const s = JSON.parse(JSON.stringify(full));
+    s[key] = full[key].slice(a, z + 1);
+    s.splitsV0 = null;
+    return s;
+  });
+}
+
 // xref ストリーム + ObjStm + Type0 版
 function makeAdvancedPdf(spec) {
   spec = spec || makeSpec();
@@ -631,6 +678,8 @@ function makeAdvancedPdf(spec) {
 module.exports = {
   makeSpec,
   makeBasicPdf,
+  makeMultiPagePdf,
+  splitSpecs,
   makeAdvancedPdf,
   axisPositions,
   toPt,
