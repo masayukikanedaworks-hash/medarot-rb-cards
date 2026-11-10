@@ -38,6 +38,7 @@ function makeSpec() {
     // vAxes/hAxes の要素には次を指定できる:
     //   from/to  … 芯線の範囲（省略時は全長）。実図面の部分的な通り芯を模す
     //   sides    … 符号バブルを置く辺（省略時は両端）。例: ["top"]
+    //   noBubble … true で符号を円で囲まずに書く（構造図の細分通り芯を模す）
     dims: {}, // {v:[...], h:[...]} 下辺/左辺の通り芯間寸法の注記上書き
     dimsTop: null, // [...] 上辺の注記上書き（省略時は下辺と同じ値）
     dimsRight: null, // [...] 右辺の注記上書き（省略時は左辺と同じ値）
@@ -227,10 +228,10 @@ function drawingOps(spec, textEnc, useTJ) {
 
   // 符号（円囲み・上下/左右の両端）
   ops.push("0.5 w");
-  const label = (cx, cy, str) => {
+  const label = (cx, cy, str, noBubble) => {
     // 字数の多い符号（X2.2）は横長の長円で囲む CAD がある
     const wide = spec.ovalBubbles && str.length > 2;
-    if (!spec.noBubbles) {
+    if (!spec.noBubbles && !noBubble) {
       ops.push(wide ? circleOps(cx, cy, BUBBLE_R * 1.7, false, BUBBLE_R) : circleOps(cx, cy, BUBBLE_R, false));
     }
     if (spec.strokeFont) {
@@ -260,14 +261,16 @@ function drawingOps(spec, textEnc, useTJ) {
     textAt(cx - str.length * 2.5, cy - 3.5, str, false);
   };
   for (const a of pos.v) {
-    const sides = spec.vAxes[pos.v.indexOf(a)].sides || ["bottom", "top"];
-    if (sides.includes("bottom")) label(a.pos, 40, a.label);
-    if (sides.includes("top")) label(a.pos, 516, a.label);
+    const sa = spec.vAxes[pos.v.indexOf(a)];
+    const sides = sa.sides || ["bottom", "top"];
+    if (sides.includes("bottom")) label(a.pos, 40, a.label, sa.noBubble);
+    if (sides.includes("top")) label(a.pos, 516, a.label, sa.noBubble);
   }
   for (const a of pos.h) {
-    const sides = spec.hAxes[pos.h.indexOf(a)].sides || ["left", "right"];
-    if (sides.includes("left")) label(72, a.pos, a.label);
-    if (sides.includes("right")) label(780, a.pos, a.label);
+    const sa = spec.hAxes[pos.h.indexOf(a)];
+    const sides = sa.sides || ["left", "right"];
+    if (sides.includes("left")) label(72, a.pos, a.label, sa.noBubble);
+    if (sides.includes("right")) label(780, a.pos, a.label, sa.noBubble);
   }
 
   // ---- 寸法（4辺） ----

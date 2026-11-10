@@ -150,7 +150,11 @@
         }
         if (best) {
           usedTexts.add(best.ti);
-          entries.push({ dir, row: r.c, p1, p2, value: best.value, width: best.width });
+          const e = { dir, row: r.c, p1, p2, value: best.value, width: best.width };
+          // どの数字を読んだか（図上でその数字だけを強調するのに使う）。
+          // 列挙不可にして JSON/CSV には出さない
+          Object.defineProperty(e, "text", { value: texts[best.ti], enumerable: false });
+          entries.push(e);
         }
       }
     }

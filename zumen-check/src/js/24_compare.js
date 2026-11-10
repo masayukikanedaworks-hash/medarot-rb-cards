@@ -185,6 +185,8 @@
         {
           b: bs ? [bs.fromAx, bs.toAx].filter(Boolean) : [],
           c: cs ? [cs.fromAx, cs.toAx].filter(Boolean) : [],
+          bs: bs || null, // 図上でその寸法の数字だけを塗るのに使う
+          cs: cs || null,
         },
         scope
       )

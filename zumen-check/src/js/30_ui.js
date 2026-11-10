@@ -23,7 +23,7 @@
   const SEG_MAX_WIDTH = 3; // 〃 最大（拡大しても潰れないように）
   const TEXT_MIN_PX = 4; // PDFの文字を描く最小サイズ(px)。これ未満は潰れるだけ
   const SPLIT_AUTO_PAGES = 4; // このページ数までは読み込み時に自動で分割を判定する
-  const DIFF_PAD = 6;    // 差異の枠を区間の外側へ広げる量(px)
+  const MARK_MIN_PX = 7; // 符号・数字の塗りの最小の大きさ(px)。縮小時でも見えるように
   const MARK_ALPHA = 0.2; // 照合結果の塗りの濃さ（レイヤをまとめて重ねるとき）
   // 照合結果の塗り分け。一致=黄 / 要確認=橙 / 差異=赤。
   // 塗りは**不透明な色で別レイヤに描いてから**まとめて薄く重ねる。
@@ -32,9 +32,9 @@
   // 一致→要確認→差異の順で不透明に描けば、どの画素も「一番重い判定の色」1色になる。
   const MARK_STYLE = {
     // extra … 差異を一致より濃くするための追い塗り（同じ色なので濁らない）
-    OK: { fill: "#ffd600", pad: 0, line: null, extra: 0 },
-    WARN: { fill: "#e08a00", pad: DIFF_PAD, line: COLORS.diffWarn, dash: [5, 3], width: 1.5, extra: 0.1 },
-    NG: { fill: "#e3002c", pad: DIFF_PAD, line: COLORS.diff, dash: [], width: 2, extra: 0.16 },
+    OK: { fill: "#ffd600", pad: 2, line: null, extra: 0.18, label: false },
+    WARN: { fill: "#e08a00", pad: 3, line: COLORS.diffWarn, dash: [4, 2], width: 1.2, extra: 0.3, label: false },
+    NG: { fill: "#e3002c", pad: 3, line: COLORS.diff, dash: [], width: 1.6, extra: 0.4, label: true },
   };
   const MARK_ORDER = ["OK", "WARN", "NG"];
 
@@ -675,7 +675,10 @@
           const labeled = det.v.concat(det.h).filter((a) => a.label != null).length;
           this.diag = ZC.content.diagnose(this.extract, det, this.dimsInfo);
           const info =
-            "円で囲まれた符号の通り芯: " + labeled + "本" +
+            "符号の付いた通り芯: " + labeled + "本" +
+            (det.plainLabels && det.plainLabels.length
+              ? "（うち円で囲まれていない符号 " + det.plainLabels.join("・") + "）"
+              : "") +
             "（縦" + det.v.filter((a) => a.label != null).length +
             " / 横" + det.h.filter((a) => a.label != null).length + "）" +
             " / 記載寸法 " + this.dimsInfo.entries.length + "区間を読取" +
@@ -1406,64 +1409,88 @@
       return g;
     }
 
-    // 照合結果を図面に塗る。
-    //   左右（基準図面と比較図面）で同じ符号・同じ記載寸法になった区間 … 黄
-    //   差異があった区間・片方にしか無い通り芯                         … 赤
-    //   片方で寸法が読めなかった区間                                   … 橙の破線
+    // 照合結果を図面に塗る。塗るのは**通り芯の符号と寸法の数字だけ**で、
+    // 寸法線や通り芯の鎖線には色を付けない（図面が色で埋まって読めなくなるため）。
+    //   左右（基準図面と比較図面）で同じ符号・同じ記載寸法 … 黄
+    //   差異があった箇所                                   … 赤
+    //   片方で寸法が読めなかった箇所                       … 橙
     // 一致 → 要確認 → 差異 の順に塗るので、重なっても差異が隠れない。
     _drawDiffBoxes(ctx) {
       const refs = this.diffRefs;
       if (!refs || !refs.length) return;
       const page = Number(this.$page.value || 0) + 1;
-      // まとめて照合しているときは、いま見ているページの芯だけを塗る
-      // （別ページの芯は座標の意味が違う）
-      const mine = (ax) => ax && (ax.page === undefined || ax.page === page);
+      // まとめて照合しているときは、いま見ているページのものだけを塗る
+      // （別ページの芯・注記は座標の意味が違う）
+      const mine = (o) => o && (o.page === undefined || o.page === page);
       const W = this.$canvas.clientWidth;
       const H = this.$canvas.clientHeight;
+
+      // 符号（バブルまたは囲み無しの文字）1つぶんの矩形
+      const bubbleRect = (b) => {
+        const [cx, cy] = this.toScreen(b.x, b.y);
+        const w = Math.max((b.w || 8) * this.view.scale, MARK_MIN_PX);
+        const h = Math.max((b.h || 8) * this.view.scale, MARK_MIN_PX);
+        return { x: cx - w / 2, y: cy - h / 2, w, h };
+      };
+      // 寸法の数字1つぶんの矩形（読んだ注記の文字の箱）
+      const textRect = (t) => {
+        const ex = t.ex !== undefined ? t.ex : t.x;
+        const ey = t.ey !== undefined ? t.ey : t.y;
+        const size = t.size || 7;
+        const horiz = Math.abs(ex - t.x) >= Math.abs(ey - t.y);
+        let x0 = Math.min(t.x, ex);
+        let x1 = Math.max(t.x, ex);
+        let y0 = Math.min(t.y, ey);
+        let y1 = Math.max(t.y, ey);
+        if (horiz) {
+          y0 -= size * 0.2;
+          y1 += size * 0.85;
+          if (x1 - x0 < size * 0.6) x1 = x0 + size * 0.6;
+        } else {
+          x0 -= size * 0.85;
+          x1 += size * 0.2;
+          if (y1 - y0 < size * 0.6) y1 = y0 + size * 0.6;
+        }
+        const a = this.toScreen(x0, y1);
+        const b2 = this.toScreen(x1, y0);
+        const w = Math.max(b2[0] - a[0], MARK_MIN_PX);
+        const h = Math.max(b2[1] - a[1], MARK_MIN_PX);
+        return { x: a[0], y: a[1], w, h };
+      };
+
       const byStatus = { OK: [], WARN: [], NG: [] };
       const seen = new Set();
       for (const d of refs) {
-        if (!byStatus[d.status]) continue;
-        const axes = (d.axes || []).filter(mine);
-        if (!axes.length) continue;
-        const dirs = new Set(axes.map((a) => a.dir));
-        if (dirs.size !== 1) continue;
-        const sorted = axes.slice().sort((a, b) => a.pos - b.pos);
-        const a = sorted[0];
-        const b = sorted[sorted.length - 1];
-        const pad = MARK_STYLE[d.status].pad;
-        let x, y, w, h;
-        if (a.dir === "v") {
-          const [x1] = this.toScreen(a.pos, 0);
-          const [x2] = this.toScreen(b.pos, 0);
-          const [, yTop] = this.toScreen(0, Math.max(a.to, b.to));
-          const [, yBot] = this.toScreen(0, Math.min(a.from, b.from));
-          x = Math.min(x1, x2) - pad;
-          w = Math.abs(x2 - x1) + pad * 2;
-          y = yTop - pad;
-          h = yBot - yTop + pad * 2;
-        } else {
-          const [, y1] = this.toScreen(0, b.pos);
-          const [, y2] = this.toScreen(0, a.pos);
-          const [xL] = this.toScreen(Math.min(a.from, b.from), 0);
-          const [xR] = this.toScreen(Math.max(a.to, b.to), 0);
-          x = xL - pad;
-          w = xR - xL + pad * 2;
-          y = Math.min(y1, y2) - pad;
-          h = Math.abs(y2 - y1) + pad * 2;
+        const style = MARK_STYLE[d.status];
+        if (!style) continue;
+        const rects = [];
+        // 区間の両端の符号
+        for (const ax of d.axes || []) {
+          if (!mine(ax)) continue;
+          for (const b of ax.bubbles || []) rects.push(bubbleRect(b));
         }
-        w = Math.max(w, 3);
-        h = Math.max(h, 3);
-        if (x > W || y > H || x + w < 0 || y + h < 0) continue; // 画面外
-        const key = d.status + ":" + Math.round(x) + "," + Math.round(y) + "," + Math.round(w) + "," + Math.round(h);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        byStatus[d.status].push({ x, y, w, h, label: d.label, status: d.status });
+        // その区間の寸法として読んだ数字
+        const sp = d.span;
+        if (sp && sp.entries && (!sp.fromAx || mine(sp.fromAx))) {
+          for (const e of sp.entries) if (e && e.text) rects.push(textRect(e.text));
+        }
+        for (const r of rects) {
+          const x = r.x - style.pad;
+          const y = r.y - style.pad;
+          const w = r.w + style.pad * 2;
+          const h = r.h + style.pad * 2;
+          if (x > W || y > H || x + w < 0 || y + h < 0) continue; // 画面外
+          const key = d.status + ":" + Math.round(x) + "," + Math.round(y) + "," + Math.round(w);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          byStatus[d.status].push({ x, y, w, h, label: d.label, status: d.status });
+        }
       }
       const all = MARK_ORDER.reduce((n, k) => n + byStatus[k].length, 0);
       if (!all) return;
       ctx.save();
-      // 塗り: 別レイヤに不透明で描いてから、まとめて薄く重ねる
+      // 塗り: 別レイヤに不透明で描いてから、まとめて薄く重ねる。
+      // 符号と数字が隣り合って重なっても、色が二重に濃くならないようにするため。
       const dpr = globalThis.devicePixelRatio || 1;
       const lay = this._markLayer(W, H, dpr);
       if (lay) {
@@ -1471,7 +1498,6 @@
           lay.fillStyle = MARK_STYLE[st].fill;
           for (const bx of byStatus[st]) lay.fillRect(bx.x, bx.y, bx.w, bx.h);
         }
-        // 等倍で重ねる（拡大が入らないよう本体の変換を一時的に外す）
         const tf = ctx.getTransform ? ctx.getTransform() : null;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = MARK_ALPHA;
@@ -1483,7 +1509,6 @@
       // 差異は一致より濃くする（同じ色を薄く重ねるので色は濁らない）
       for (const st of ["WARN", "NG"]) {
         const style = MARK_STYLE[st];
-        if (!style.extra) continue;
         ctx.globalAlpha = style.extra;
         ctx.fillStyle = style.fill;
         for (const bx of byStatus[st]) ctx.fillRect(bx.x, bx.y, bx.w, bx.h);
@@ -1498,15 +1523,14 @@
         for (const bx of byStatus[st]) ctx.strokeRect(bx.x, bx.y, bx.w, bx.h);
       }
       ctx.setLineDash([]);
-      // 見出しは差異のぶんだけ。重なったらずらし、それでも重なるなら出さない
-      // （隣り合う区間の見出しは必ず重なるため）
+      // 見出しは NG のぶんだけ。重なったらずらし、それでも重なるなら出さない
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       const placed = [];
       const hit = (r) =>
         placed.some((q) => r.x < q.x + q.w + 2 && q.x < r.x + r.w + 2 && r.y < q.y + q.h + 1 && q.y < r.y + r.h + 1);
-      const labelled = byStatus.NG.concat(byStatus.WARN).filter((b) => b.label);
+      const labelled = byStatus.NG.filter((b) => b.label);
       for (const bx of labelled.sort((p1, p2) => p1.x - p2.x || p1.y - p2.y)) {
         const tw = ctx.measureText(bx.label).width + 8;
         const th = 14;
@@ -1917,8 +1941,8 @@
         // 図面全体にかかる行（符号の一覧・全体寸法）で塗ると図面が丸ごと埋まる
         if (!r.refs || r.scope === "all") continue;
         const label = r.item;
-        if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, label, status: r.status });
-        if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, label, status: r.status });
+        if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, span: r.refs.bs, label, status: r.status });
+        if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, span: r.refs.cs, label, status: r.status });
       }
       ui.base.setDiffs(b);
       ui.cmp.setDiffs(c);

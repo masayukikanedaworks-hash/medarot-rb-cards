@@ -60,7 +60,7 @@
         const b = axes[i + 1];
         const annot = ZC.dims.spanValue(nearAxes(a, b), dir, a.pos, b.pos);
         if (annot) for (const e of annot.used) used.add(e);
-        spans.push({
+        const sp = {
           from: a.label,
           to: b.label,
           fromAx: a,
@@ -68,7 +68,10 @@
           value: annot ? annot.value : null,
           parts: annot ? annot.parts : null,
           conflict: annot ? annot.conflict : false,
-        });
+        };
+        // この区間の値を読んだ注記（図上でその数字だけを強調するのに使う）
+        Object.defineProperty(sp, "entries", { value: annot ? annot.used : [], enumerable: false });
+        spans.push(sp);
       }
       let total = null;
       if (axes.length >= 2) {
