@@ -95,3 +95,31 @@ exports.読み取り条件の診断 = async () => {
   outlined.outlinedText = true;
   assert.ok(keys(await run(outlined)).includes("text"), "文字が線の図面");
 };
+
+exports.線で読み取り済みなら読める図面として扱う = () => {
+  // 実図面の構造図は符号バブル以外にも円（ボルト記号など）が大量にあり、
+  // 文字を教えて読み取ったあとも「中身が線だけの円」は残る。これを理由に
+  // 「読み取れない」と判定し続けると、読めているのに拾い出し結果が出ない。
+  const segments = [];
+  for (let i = 0; i < 300; i++) segments.push({ x1: i, y1: 0, x2: i + 5, y2: 7 });
+  const circles = [];
+  for (let i = 0; i < 10; i++) {
+    const cx = 500 + i * 20;
+    circles.push({ x: cx, y: 100, r: 5 });
+    // 円の中に短い線分だけ（文字は無い）
+    for (let k = 0; k < 4; k++) segments.push({ x1: cx - 1, y1: 99 + k * 0.4, x2: cx + 1, y2: 100 + k * 0.4 });
+  }
+  const base = { segments, circles, texts: [], imageCount: 0 };
+  const before = ZC.content.diagnose(base);
+  assert.equal(before.outlined, true, "教える前は『文字が線』と判定する");
+  assert.equal(before.checks.find((c) => c.key === "text").ok, false);
+
+  const after = ZC.content.diagnose(
+    Object.assign({}, base, {
+      texts: [{ str: "5915", x: 10, y: 10, ex: 30, ey: 10, size: 5, glyphText: true }],
+    })
+  );
+  assert.equal(after.glyphTexts, 1);
+  assert.equal(after.checks.find((c) => c.key === "text").ok, true, "読み取り済みなら○になる");
+  assert.ok(after.checks.find((c) => c.key === "text").detail.includes("読み取り済み"));
+};
