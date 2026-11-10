@@ -10,6 +10,10 @@
   const MAX_FORM_DEPTH = 8;
   const CIRCLE_MIN = 3;   // 符号バブルとみなす円の最小サイズ(pt)
   const CIRCLE_MAX = 60;  // 〃 最大サイズ(pt)
+  // 符号バブルに許す縦横比。「X2.2」のように字数が多い符号は、円ではなく
+  // 横長の長円（オーバル）で囲む CAD がある。正方形しか認めないと、
+  // 小数点付きの通り芯だけバブルが拾えず芯ごと落ちる。
+  const CIRCLE_OVAL_MAX = 2;
   // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
   // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
   const TJ_SPLIT = 400;
@@ -174,22 +178,29 @@
           // 掛からず、これが無いと寸法線の段が作れない）
           const isDot = w >= DOT_CIRCLE_MIN && w < CIRCLE_MIN && h >= DOT_CIRCLE_MIN && h < CIRCLE_MIN;
           if (!isDot && (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX)) continue;
-          if (Math.abs(w - h) > Math.max(w, h) * 0.25) continue; // 正方形に近いこと
-          if (Math.hypot(last.x - first.x, last.y - first.y) > Math.max(w, h) * 0.2) continue; // 閉じていること
+          const long = Math.max(w, h);
+          const short = Math.min(w, h);
+          // ドットは正方形に近いもののみ。バブルは長円（X2.2 など字数の多い符号）も許す
+          if (long > short * (isDot ? 1.34 : CIRCLE_OVAL_MAX)) continue;
+          if (Math.hypot(last.x - first.x, last.y - first.y) > long * 0.2) continue; // 閉じていること
           const cx = (x0 + x1) / 2;
           const cy = (y0 + y1) / 2;
-          const r = (w + h) / 4;
-          // 各頂点が中心から等距離か（円/正多角形らしさ）
+          const rx = w / 2;
+          const ry = h / 2;
+          // 各頂点が楕円の上に乗っているか（円・正多角形・長円らしさ）。
+          // 縦横で正規化してから測るので、真円でも長円でも同じ判定になる。
           let ok = true;
           for (const p of sp) {
-            const d = Math.hypot(p.x - cx, p.y - cy);
-            if (Math.abs(d - r) > r * 0.3) { ok = false; break; }
+            const d = Math.hypot((p.x - cx) / rx, (p.y - cy) / ry);
+            if (Math.abs(d - 1) > 0.3) { ok = false; break; }
           }
           if (!ok) continue;
           if (isDot) {
             if (this.dots.length < 20000) this.dots.push({ x: cx, y: cy });
           } else {
-            this.circles.push({ x: cx, y: cy, r });
+            // r は短いほうの半径。長円でも真円のバブルと同じ大きさに見えるので、
+            // 図の大きさでバブルを分ける groupBubbles がそのまま効く
+            this.circles.push({ x: cx, y: cy, r: short / 2, rx, ry });
           }
         }
       };

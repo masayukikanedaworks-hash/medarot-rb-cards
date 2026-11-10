@@ -412,8 +412,11 @@
 
   // 通り芯符号: 縦方向（X方向）= X○○ / 横方向（Y方向）= Y○○ の記載のみを符号として拾う。
   // 番号は小数点付き（X2.5 など）も許容。該当すれば {dir:"v"|"h", label} を返す。
+  // 小数点は中黒（X2・2）でも受ける。CAD のフォントにピリオドが無いときの代用で
+  // 実図面に出る。符号の書式全体が一致したときだけ読み替えるので誤爆しない。
   function axisLabelOf(s) {
-    const t = normalizeLabel(s);
+    let t = normalizeLabel(s);
+    if (/^[XY]\d{1,3}[\u30FB\uFF65\u00B7]\d{1,2}$/.test(t)) t = t.replace(/[\u30FB\uFF65\u00B7]/, ".");
     const m = /^([XY])(\d{1,3}(\.\d{1,2})?)$/.exec(t);
     if (!m) return null;
     return { dir: m[1] === "X" ? "v" : "h", label: t };
@@ -1604,6 +1607,10 @@
   const MAX_FORM_DEPTH = 8;
   const CIRCLE_MIN = 3;   // 符号バブルとみなす円の最小サイズ(pt)
   const CIRCLE_MAX = 60;  // 〃 最大サイズ(pt)
+  // 符号バブルに許す縦横比。「X2.2」のように字数が多い符号は、円ではなく
+  // 横長の長円（オーバル）で囲む CAD がある。正方形しか認めないと、
+  // 小数点付きの通り芯だけバブルが拾えず芯ごと落ちる。
+  const CIRCLE_OVAL_MAX = 2;
   // TJ配列内のカーニングがこの値(1/1000 em)を超えたら別テキストとして分割する。
   // CADは1行分の寸法数字を1つのTJにまとめて出力することがあるため必須。
   const TJ_SPLIT = 400;
@@ -1768,22 +1775,29 @@
           // 掛からず、これが無いと寸法線の段が作れない）
           const isDot = w >= DOT_CIRCLE_MIN && w < CIRCLE_MIN && h >= DOT_CIRCLE_MIN && h < CIRCLE_MIN;
           if (!isDot && (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX)) continue;
-          if (Math.abs(w - h) > Math.max(w, h) * 0.25) continue; // 正方形に近いこと
-          if (Math.hypot(last.x - first.x, last.y - first.y) > Math.max(w, h) * 0.2) continue; // 閉じていること
+          const long = Math.max(w, h);
+          const short = Math.min(w, h);
+          // ドットは正方形に近いもののみ。バブルは長円（X2.2 など字数の多い符号）も許す
+          if (long > short * (isDot ? 1.34 : CIRCLE_OVAL_MAX)) continue;
+          if (Math.hypot(last.x - first.x, last.y - first.y) > long * 0.2) continue; // 閉じていること
           const cx = (x0 + x1) / 2;
           const cy = (y0 + y1) / 2;
-          const r = (w + h) / 4;
-          // 各頂点が中心から等距離か（円/正多角形らしさ）
+          const rx = w / 2;
+          const ry = h / 2;
+          // 各頂点が楕円の上に乗っているか（円・正多角形・長円らしさ）。
+          // 縦横で正規化してから測るので、真円でも長円でも同じ判定になる。
           let ok = true;
           for (const p of sp) {
-            const d = Math.hypot(p.x - cx, p.y - cy);
-            if (Math.abs(d - r) > r * 0.3) { ok = false; break; }
+            const d = Math.hypot((p.x - cx) / rx, (p.y - cy) / ry);
+            if (Math.abs(d - 1) > 0.3) { ok = false; break; }
           }
           if (!ok) continue;
           if (isDot) {
             if (this.dots.length < 20000) this.dots.push({ x: cx, y: cy });
           } else {
-            this.circles.push({ x: cx, y: cy, r });
+            // r は短いほうの半径。長円でも真円のバブルと同じ大きさに見えるので、
+            // 図の大きさでバブルを分ける groupBubbles がそのまま効く
+            this.circles.push({ x: cx, y: cy, r: short / 2, rx, ry });
           }
         }
       };
@@ -2662,7 +2676,16 @@
       .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
       .map((r) => ({ shape: r.shape, count: inRuns.get(r.shape) || 0, glyph: r.glyph, rot: rotations(r.glyph) }))
       .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
-    return { glyphs, runs, shapes };
+    // この図面のふつうの字高。教える画面で字形を実寸比で描くのに使う
+    // （小数点を枠いっぱいに伸ばすと線の破片と見分けが付かない）
+    const hs = [];
+    for (const r of runs) {
+      if (r.glyphs.length < 2) continue;
+      for (const g of r.glyphs) if (g.seed) hs.push(Math.max(g.w, g.h));
+    }
+    hs.sort((a, b) => a - b);
+    const refHeight = hs.length ? hs[hs.length >> 1] : 0;
+    return { glyphs, runs, shapes, refHeight };
   }
 
   // 形→文字の対応表で、行を文字列にする。
@@ -2718,15 +2741,21 @@
   }
 
   // 形を <svg> のパス文字列にする（対応表を入力してもらう画面のプレビュー用）
-  function shapePath(glyph, size) {
+  // 教える画面に出す字形のパス。ref（その図面の標準的な字高）を渡すと
+  // **実際の大きさの比で**描く。小数点のような小さな字形を単独で枠いっぱいに
+  // 引き伸ばすと、ただの点や線の破片と見分けが付かず教えようがないため。
+  function shapePath(glyph, size, ref) {
     const s = size || 24;
-    const base = Math.max(glyph.w, glyph.h) || 1;
+    const own = Math.max(glyph.w, glyph.h) || 1;
+    // ref があればそれを基準に。ref より大きい字形は枠に収まるよう own で割る
+    const base = ref && ref > 0 ? Math.max(ref, own) : own;
     const sc = (s - 4) / base;
+    const ox = 2 + ((s - 4) - glyph.w * sc) / 2; // 横は中央、縦はベースライン合わせ
     const parts = [];
     for (const seg of glyph.segs) {
-      const x1 = (seg.x1 - glyph.x0) * sc + 2;
+      const x1 = (seg.x1 - glyph.x0) * sc + ox;
       const y1 = s - 2 - (seg.y1 - glyph.y0) * sc;
-      const x2 = (seg.x2 - glyph.x0) * sc + 2;
+      const x2 = (seg.x2 - glyph.x0) * sc + ox;
       const y2 = s - 2 - (seg.y2 - glyph.y0) * sc;
       parts.push(`M${r2(x1)} ${r2(y1)}L${r2(x2)} ${r2(y2)}`);
     }
@@ -2779,6 +2808,7 @@
     CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
     GROUP_R_TOL: 0.18,     // 同じ図の符号バブルとみなす半径の相対差
+    LABEL_GAP: 0.6,        // バブル内で符号をつなぐ字送りの上限（フォントサイズ比）
   };
 
   const SIDES = ["top", "bottom", "left", "right"];
@@ -2939,25 +2969,95 @@
     return axes;
   }
 
+  // 1 つのバブルの中の文字を、字送りが詰まっているものだけつないで読み順に並べる。
+  // CAD は "X2.2" を "X2" と ".2" のように別々の Tj で出すことがあり、
+  // 1 件ずつ読むと小数点付きの符号が「X2」になって**本来の芯が消える**ため。
+  // つなぐ範囲はバブルの中だけなので、寸法注記の読み取り（22_dims の mergeTexts）
+  // には影響しない。
+  function joinInBubble(list) {
+    const runs = list.map((t) => {
+      const ex = t.ex !== undefined ? t.ex : t.x;
+      const ey = t.ey !== undefined ? t.ey : t.y;
+      return {
+        str: t.str,
+        x: t.x,
+        y: t.y,
+        ex,
+        ey,
+        size: t.size || 10,
+        horizontal: Math.abs(ex - t.x) >= Math.abs(ey - t.y),
+      };
+    });
+    const out = [];
+    for (const horiz of [true, false]) {
+      const sub = runs.filter((r) => r.horizontal === horiz);
+      if (!sub.length) continue;
+      if (horiz) sub.sort((a, b) => (Math.abs(a.y - b.y) > 0.6 ? a.y - b.y : a.x - b.x));
+      else sub.sort((a, b) => (Math.abs(a.x - b.x) > 0.6 ? a.x - b.x : a.y - b.y));
+      let cur = null;
+      for (const r of sub) {
+        if (cur) {
+          const sameLine = horiz ? Math.abs(r.y - cur.y) <= 0.6 : Math.abs(r.x - cur.x) <= 0.6;
+          const gap = horiz ? r.x - cur.ex : r.y - cur.ey;
+          if (sameLine && gap >= -0.6 && gap <= cur.size * PARAMS.LABEL_GAP) {
+            cur.str += r.str;
+            cur.ex = r.ex;
+            cur.ey = r.ey;
+            continue;
+          }
+        }
+        cur = { str: r.str, x: r.x, y: r.y, ex: r.ex, ey: r.ey, size: r.size };
+        out.push(cur);
+      }
+    }
+    return out.map((o) => o.str);
+  }
+
+  // バブル 1 つの中身から符号を読む。つないだ文字列を先に試し、読めなければ
+  // 1 件ずつ読む（従来どおり。バブルの中に別の文字が紛れていても落とさない）。
+  function labelInBubble(list) {
+    if (list.length > 1) {
+      for (const str of joinInBubble(list)) {
+        const lab = U.axisLabelOf(str);
+        if (lab) return lab;
+      }
+    }
+    for (const t of list) {
+      const lab = U.axisLabelOf(t.str);
+      if (lab) return lab;
+    }
+    return null;
+  }
+
   // 円で囲まれた X○○/Y○○ の符号だけを候補として集める
   function bubbleCandidates(texts, circles) {
     const cands = [];
     if (!circles.length) return cands;
+    // まず「どの円の中にあるか」でテキストを振り分ける（符号として読めるかは後で見る）
+    const inside = new Map();
     for (const t of texts) {
-      const lab = U.axisLabelOf(t.str);
-      if (!lab) continue;
+      if (!t.str) continue;
       const tx = (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2;
       const ty = (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2;
       let host = null;
       let hostD = Infinity;
       for (const c of circles) {
-        const d = Math.hypot(tx - c.x, ty - c.y);
-        if (d <= c.r * PARAMS.BUBBLE_TEXT_IN && d < hostD) {
+        // 長円のバブルもあるので、縦横で正規化した距離で中か外かを見る（1 以下が中）
+        const rx = (c.rx !== undefined ? c.rx : c.r) * PARAMS.BUBBLE_TEXT_IN;
+        const ry = (c.ry !== undefined ? c.ry : c.r) * PARAMS.BUBBLE_TEXT_IN;
+        const d = Math.hypot((tx - c.x) / rx, (ty - c.y) / ry);
+        if (d <= 1 && d < hostD) {
           hostD = d;
           host = c;
         }
       }
       if (!host) continue; // 円で囲まれていない符号は拾わない
+      if (!inside.has(host)) inside.set(host, []);
+      inside.get(host).push(t);
+    }
+    for (const [host, list] of inside) {
+      const lab = labelInBubble(list);
+      if (!lab) continue;
       cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, used: false });
     }
     return cands;
@@ -3041,7 +3141,7 @@
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, bubbleCandidates, groupBubbles, PARAMS, SIDES, SIDE_NAME };
+  ZC.axis = { detect, displayName, bubbleCandidates, joinInBubble, groupBubbles, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 22_dims.js ===== */
@@ -3951,7 +4051,8 @@
       svg.setAttribute("width", "28");
       svg.setAttribute("height", "28");
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", ZC.glyph.shapePath(sh.glyph, 28));
+      // 実寸比で描く（小数点のような小さな字形がひと目で分かるように）
+      path.setAttribute("d", ZC.glyph.shapePath(sh.glyph, 28, info.refHeight));
       path.setAttribute("stroke", "#24313d");
       path.setAttribute("stroke-width", "1.4");
       path.setAttribute("fill", "none");

@@ -61,6 +61,12 @@ function makeSpec() {
     // true で寸法線の黒ドットを「上下2つの極小な円弧」で描く（実図面の構造図と
     // 同じ描き方。塗りでも太線でも閉じた円でもないので、弧として拾う必要がある）
     arcDots: false,
+    // true で「小数点付きの符号（X2.2 など）」のバブルを横長の長円で描く
+    // （字数が多いぶん円では入りきらないため実図面でよくある描き方）。
+    ovalBubbles: false,
+    // true で「小数点付きの符号」を 1 つの文字列ではなく分けて出力する
+    // （実際の CAD は X2.2 を "X2" と ".2" のように別々の Tj で出すことがある）。
+    splitLabels: false,
     // 構造図の部材符号（縦枠 Y1.1 / X2.1 など）。円で囲まない文字として散らす。
     // 通り芯の符号と同じ書式なので、円が無ければ拾わないことの検証に使う。
     // [{ str:"Y1.1", x, y }]
@@ -141,15 +147,18 @@ function strokeTextOps(ops, x, y, str, h, rot) {
     : { x0: x, y0: y, x1: x + (n - 1) * adv + h * 0.6, y1: y + h };
 }
 
-// 円（塗り potFill=true なら塗り潰し）
-function circleOps(cx, cy, r, fill) {
-  const k = r * 0.5523;
+// 円・長円（rx!=ry で横長の楕円。塗り fill=true なら塗り潰し）
+function circleOps(cx, cy, r, fill, ry) {
+  const rx = r;
+  const b = ry != null ? ry : r;
+  const kx = rx * 0.5523;
+  const ky = b * 0.5523;
   return (
-    `${fmt(cx + r)} ${fmt(cy)} m ` +
-    `${fmt(cx + r)} ${fmt(cy + k)} ${fmt(cx + k)} ${fmt(cy + r)} ${fmt(cx)} ${fmt(cy + r)} c ` +
-    `${fmt(cx - k)} ${fmt(cy + r)} ${fmt(cx - r)} ${fmt(cy + k)} ${fmt(cx - r)} ${fmt(cy)} c ` +
-    `${fmt(cx - r)} ${fmt(cy - k)} ${fmt(cx - k)} ${fmt(cy - r)} ${fmt(cx)} ${fmt(cy - r)} c ` +
-    `${fmt(cx + k)} ${fmt(cy - r)} ${fmt(cx + r)} ${fmt(cy - k)} ${fmt(cx + r)} ${fmt(cy)} c ` +
+    `${fmt(cx + rx)} ${fmt(cy)} m ` +
+    `${fmt(cx + rx)} ${fmt(cy + ky)} ${fmt(cx + kx)} ${fmt(cy + b)} ${fmt(cx)} ${fmt(cy + b)} c ` +
+    `${fmt(cx - kx)} ${fmt(cy + b)} ${fmt(cx - rx)} ${fmt(cy + ky)} ${fmt(cx - rx)} ${fmt(cy)} c ` +
+    `${fmt(cx - rx)} ${fmt(cy - ky)} ${fmt(cx - kx)} ${fmt(cy - b)} ${fmt(cx)} ${fmt(cy - b)} c ` +
+    `${fmt(cx + kx)} ${fmt(cy - b)} ${fmt(cx + rx)} ${fmt(cy - ky)} ${fmt(cx + rx)} ${fmt(cy)} c ` +
     (fill ? "f" : "S")
   );
 }
@@ -219,7 +228,11 @@ function drawingOps(spec, textEnc, useTJ) {
   // 符号（円囲み・上下/左右の両端）
   ops.push("0.5 w");
   const label = (cx, cy, str) => {
-    if (!spec.noBubbles) ops.push(circleOps(cx, cy, BUBBLE_R, false));
+    // 字数の多い符号（X2.2）は横長の長円で囲む CAD がある
+    const wide = spec.ovalBubbles && str.length > 2;
+    if (!spec.noBubbles) {
+      ops.push(wide ? circleOps(cx, cy, BUBBLE_R * 1.7, false, BUBBLE_R) : circleOps(cx, cy, BUBBLE_R, false));
+    }
     if (spec.strokeFont) {
       const h = spec.strokeH;
       strokeTextOps(ops, cx - str.length * h * 0.42, cy - h / 2, str, h, false);
@@ -233,6 +246,15 @@ function drawingOps(spec, textEnc, useTJ) {
         ops.push(`${fmt(x)} ${fmt(cy - 2.5)} m ${fmt(x + 1.1)} ${fmt(cy + 2.5)} l S`);
         ops.push(`${fmt(x)} ${fmt(cy + 2.5)} m ${fmt(x + 1.1)} ${fmt(cy - 2.5)} l S`);
       }
+      return;
+    }
+    if (spec.splitLabels && str.indexOf(".") > 0) {
+      // "X2.2" → "X2" と ".2" を別々の Tj で出す（CAD の出力を模す）
+      const head = str.slice(0, str.indexOf("."));
+      const tail = str.slice(str.indexOf("."));
+      const left = cx - str.length * 2.5;
+      textAt(left, cy - 3.5, head, false);
+      textAt(left + head.length * 5, cy - 3.5, tail, false);
       return;
     }
     textAt(cx - str.length * 2.5, cy - 3.5, str, false);

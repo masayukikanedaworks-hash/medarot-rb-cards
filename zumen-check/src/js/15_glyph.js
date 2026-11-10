@@ -373,7 +373,16 @@
       .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
       .map((r) => ({ shape: r.shape, count: inRuns.get(r.shape) || 0, glyph: r.glyph, rot: rotations(r.glyph) }))
       .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
-    return { glyphs, runs, shapes };
+    // この図面のふつうの字高。教える画面で字形を実寸比で描くのに使う
+    // （小数点を枠いっぱいに伸ばすと線の破片と見分けが付かない）
+    const hs = [];
+    for (const r of runs) {
+      if (r.glyphs.length < 2) continue;
+      for (const g of r.glyphs) if (g.seed) hs.push(Math.max(g.w, g.h));
+    }
+    hs.sort((a, b) => a - b);
+    const refHeight = hs.length ? hs[hs.length >> 1] : 0;
+    return { glyphs, runs, shapes, refHeight };
   }
 
   // 形→文字の対応表で、行を文字列にする。
@@ -429,15 +438,21 @@
   }
 
   // 形を <svg> のパス文字列にする（対応表を入力してもらう画面のプレビュー用）
-  function shapePath(glyph, size) {
+  // 教える画面に出す字形のパス。ref（その図面の標準的な字高）を渡すと
+  // **実際の大きさの比で**描く。小数点のような小さな字形を単独で枠いっぱいに
+  // 引き伸ばすと、ただの点や線の破片と見分けが付かず教えようがないため。
+  function shapePath(glyph, size, ref) {
     const s = size || 24;
-    const base = Math.max(glyph.w, glyph.h) || 1;
+    const own = Math.max(glyph.w, glyph.h) || 1;
+    // ref があればそれを基準に。ref より大きい字形は枠に収まるよう own で割る
+    const base = ref && ref > 0 ? Math.max(ref, own) : own;
     const sc = (s - 4) / base;
+    const ox = 2 + ((s - 4) - glyph.w * sc) / 2; // 横は中央、縦はベースライン合わせ
     const parts = [];
     for (const seg of glyph.segs) {
-      const x1 = (seg.x1 - glyph.x0) * sc + 2;
+      const x1 = (seg.x1 - glyph.x0) * sc + ox;
       const y1 = s - 2 - (seg.y1 - glyph.y0) * sc;
-      const x2 = (seg.x2 - glyph.x0) * sc + 2;
+      const x2 = (seg.x2 - glyph.x0) * sc + ox;
       const y2 = s - 2 - (seg.y2 - glyph.y0) * sc;
       parts.push(`M${r2(x1)} ${r2(y1)}L${r2(x2)} ${r2(y2)}`);
     }

@@ -189,7 +189,8 @@
       svg.setAttribute("width", "28");
       svg.setAttribute("height", "28");
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", ZC.glyph.shapePath(sh.glyph, 28));
+      // 実寸比で描く（小数点のような小さな字形がひと目で分かるように）
+      path.setAttribute("d", ZC.glyph.shapePath(sh.glyph, 28, info.refHeight));
       path.setAttribute("stroke", "#24313d");
       path.setAttribute("stroke-width", "1.4");
       path.setAttribute("fill", "none");
