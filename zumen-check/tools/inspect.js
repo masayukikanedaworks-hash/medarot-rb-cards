@@ -22,6 +22,14 @@ function usage() {
   --tol T                 照合の許容差 mm（既定 1）
   --axes                  通り芯の一覧も表示
   --others                通り芯以外の寸法線（室内寸法・開口幅W＝）も表示
+  --split                 基準PDFの全ページを読み、分割図面（1つの建物を上下/左右に
+                          分けて描いたもの）なら、まとめて1枚として照合する
+  --split2                比較PDF側を同じようにまとめる
+  --by-dir                辺ごとではなく方向ごと（X方向/Y方向）に照合する。
+                          符号を書く辺が違う図面どうし（平面図と構造図など）はこちら
+  --glyphmap F.json       線で描かれた文字（SHXフォント）の「形→文字」対応表。
+                          画面で教えた内容（localStorage の zc.glyphmap）を
+                          書き出したものを渡すと、構造図のような図面も読める
   --json                  JSONで出力
 
 通り芯は「円で囲まれた X○○ / Y○○」のみを拾います。寸法は図面に記載された
@@ -29,7 +37,8 @@ function usage() {
 }
 
 function parseArgs(argv) {
-  const opt = { files: [], page: 1, page2: 1, tol: 1, axes: false, others: false, json: false };
+  const opt = { files: [], page: 1, page2: 1, tol: 1, axes: false, others: false, json: false,
+                split: false, split2: false, byDir: false, glyphMap: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--page") opt.page = Number(argv[++i]);
@@ -37,6 +46,10 @@ function parseArgs(argv) {
     else if (a === "--tol") opt.tol = Number(argv[++i]);
     else if (a === "--axes") opt.axes = true;
     else if (a === "--others") opt.others = true;
+    else if (a === "--split") opt.split = true;
+    else if (a === "--split2") opt.split2 = true;
+    else if (a === "--by-dir") opt.byDir = true;
+    else if (a === "--glyphmap") opt.glyphMap = JSON.parse(fs.readFileSync(argv[++i], "utf8"));
     else if (a === "--json") opt.json = true;
     else if (a === "--help" || a === "-h") return null;
     else if (a.startsWith("--")) throw new Error("不明なオプション: " + a);
@@ -48,14 +61,23 @@ function parseArgs(argv) {
 
 const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
-async function analyze(file, pageNo) {
+// 線で描かれた文字の図面なら、渡された対応表で文字を起こしてから読む
+function applyGlyphMap(extract, map) {
+  if (!map || !Object.keys(map).length) return extract;
+  if (!ZC.content.diagnose(extract).outlined) return extract;
+  const info = ZC.glyph.extract(extract);
+  extract.texts = extract.texts.concat(ZC.glyph.toTexts(info.runs, map));
+  return extract;
+}
+
+async function analyze(file, pageNo, glyphMap) {
   const bytes = new Uint8Array(fs.readFileSync(file));
   const doc = await ZC.pdf.PDFDocument.load(bytes);
   const pages = await doc.getPages();
   if (!(pageNo >= 1 && pageNo <= pages.length)) {
     throw new Error(`ページ ${pageNo} はありません（全 ${pages.length} ページ）`);
   }
-  const extract = await new ZC.content.ContentExtractor(doc).run(pages[pageNo - 1]);
+  const extract = applyGlyphMap(await new ZC.content.ContentExtractor(doc).run(pages[pageNo - 1]), glyphMap);
   const det = ZC.axis.detect(extract);
   const dims = ZC.dims.extract(extract);
   const sides = ZC.sides.build(det, dims.entries);
@@ -160,22 +182,56 @@ function jsonOne(r) {
   };
 }
 
+// PDF の全ページを読み、分割図面なら 1 枚ぶんにまとめた sides を返す
+async function mergedSides(file, label, glyphMap) {
+  const bytes = new Uint8Array(fs.readFileSync(file));
+  const doc = await ZC.pdf.PDFDocument.load(bytes);
+  const pages = await doc.getPages();
+  const list = [];
+  for (let i = 0; i < pages.length; i++) {
+    const extract = applyGlyphMap(await new ZC.content.ContentExtractor(doc).run(pages[i]), glyphMap);
+    const det = ZC.axis.detect(extract);
+    const dims = ZC.dims.extract(extract);
+    list.push({ page: i + 1, sides: ZC.sides.build(det, dims.entries) });
+  }
+  const info = ZC.split.detect(list);
+  console.log("━━━ " + label + " の分割判定（全 " + pages.length + " ページ）");
+  if (info.split) {
+    console.log(ZC.split.describe(info));
+    const merged = ZC.split.merge(list);
+    for (const c of merged.conflicts) {
+      console.log("  ※ページ間で食い違い: " + c.name + " " + c.item + " = " + c.values.join(" / "));
+    }
+    return merged;
+  }
+  console.log("  分割された図面ではないようです（" + info.reason + "）");
+  return null;
+}
+
 (async () => {
   const opt = parseArgs(process.argv.slice(2));
   if (!opt) {
     usage();
     process.exit(process.argv.length > 2 ? 1 : 0);
   }
-  const base = await analyze(opt.files[0], opt.page);
+  const base = await analyze(opt.files[0], opt.page, opt.glyphMap);
   if (opt.files.length === 1) {
     if (opt.json) console.log(JSON.stringify(jsonOne(base), null, 2));
     else console.log(reportOne(base, opt));
     return;
   }
-  const cmp = await analyze(opt.files[1], opt.page2);
+  const cmp = await analyze(opt.files[1], opt.page2, opt.glyphMap);
+  let baseSides = base.sides;
+  let cmpSides = cmp.sides;
+  if (opt.split) baseSides = (await mergedSides(opt.files[0], "基準図面", opt.glyphMap)) || baseSides;
+  if (opt.split2) cmpSides = (await mergedSides(opt.files[1], "比較図面", opt.glyphMap)) || cmpSides;
+  if (opt.byDir) {
+    baseSides = ZC.split.byDirection(baseSides);
+    cmpSides = ZC.split.byDirection(cmpSides);
+  }
   const result = ZC.compare.compare(
-    { sides: base.sides, name: "基準" },
-    { sides: cmp.sides, name: "比較" },
+    { sides: baseSides, name: "基準" },
+    { sides: cmpSides, name: "比較" },
     { tol: opt.tol, checks: { labels: true, spacing: true, total: true } }
   );
   if (opt.json) {

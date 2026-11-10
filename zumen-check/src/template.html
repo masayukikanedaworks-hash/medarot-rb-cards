@@ -273,6 +273,18 @@
   .ai-head .ai-run:disabled { background: #b9c4ce; cursor: not-allowed; }
   .ai-note { color: #9a6b00; font-size: 11px; }
   .ai-result { margin-top: 6px; }
+  /* 分割図面（1つの建物を上下/左右に分けて複数ページに描いたもの）の表示 */
+  .split-box { margin: 6px 0; padding: 8px 10px; border: 1px solid #cfd8e3; border-left: 4px solid #2f6fd0;
+               border-radius: 6px; background: #f4f8ff; font-size: 12px; }
+  .split-title { font-weight: 700; color: #1b4b8f; margin-bottom: 4px; }
+  .split-parts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 4px; }
+  .split-part { color: #33434f; }
+  .split-part.now { font-weight: 700; color: #1b4b8f; }
+  .split-part.now::after { content: "（表示中）"; font-weight: 400; color: var(--sub); }
+  .split-note { color: var(--sub); }
+  .split-merge { display: block; margin-top: 6px; font-weight: 700; }
+  .split-warn { margin-top: 6px; color: #9a6b00; }
+  .split-scan { margin-right: 8px; }
   .ai-summary { font-size: 12px; font-weight: 600; color: #0a7a3d; margin-bottom: 4px; }
   .ai-summary.warn { color: #9a6b00; }
   .ai-msg { font-size: 12px; color: var(--sub); margin: 4px 0; }
@@ -358,6 +370,8 @@
       <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法（記載値）</label>
       <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
+      <label title="辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。平面図と構造図のように符号を書く辺が違う図面どうしは「方向ごと」が向いています。">照合の単位 <select id="cmp-unit"><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
+      <label title="照合で差異が出た箇所を、両方のビュワーに赤い枠で表示します"><input type="checkbox" id="ck-marks" checked> 差異を図面に赤枠で表示</label>
     </div>
     <button id="run-check" disabled>照合する</button>
     <button id="csv-dl" hidden>CSVダウンロード</button>
