@@ -95,7 +95,8 @@
               null,
               sameOrder ? "OK" : "NG",
               sameOrder ? "" : "並び順が異なります",
-              { b: b.axes, c: c.axes }
+              { b: b.axes, c: c.axes },
+              "all"
             )
           );
         }
@@ -128,7 +129,7 @@
 
       if (checks.total !== false && b.total && c.total) {
         const k = b.total.from + "~" + b.total.to;
-        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol);
+        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol, null, "all");
       }
     }
 
@@ -141,7 +142,7 @@
     return { rows, summary };
   }
 
-  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing) {
+  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing, scope) {
     const bv = bs ? bs.value : null;
     const cv = cs ? cs.value : null;
     const notes = [];
@@ -184,12 +185,13 @@
         {
           b: bs ? [bs.fromAx, bs.toAx].filter(Boolean) : [],
           c: cs ? [cs.fromAx, cs.toAx].filter(Boolean) : [],
-        }
+        },
+        scope
       )
     );
   }
 
-  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs) {
+  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs, scope) {
     const r = {
       side: sideName,
       check,
@@ -204,6 +206,9 @@
       // UI がビュワー強調に使う芯オブジェクト参照。列挙不可にして JSON/CSV には出さない
       Object.defineProperty(r, "refs", { value: refs, enumerable: false });
     }
+    // scope "all" は図面全体にかかる行（符号の一覧・全体寸法）。
+    // ビュワーの色付けはこれを塗らない（図面が丸ごと埋まってしまうため）
+    if (scope) Object.defineProperty(r, "scope", { value: scope, enumerable: false });
     return r;
   }
 
