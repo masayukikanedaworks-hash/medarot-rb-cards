@@ -6,8 +6,9 @@
   const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
   const COLORS = {
-    diff: "#d4002a",     // 照合でNGになった箇所の枠
-    diffWarn: "#c77700", // 〃 要確認（片方にしか無いなど）
+    diff: "#d4002a",     // 照合で差異が出た箇所（赤）
+    diffWarn: "#c77700", // 〃 要確認（橙）
+    same: "#e8b400",     // 左右で一致した箇所（黄）
     seg: "#4a5560", // 図面の線。薄くすると寸法線や数字が白っぽくなって読めない
     v: "#1565d8",
     h: "#0a8f4e",
@@ -22,7 +23,20 @@
   const SEG_MAX_WIDTH = 3; // 〃 最大（拡大しても潰れないように）
   const TEXT_MIN_PX = 4; // PDFの文字を描く最小サイズ(px)。これ未満は潰れるだけ
   const SPLIT_AUTO_PAGES = 4; // このページ数までは読み込み時に自動で分割を判定する
-  const DIFF_PAD = 6;         // 差異の赤枠を区間の外側へ広げる量(px)
+  const DIFF_PAD = 6;    // 差異の枠を区間の外側へ広げる量(px)
+  const MARK_ALPHA = 0.2; // 照合結果の塗りの濃さ（レイヤをまとめて重ねるとき）
+  // 照合結果の塗り分け。一致=黄 / 要確認=橙 / 差異=赤。
+  // 塗りは**不透明な色で別レイヤに描いてから**まとめて薄く重ねる。
+  // X方向の帯とY方向の帯は図面の上で必ず交差するので、そのまま半透明で塗ると
+  // 交差部だけ二重に濃くなり、赤の上に黄が乗って色が濁る。レイヤに
+  // 一致→要確認→差異の順で不透明に描けば、どの画素も「一番重い判定の色」1色になる。
+  const MARK_STYLE = {
+    // extra … 差異を一致より濃くするための追い塗り（同じ色なので濁らない）
+    OK: { fill: "#ffd600", pad: 0, line: null, extra: 0 },
+    WARN: { fill: "#e08a00", pad: DIFF_PAD, line: COLORS.diffWarn, dash: [5, 3], width: 1.5, extra: 0.1 },
+    NG: { fill: "#e3002c", pad: DIFF_PAD, line: COLORS.diff, dash: [], width: 2, extra: 0.16 },
+  };
+  const MARK_ORDER = ["OK", "WARN", "NG"];
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -831,7 +845,7 @@
       return this.sides;
     }
 
-    // 照合で差異が出た箇所（図上に赤枠で描く）
+    // 照合結果（図上に色で描く）
     setDiffs(refs) {
       this.diffRefs = refs && refs.length ? refs : null;
       this.requestRender();
@@ -1371,18 +1385,45 @@
     // 区間の差異（寸法が違う）はその2本のあいだを囲む。
     // まとめて照合しているときは、芯に付けた page で「いま見ているページ」の
     // ぶんだけ描く（別ページの芯は座標の意味が違うため）。
+    // 照合結果の塗り用レイヤ（毎回作らず使い回す）。
+    // **デバイスピクセルで持つ**こと。CSSピクセルで作ると本体へ重ねるときに
+    // 拡大されてぼけるうえ、実図面で1描画が12msほど重くなる。
+    _markLayer(w, h, dpr) {
+      if (!w || !h) return null;
+      let c = this._markCanvas;
+      if (!c) c = this._markCanvas = document.createElement("canvas");
+      const pw = Math.ceil(w * dpr);
+      const ph = Math.ceil(h * dpr);
+      if (c.width !== pw || c.height !== ph) {
+        c.width = pw;
+        c.height = ph;
+      }
+      const g = c.getContext("2d");
+      if (!g) return null;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, pw, ph);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0); // 以降はCSSピクセルで描ける
+      return g;
+    }
+
+    // 照合結果を図面に塗る。
+    //   左右（基準図面と比較図面）で同じ符号・同じ記載寸法になった区間 … 黄
+    //   差異があった区間・片方にしか無い通り芯                         … 赤
+    //   片方で寸法が読めなかった区間                                   … 橙の破線
+    // 一致 → 要確認 → 差異 の順に塗るので、重なっても差異が隠れない。
     _drawDiffBoxes(ctx) {
       const refs = this.diffRefs;
       if (!refs || !refs.length) return;
       const page = Number(this.$page.value || 0) + 1;
-      // まとめて照合しているときは、いま見ているページの芯だけを囲む
+      // まとめて照合しているときは、いま見ているページの芯だけを塗る
       // （別ページの芯は座標の意味が違う）
       const mine = (ax) => ax && (ax.page === undefined || ax.page === page);
       const W = this.$canvas.clientWidth;
       const H = this.$canvas.clientHeight;
-      const boxes = [];
+      const byStatus = { OK: [], WARN: [], NG: [] };
       const seen = new Set();
       for (const d of refs) {
+        if (!byStatus[d.status]) continue;
         const axes = (d.axes || []).filter(mine);
         if (!axes.length) continue;
         const dirs = new Set(axes.map((a) => a.dir));
@@ -1390,25 +1431,26 @@
         const sorted = axes.slice().sort((a, b) => a.pos - b.pos);
         const a = sorted[0];
         const b = sorted[sorted.length - 1];
+        const pad = MARK_STYLE[d.status].pad;
         let x, y, w, h;
         if (a.dir === "v") {
           const [x1] = this.toScreen(a.pos, 0);
           const [x2] = this.toScreen(b.pos, 0);
           const [, yTop] = this.toScreen(0, Math.max(a.to, b.to));
           const [, yBot] = this.toScreen(0, Math.min(a.from, b.from));
-          x = Math.min(x1, x2) - DIFF_PAD;
-          w = Math.abs(x2 - x1) + DIFF_PAD * 2;
-          y = yTop - DIFF_PAD;
-          h = yBot - yTop + DIFF_PAD * 2;
+          x = Math.min(x1, x2) - pad;
+          w = Math.abs(x2 - x1) + pad * 2;
+          y = yTop - pad;
+          h = yBot - yTop + pad * 2;
         } else {
           const [, y1] = this.toScreen(0, b.pos);
           const [, y2] = this.toScreen(0, a.pos);
           const [xL] = this.toScreen(Math.min(a.from, b.from), 0);
           const [xR] = this.toScreen(Math.max(a.to, b.to), 0);
-          x = xL - DIFF_PAD;
-          w = xR - xL + DIFF_PAD * 2;
-          y = Math.min(y1, y2) - DIFF_PAD;
-          h = Math.abs(y2 - y1) + DIFF_PAD * 2;
+          x = xL - pad;
+          w = xR - xL + pad * 2;
+          y = Math.min(y1, y2) - pad;
+          h = Math.abs(y2 - y1) + pad * 2;
         }
         w = Math.max(w, 3);
         h = Math.max(h, 3);
@@ -1416,36 +1458,63 @@
         const key = d.status + ":" + Math.round(x) + "," + Math.round(y) + "," + Math.round(w) + "," + Math.round(h);
         if (seen.has(key)) continue;
         seen.add(key);
-        boxes.push({ x, y, w, h, label: d.label, ng: d.status === "NG", dir: a.dir });
+        byStatus[d.status].push({ x, y, w, h, label: d.label, status: d.status });
       }
-      if (!boxes.length) return;
+      const all = MARK_ORDER.reduce((n, k) => n + byStatus[k].length, 0);
+      if (!all) return;
       ctx.save();
-      // 枠（NG=赤の実線 / 要確認=橙の破線）
-      for (const bx of boxes) {
-        ctx.strokeStyle = bx.ng ? COLORS.diff : COLORS.diffWarn;
-        ctx.fillStyle = bx.ng ? "rgba(212,0,42,0.07)" : "rgba(199,119,0,0.06)";
-        ctx.lineWidth = bx.ng ? 2 : 1.5;
-        ctx.setLineDash(bx.ng ? [] : [5, 3]);
-        ctx.fillRect(bx.x, bx.y, bx.w, bx.h);
-        ctx.strokeRect(bx.x, bx.y, bx.w, bx.h);
+      // 塗り: 別レイヤに不透明で描いてから、まとめて薄く重ねる
+      const dpr = globalThis.devicePixelRatio || 1;
+      const lay = this._markLayer(W, H, dpr);
+      if (lay) {
+        for (const st of MARK_ORDER) {
+          lay.fillStyle = MARK_STYLE[st].fill;
+          for (const bx of byStatus[st]) lay.fillRect(bx.x, bx.y, bx.w, bx.h);
+        }
+        // 等倍で重ねる（拡大が入らないよう本体の変換を一時的に外す）
+        const tf = ctx.getTransform ? ctx.getTransform() : null;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = MARK_ALPHA;
+        ctx.drawImage(lay.canvas, 0, 0);
+        ctx.globalAlpha = 1;
+        if (tf) ctx.setTransform(tf);
+        else ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      // 差異は一致より濃くする（同じ色を薄く重ねるので色は濁らない）
+      for (const st of ["WARN", "NG"]) {
+        const style = MARK_STYLE[st];
+        if (!style.extra) continue;
+        ctx.globalAlpha = style.extra;
+        ctx.fillStyle = style.fill;
+        for (const bx of byStatus[st]) ctx.fillRect(bx.x, bx.y, bx.w, bx.h);
+      }
+      ctx.globalAlpha = 1;
+      // 枠は差異のぶんだけ（一致は塗りだけで十分）
+      for (const st of ["WARN", "NG"]) {
+        const style = MARK_STYLE[st];
+        ctx.strokeStyle = style.line;
+        ctx.lineWidth = style.width;
+        ctx.setLineDash(style.dash);
+        for (const bx of byStatus[st]) ctx.strokeRect(bx.x, bx.y, bx.w, bx.h);
       }
       ctx.setLineDash([]);
-      // 見出し。重なったら上へずらす（区間が隣り合うと必ず重なるため）
+      // 見出しは差異のぶんだけ。重なったらずらし、それでも重なるなら出さない
+      // （隣り合う区間の見出しは必ず重なるため）
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       const placed = [];
       const hit = (r) =>
         placed.some((q) => r.x < q.x + q.w + 2 && q.x < r.x + r.w + 2 && r.y < q.y + q.h + 1 && q.y < r.y + r.h + 1);
-      for (const bx of boxes.slice().sort((p1, p2) => p1.x - p2.x || p1.y - p2.y)) {
-        if (!bx.label) continue;
+      const labelled = byStatus.NG.concat(byStatus.WARN).filter((b) => b.label);
+      for (const bx of labelled.sort((p1, p2) => p1.x - p2.x || p1.y - p2.y)) {
         const tw = ctx.measureText(bx.label).width + 8;
         const th = 14;
         const r = { x: Math.min(Math.max(bx.x, 0), Math.max(W - tw, 0)), y: bx.y - th - 1, w: tw, h: th };
         for (let i = 0; i < 12 && (hit(r) || r.y < 0); i++) r.y = r.y < 0 ? bx.y + bx.h + 1 + i * (th + 1) : r.y - (th + 1);
-        if (hit(r)) continue; // それでも重なるなら出さない
+        if (hit(r)) continue;
         placed.push(r);
-        ctx.fillStyle = bx.ng ? COLORS.diff : COLORS.diffWarn;
+        ctx.fillStyle = MARK_STYLE[bx.status].line;
         ctx.fillRect(r.x, r.y, r.w, r.h);
         ctx.fillStyle = "#fff";
         ctx.fillText(bx.label, r.x + 4, r.y + th / 2 + 0.5);
@@ -1834,7 +1903,7 @@
       ui.showDiffMarks(result);
     },
 
-    // 差異が出た箇所を両方のビュワーに赤枠で出す
+    // 照合結果を両方のビュワーに色で出す（一致=黄 / 差異=赤 / 要確認=橙）
     showDiffMarks(result) {
       const on = document.getElementById("ck-marks");
       if (!on || !on.checked || !result) {
@@ -1845,7 +1914,8 @@
       const b = [];
       const c = [];
       for (const r of result.rows) {
-        if (r.status === "OK" || !r.refs) continue;
+        // 図面全体にかかる行（符号の一覧・全体寸法）で塗ると図面が丸ごと埋まる
+        if (!r.refs || r.scope === "all") continue;
         const label = r.item;
         if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, label, status: r.status });
         if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, label, status: r.status });
@@ -1877,6 +1947,20 @@
       wrap.appendChild(
         el("p", { class: "result-hint", text: "行にカーソルを乗せると該当箇所が両方のビュワーで強調表示されます。" })
       );
+      // 図面に付く色の凡例
+      const legend = el("p", { class: "result-hint legend" });
+      legend.appendChild(document.createTextNode("図面の色: "));
+      for (const [cls, label] of [
+        ["ok", "一致（左右で同じ通り芯・同じ記載寸法）"],
+        ["ng", "差異（記載寸法が違う / 片方にしか無い通り芯）"],
+        ["warn", "要確認（片方で寸法が読めない）"],
+      ]) {
+        const sw = el("span", { class: "legend-item" });
+        sw.appendChild(el("span", { class: "legend-sw " + cls }));
+        sw.appendChild(document.createTextNode(label));
+        legend.appendChild(sw);
+      }
+      wrap.appendChild(legend);
       const table = el("table", { class: "result" });
       const thead = el("thead");
       thead.innerHTML =

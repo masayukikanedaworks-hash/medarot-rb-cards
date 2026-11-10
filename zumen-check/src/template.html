@@ -304,6 +304,13 @@
   table.axes tr.off td { color: #a7b0b8; }
   table.axes tr.hl td { background: #fff3e0; }
   .result-hint { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
+  /* 図面に付く照合結果の色の凡例 */
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-sw { width: 20px; height: 12px; border-radius: 2px; display: inline-block; }
+  .legend-sw.ok { background: #fff6cc; border: 1px solid #e8b400; }
+  .legend-sw.ng { background: #f8ccd6; border: 2px solid #d4002a; }
+  .legend-sw.warn { background: #fae3c2; border: 1.5px dashed #c77700; }
   #check {
     margin-top: 16px;
     background: #ffffff;
@@ -371,7 +378,7 @@
       <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
       <label title="辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。平面図と構造図のように符号を書く辺が違う図面どうしは「方向ごと」が向いています。">照合の単位 <select id="cmp-unit"><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
-      <label title="照合で差異が出た箇所を、両方のビュワーに赤い枠で表示します"><input type="checkbox" id="ck-marks" checked> 差異を図面に赤枠で表示</label>
+      <label title="照合結果を両方のビュワーに色で表示します。左右で同じ通り芯・同じ記載寸法の区間は黄色、差異がある区間は赤、片方で寸法が読めなかった区間は橙の破線です"><input type="checkbox" id="ck-marks" checked> 照合結果を図面に色で表示（一致=黄 / 差異=赤）</label>
     </div>
     <button id="run-check" disabled>照合する</button>
     <button id="csv-dl" hidden>CSVダウンロード</button>
