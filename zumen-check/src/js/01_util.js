@@ -31,8 +31,11 @@
 
   // 通り芯符号: 縦方向（X方向）= X○○ / 横方向（Y方向）= Y○○ の記載のみを符号として拾う。
   // 番号は小数点付き（X2.5 など）も許容。該当すれば {dir:"v"|"h", label} を返す。
+  // 小数点は中黒（X2・2）でも受ける。CAD のフォントにピリオドが無いときの代用で
+  // 実図面に出る。符号の書式全体が一致したときだけ読み替えるので誤爆しない。
   function axisLabelOf(s) {
-    const t = normalizeLabel(s);
+    let t = normalizeLabel(s);
+    if (/^[XY]\d{1,3}[\u30FB\uFF65\u00B7]\d{1,2}$/.test(t)) t = t.replace(/[\u30FB\uFF65\u00B7]/, ".");
     const m = /^([XY])(\d{1,3}(\.\d{1,2})?)$/.exec(t);
     if (!m) return null;
     return { dir: m[1] === "X" ? "v" : "h", label: t };

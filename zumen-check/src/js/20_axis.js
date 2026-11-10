@@ -23,6 +23,7 @@
     CHAIN_COVER_MIN: 0.2,  // 〃 カバー率の下限
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
     GROUP_R_TOL: 0.18,     // 同じ図の符号バブルとみなす半径の相対差
+    LABEL_GAP: 0.6,        // バブル内で符号をつなぐ字送りの上限（フォントサイズ比）
   };
 
   const SIDES = ["top", "bottom", "left", "right"];
@@ -183,25 +184,95 @@
     return axes;
   }
 
+  // 1 つのバブルの中の文字を、字送りが詰まっているものだけつないで読み順に並べる。
+  // CAD は "X2.2" を "X2" と ".2" のように別々の Tj で出すことがあり、
+  // 1 件ずつ読むと小数点付きの符号が「X2」になって**本来の芯が消える**ため。
+  // つなぐ範囲はバブルの中だけなので、寸法注記の読み取り（22_dims の mergeTexts）
+  // には影響しない。
+  function joinInBubble(list) {
+    const runs = list.map((t) => {
+      const ex = t.ex !== undefined ? t.ex : t.x;
+      const ey = t.ey !== undefined ? t.ey : t.y;
+      return {
+        str: t.str,
+        x: t.x,
+        y: t.y,
+        ex,
+        ey,
+        size: t.size || 10,
+        horizontal: Math.abs(ex - t.x) >= Math.abs(ey - t.y),
+      };
+    });
+    const out = [];
+    for (const horiz of [true, false]) {
+      const sub = runs.filter((r) => r.horizontal === horiz);
+      if (!sub.length) continue;
+      if (horiz) sub.sort((a, b) => (Math.abs(a.y - b.y) > 0.6 ? a.y - b.y : a.x - b.x));
+      else sub.sort((a, b) => (Math.abs(a.x - b.x) > 0.6 ? a.x - b.x : a.y - b.y));
+      let cur = null;
+      for (const r of sub) {
+        if (cur) {
+          const sameLine = horiz ? Math.abs(r.y - cur.y) <= 0.6 : Math.abs(r.x - cur.x) <= 0.6;
+          const gap = horiz ? r.x - cur.ex : r.y - cur.ey;
+          if (sameLine && gap >= -0.6 && gap <= cur.size * PARAMS.LABEL_GAP) {
+            cur.str += r.str;
+            cur.ex = r.ex;
+            cur.ey = r.ey;
+            continue;
+          }
+        }
+        cur = { str: r.str, x: r.x, y: r.y, ex: r.ex, ey: r.ey, size: r.size };
+        out.push(cur);
+      }
+    }
+    return out.map((o) => o.str);
+  }
+
+  // バブル 1 つの中身から符号を読む。つないだ文字列を先に試し、読めなければ
+  // 1 件ずつ読む（従来どおり。バブルの中に別の文字が紛れていても落とさない）。
+  function labelInBubble(list) {
+    if (list.length > 1) {
+      for (const str of joinInBubble(list)) {
+        const lab = U.axisLabelOf(str);
+        if (lab) return lab;
+      }
+    }
+    for (const t of list) {
+      const lab = U.axisLabelOf(t.str);
+      if (lab) return lab;
+    }
+    return null;
+  }
+
   // 円で囲まれた X○○/Y○○ の符号だけを候補として集める
   function bubbleCandidates(texts, circles) {
     const cands = [];
     if (!circles.length) return cands;
+    // まず「どの円の中にあるか」でテキストを振り分ける（符号として読めるかは後で見る）
+    const inside = new Map();
     for (const t of texts) {
-      const lab = U.axisLabelOf(t.str);
-      if (!lab) continue;
+      if (!t.str) continue;
       const tx = (t.x + (t.ex !== undefined ? t.ex : t.x)) / 2;
       const ty = (t.y + (t.ey !== undefined ? t.ey : t.y)) / 2;
       let host = null;
       let hostD = Infinity;
       for (const c of circles) {
-        const d = Math.hypot(tx - c.x, ty - c.y);
-        if (d <= c.r * PARAMS.BUBBLE_TEXT_IN && d < hostD) {
+        // 長円のバブルもあるので、縦横で正規化した距離で中か外かを見る（1 以下が中）
+        const rx = (c.rx !== undefined ? c.rx : c.r) * PARAMS.BUBBLE_TEXT_IN;
+        const ry = (c.ry !== undefined ? c.ry : c.r) * PARAMS.BUBBLE_TEXT_IN;
+        const d = Math.hypot((tx - c.x) / rx, (ty - c.y) / ry);
+        if (d <= 1 && d < hostD) {
           hostD = d;
           host = c;
         }
       }
       if (!host) continue; // 円で囲まれていない符号は拾わない
+      if (!inside.has(host)) inside.set(host, []);
+      inside.get(host).push(t);
+    }
+    for (const [host, list] of inside) {
+      const lab = labelInBubble(list);
+      if (!lab) continue;
       cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, used: false });
     }
     return cands;
@@ -285,5 +356,5 @@
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, bubbleCandidates, groupBubbles, PARAMS, SIDES, SIDE_NAME };
+  ZC.axis = { detect, displayName, bubbleCandidates, joinInBubble, groupBubbles, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});

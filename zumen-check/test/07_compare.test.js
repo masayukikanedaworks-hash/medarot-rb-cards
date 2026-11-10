@@ -72,3 +72,32 @@ exports.許容差の範囲内はOK = async () => {
   assert.equal(cmpOf(base, cmp, 1).summary.ng, 0, "±1mmなら許容");
   assert.ok(cmpOf(base, cmp, 0.2).summary.ng > 0, "±0.2mmならNG");
 };
+
+// 小数点付きの通り芯（長円バブル＋符号が分かれて出力される書き方）でも
+// 符号どうしが対応し、芯々寸法の違いがその区間で出る
+exports.小数点付きの通り芯も照合できる = async () => {
+  const spec = (mm) => {
+    const s = mk.makeSpec();
+    s.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+    s.vAxes[3].mm = mm; // X3 をずらして X2.2~X3 の記載寸法を変える
+    s.splitsV0 = null;
+    s.ovalBubbles = true;
+    s.splitLabels = true;
+    return s;
+  };
+  const base = await sideOf(mk.makeBasicPdf(spec(11000)), "基準");
+  const cmp = await sideOf(mk.makeBasicPdf(spec(11500)), "比較");
+  const r = cmpOf(base, cmp);
+  // 符号は両方で X2.2 として対応する（欠落・余分にならない）
+  const lab = r.rows.filter((x) => x.check === "通り芯" && x.status !== "OK");
+  assert.deepEqual(lab, [], "符号は一致: " + JSON.stringify(lab));
+  // 違いは X2.2~X3 の区間に出る
+  const row = r.rows.find((x) => x.side === "上辺" && x.check === "芯々寸法" && x.item === "X2.2~X3");
+  assert.ok(row, "X2.2~X3 の行がある: " + JSON.stringify(r.rows.map((x) => x.item)));
+  assert.equal(row.status, "NG");
+  assert.equal(row.base, "3000");
+  assert.equal(row.cmp, "3500");
+  // 変えていない区間はOK
+  const same = r.rows.find((x) => x.side === "上辺" && x.check === "芯々寸法" && x.item === "X2~X2.2");
+  assert.equal(same.status, "OK");
+};

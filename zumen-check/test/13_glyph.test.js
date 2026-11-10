@@ -2,7 +2,7 @@
 "use strict";
 
 const mk = require("./make_pdf");
-const { loadFirstPage, analyze, analyzeStroke, strokeFontMap, spansOf, assert } = require("./helpers");
+const { loadFirstPage, analyze, analyzeStroke, strokeFontMap, labels, spansOf, assert } = require("./helpers");
 
 function strokeSpec() {
   const spec = mk.makeSpec();
@@ -131,4 +131,47 @@ exports.細い字形は図面の線の破片と区別する = () => {
   const own = {};
   own[kOne] = ZC.glyph.hexToBits(kOne);
   assert.equal(ZC.glyph.matchShape(ZC.glyph.bitsOf(one), own, ZC.glyph.aspectOfGlyph(one)), kOne);
+};
+
+// 線で描かれた図面でも小数点付きの符号を読む。小数点は字高が digits の
+// 1/8 程度しかないので、行の起点にはなれないが行に「加わる」必要がある。
+exports.線で描かれた小数点付きの符号も読む = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+  spec.splitsV0 = null;
+  const bytes = mk.makeBasicPdf(spec);
+  const { det, sides } = await analyzeStroke(bytes);
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X2.2", "X3"]);
+  assert.deepEqual(
+    sides.top.spans.map((s) => s.from + "~" + s.to + ":" + s.value),
+    ["X1~X2:6000", "X2~X2.2:2000", "X2.2~X3:3000"]
+  );
+};
+
+// 小数点を教えていないと「X2.2」の行はまるごと捨てられる（半端に読むより安全）。
+// そのぶん、小数点の字形は教える画面にちゃんと候補として出る必要がある。
+exports.小数点が未登録なら行を捨て教える候補に出す = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+  spec.splitsV0 = null;
+  const bytes = mk.makeBasicPdf(spec);
+  const full = strokeFontMap();
+  const dotKeys = Object.keys(full).filter((k) => full[k] === ".");
+  const noDot = {};
+  for (const k in full) if (full[k] !== ".") noDot[k] = full[k];
+
+  const { det } = await analyzeStroke(bytes, noDot);
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"], "読めない字がある行は捨てる");
+
+  // 教える画面に出る形（2文字以上の行に出た字形）に小数点が含まれること
+  const { extract } = await loadFirstPage(bytes);
+  const g = ZC.glyph.extract(extract);
+  const kb = {};
+  for (const k of dotKeys) kb[k] = ZC.glyph.hexToBits(k);
+  const hit = g.shapes.filter((sh) =>
+    ZC.glyph.matchShape(ZC.glyph.hexToBits(sh.shape), kb, ZC.glyph.aspectOfKey(sh.shape))
+  );
+  assert.ok(hit.length >= 1, "小数点の字形が教える候補に出る: " + g.shapes.length + "種");
 };
