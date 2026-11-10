@@ -59,6 +59,9 @@ function makeSpec() {
     // textAt を使わず STROKE_FONT で描くので、PDFに文字データが残らない。
     strokeFont: false,
     strokeH: 3.6, // 線で描く文字の高さ(pt)
+    // true で通り芯の符号を90度回転して描く（構造図の上辺はこの書き方）。
+    // 回転すると小数点がベースライン側＝字の箱の反対の端に付く
+    rotLabels: false,
     // true で寸法線の黒ドットを「上下2つの極小な円弧」で描く（実図面の構造図と
     // 同じ描き方。塗りでも太線でも閉じた円でもないので、弧として拾う必要がある）
     arcDots: false,
@@ -236,7 +239,13 @@ function drawingOps(spec, textEnc, useTJ) {
     }
     if (spec.strokeFont) {
       const h = spec.strokeH;
-      strokeTextOps(ops, cx - str.length * h * 0.42, cy - h / 2, str, h, false);
+      if (spec.rotLabels) {
+        // 90度回転（縦に積む）。中心をそろえる
+        strokeTextOps(ops, cx + h / 2, cy - str.length * h * 0.42, str, h, true);
+      } else {
+        strokeTextOps(ops, cx - str.length * h * 0.42, cy - h / 2, str, h, false);
+      }
+      ops.push("0.5 w");
       return;
     }
     if (spec.outlinedText) {
