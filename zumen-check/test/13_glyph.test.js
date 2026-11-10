@@ -175,3 +175,29 @@ exports.小数点が未登録なら行を捨て教える候補に出す = async 
   );
   assert.ok(hit.length >= 1, "小数点の字形が教える候補に出る: " + g.shapes.length + "種");
 };
+
+// 90度回転して書かれた符号（構造図の上辺はこの書き方）。
+// 回転すると小数点がベースライン側＝字の箱の**反対の端**に付くので、
+// 片側だけで行の判定をすると小数点が落ちて X2.2 が X22 になる。
+exports.回転した符号でも小数点を読む = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.rotLabels = true;
+  spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+  spec.splitsV0 = null;
+  const bytes = mk.makeBasicPdf(spec);
+  const { extract } = await loadFirstPage(bytes);
+  const g = ZC.glyph.extract(extract);
+  // 「X」「2」「.」「2」の4字形が1行になること（符号は芯の両端に2回書かれる）
+  const H4 = 3.6 * 0.45; // 小さな字形とみなす大きさ
+  const runs = g.runs.filter(
+    (r) => !r.horizontal && r.glyphs.length === 4 && r.glyphs.some((gl) => gl.w < H4)
+  );
+  assert.equal(runs.length, 2, "小数点入りの回転した行が両端に1つずつ: " +
+    JSON.stringify(g.runs.filter((r) => !r.horizontal).map((r) => r.glyphs.map((gl) => +gl.w.toFixed(2)))));
+  const sizes = runs[0].glyphs.map((gl) => +gl.w.toFixed(2));
+  assert.equal(sizes.filter((v) => v < H4).length, 1, "小数点は1つだけ: " + JSON.stringify(sizes));
+
+  const { det } = await analyzeStroke(bytes);
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X2.2", "X3"]);
+};

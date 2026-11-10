@@ -270,6 +270,11 @@
   // 文字を行（文字列）にまとめる。横書きと縦書きを分けて扱う。
   function buildRuns(glyphs) {
     const runs = [];
+    // この図面のふつうの字高。「小数点が行の反対の端に付く」救済は、
+    // ふつうの大きさの行にだけ許す（図面の線の破片で作られた巨大な行に
+    // 同じ救済を許すと、端に近い破片を次々つないで本物の符号まで飲み込む）
+    const seedSizes = glyphs.filter((g) => g.seed).map((g) => Math.max(g.w, g.h)).sort((a, b) => a - b);
+    const medianSeed = seedSizes.length ? seedSizes[seedSizes.length >> 1] : 0;
     for (const horizontal of [true, false]) {
       // 小数点のような小さな字形は向きが判定できないので、どちらの向きでも候補にする
       const list = glyphs.filter((g) => !g.seed || (g.h >= g.w) === horizontal);
@@ -278,6 +283,7 @@
       const along = horizontal ? (g) => g.x0 : (g) => g.y0;
       const alongEnd = horizontal ? (g) => g.x1 : (g) => g.y1;
       const cross = horizontal ? (g) => g.y0 : (g) => g.x0;
+      const crossEnd = horizontal ? (g) => g.y1 : (g) => g.x1;
       const size = (g) => (horizontal ? g.h : g.w);
       seeds.sort((a, b) => cross(a) - cross(b) || along(a) - along(b));
       const used = new Set();
@@ -287,6 +293,11 @@
         used.add(g);
         let last = g;
         const H = size(g); // 行の文字高さ（起点の文字で決める）
+        // 行の基準線。**小さな字形では動かさない**。動かすと、小数点のあとの
+        // 文字が「小数点を基準」に判定されて落ち、X2.2 が「X2.」と「2」に割れる
+        let baseCross = cross(g);
+        // ふつうの字高の行か（小数点の端ちがい救済を許すか）
+        const ordinary = !medianSeed || (H >= medianSeed * 0.5 && H <= medianSeed * 2);
         // 同じ行で右（縦書きなら上）に続く文字を順に拾う
         for (;;) {
           let best = null;
@@ -294,9 +305,21 @@
           for (const c of list) {
             if (used.has(c)) continue;
             const small = size(c) <= H * PARAMS.SMALL_RATIO;
-            // 小数点などの小さな字形は高さを問わず、ベースラインが合っていれば拾う
             if (!small && Math.abs(size(c) - H) > H * PARAMS.H_TOL) continue;
-            if (Math.abs(cross(c) - cross(last)) > H * PARAMS.BASE_TOL) continue;
+            const tol = H * PARAMS.BASE_TOL;
+            if (small) {
+              // 小数点などの小さな字形は**行の帯のどちらかの端**に付いていればよい。
+              // 片側（cross）だけで比べてはいけない: 90度回転した行では
+              // 小数点がベースライン側＝帯の反対の端に付くので落ちる
+              // （実図面の構造図で X2.2 / X4.3 が X22 / X43 になっていた）。
+              // 帯の中ならどこでもよい、にすると隣の行の破片を拾うので、
+              // 端から `tol` 以内に限る。
+              const nearLo = Math.abs(cross(c) - baseCross) <= tol;
+              const nearHi = ordinary && Math.abs(crossEnd(c) - (baseCross + H)) <= tol;
+              if (!nearLo && !nearHi) continue;
+            } else if (Math.abs(cross(c) - baseCross) > tol) {
+              continue;
+            }
             const gap = along(c) - alongEnd(last);
             if (gap < -H * 0.2 || gap > H * PARAMS.RUN_GAP) continue;
             if (gap < bestD) {
@@ -308,6 +331,8 @@
           run.glyphs.push(best);
           used.add(best);
           last = best;
+          // ふつうの字でだけ基準線を更新する（行が少しずつ傾く図面に備えて）
+          if (size(best) > H * PARAMS.SMALL_RATIO) baseCross = cross(best);
         }
         runs.push(run);
       }
