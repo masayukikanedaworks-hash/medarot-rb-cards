@@ -2217,13 +2217,17 @@
         ? "スキャン（画像）PDFは読み取れません。CADからベクターPDFで出力してください。"
         : "このページには図形がほとんどありません。図面のページを選び直してください。"
     );
+    // 線で描かれた文字を対応表で読み取り済みなら、文字が無くても読める図面として扱う
+    const glyphTexts = texts.reduce((n, t) => n + (t.glyphText ? 1 : 0), 0);
     add(
       "text",
       "文字が文字として入っている",
-      !outlined,
-      outlined
-        ? `数字が線で描かれています（中身が線だけの符号バブル ${outlinedBubbles} 個）`
-        : `テキスト ${texts.length} 件 / うち数値 ${numericTexts} 件`,
+      !outlined || glyphTexts > 0,
+      glyphTexts > 0
+        ? `線で描かれた文字から ${glyphTexts} 件を読み取り済み`
+        : outlined
+          ? `数字が線で描かれています（中身が線だけの符号バブル ${outlinedBubbles} 個）`
+          : `テキスト ${texts.length} 件 / うち数値 ${numericTexts} 件`,
       "CADのシングルストローク（SHX）フォントのまま出力された図面です。" +
         "TrueTypeフォント（MSゴシック等）で書き出し直すか、「AIで総ざらい」をお使いください。"
     );
@@ -2262,6 +2266,7 @@
       outlinedBubbles,
       tinyFrac,
       numericTexts,
+      glyphTexts,
       textCount: texts.length,
       segCount: segs.length,
       circleCount: circles.length,
