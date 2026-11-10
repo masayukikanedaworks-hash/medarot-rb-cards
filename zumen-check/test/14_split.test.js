@@ -155,3 +155,59 @@ exports.片方のページだけで照合すると足りない分が差異にな
   );
   assert.ok(r.summary.ng > 0, "Y4/Y5 が無いので差異が出る");
 };
+
+// --- 照合の単位の自動選択 ---------------------------------------------------
+
+// 平面図は4辺すべてに符号を書くが、構造図は下辺と左辺にしか書かない。
+// 辺ごとに照合すると書き方の違いだけで大量にNGが出るので、方向ごとに切り替える。
+exports.符号を書く辺が違えば方向ごとを選ぶ = async () => {
+  const plan = mk.makeSpec(); // 4辺すべてに符号
+  const stru = mk.makeSpec();
+  stru.vAxes = stru.vAxes.map((a) => Object.assign({}, a, { sides: ["bottom"] }));
+  stru.hAxes = stru.hAxes.map((a) => Object.assign({}, a, { sides: ["left"] }));
+  const a = await analyze(mk.makeBasicPdf(plan));
+  const b = await analyze(mk.makeBasicPdf(stru));
+  const pick = ZC.split.pickUnit(a.sides, b.sides);
+  assert.equal(pick.unit, "dir", pick.reason);
+  assert.ok(pick.diffs.some((d) => d.side === "top"), JSON.stringify(pick.diffs));
+  assert.ok(/符号を書いている辺/.test(pick.reason), pick.reason);
+
+  // 辺ごとだと書き方の違いでNGが大量に出るが、方向ごとなら出ない
+  const opts = { tol: 1, checks: { labels: true, spacing: true, total: true } };
+  const bySide = ZC.compare.compare({ sides: a.sides }, { sides: b.sides }, opts);
+  const byDir = ZC.compare.compare(
+    { sides: ZC.split.byDirection(a.sides) },
+    { sides: ZC.split.byDirection(b.sides) },
+    opts
+  );
+  assert.ok(bySide.summary.ng > 0, "辺ごとだと差異が出てしまう");
+  assert.equal(byDir.summary.ng, 0, "方向ごとなら差異なし: " +
+    JSON.stringify(byDir.rows.filter((r) => r.status === "NG")));
+};
+
+exports.同じ辺に符号を書いていれば辺ごとを選ぶ = async () => {
+  const a = await analyze(mk.makeBasicPdf());
+  const b = await analyze(mk.makeBasicPdf());
+  const pick = ZC.split.pickUnit(a.sides, b.sides);
+  assert.equal(pick.unit, "side", pick.reason);
+  assert.deepEqual(pick.diffs, []);
+};
+
+// 判定の行は「どの辺の話か」を持つ。これが無いと図上で、上辺の判定で
+// 下辺の符号まで塗ってしまう
+exports.判定の行はどの辺かを持つ = async () => {
+  const a = await analyze(mk.makeBasicPdf());
+  const spec = mk.makeSpec();
+  spec.vAxes[1].sides = ["bottom"]; // X2 を上辺から消す
+  const b = await analyze(mk.makeBasicPdf(spec));
+  const r = ZC.compare.compare({ sides: a.sides }, { sides: b.sides },
+    { tol: 1, checks: { labels: true, spacing: true, total: true } });
+  const ng = r.rows.find((x) => x.status === "NG" && x.check === "通り芯" && x.item === "X2");
+  assert.ok(ng, "上辺で X2 が見つからない差異: " + JSON.stringify(r.rows.filter(x=>x.status==="NG")));
+  assert.equal(ng.sideKey, "top", "どの辺の判定かを持つ");
+  // 塗る対象はその辺の符号だけ（X2 の芯は上辺・下辺の両方にバブルを持つ）
+  const ax = ng.refs.b[0];
+  assert.ok(ax.bubbles.length >= 2, "芯は両端に符号を持つ: " + ax.bubbles.length);
+  const onSide = ax.bubbles.filter((x) => x.side === ng.sideKey);
+  assert.equal(onSide.length, 1, "塗るのは上辺の符号1つだけ");
+};

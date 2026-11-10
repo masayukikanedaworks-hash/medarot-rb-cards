@@ -314,6 +314,8 @@
   table.axes tr.hl td { background: #fff3e0; }
   .result-hint { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
   /* 図面に付く照合結果の色の凡例 */
+  .unit-note { margin: 0 0 6px; }
+  .unit-note.picked { color: #1b4b8f; }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
   .legend-item { display: inline-flex; align-items: center; gap: 5px; }
   .legend-sw { width: 20px; height: 12px; border-radius: 2px; display: inline-block; }
@@ -386,7 +388,7 @@
       <label><input type="checkbox" id="ck-spacing" checked> 芯々寸法（記載値）</label>
       <label><input type="checkbox" id="ck-total" checked> 全体寸法（記載値）</label>
       <label>許容差 ± <input type="number" id="tol" value="1" min="0" step="0.5"> mm</label>
-      <label title="辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。平面図と構造図のように符号を書く辺が違う図面どうしは「方向ごと」が向いています。">照合の単位 <select id="cmp-unit"><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
+      <label title="自動: 両方の図面が同じ辺に符号を書いていれば辺ごと、違えば方向ごとに切り替えます。辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。">照合の単位 <select id="cmp-unit"><option value="auto">自動</option><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
       <label title="照合結果を両方のビュワーに色で表示します。左右で同じ通り芯・同じ記載寸法の区間は黄色、差異がある区間は赤、片方で寸法が読めなかった区間は橙の破線です"><input type="checkbox" id="ck-marks" checked> 照合結果を図面に色で表示（一致=黄 / 差異=赤）</label>
     </div>
     <button id="run-check" disabled>照合する</button>
@@ -3780,7 +3782,7 @@
             row(sideName, "通り芯", l, "あり", "なし", null, "NG", "比較図面のこの辺に同じ符号がありません", {
               b: b.axes.filter((a) => a.label === l),
               c: [],
-            })
+            }, null, key)
           );
         }
         for (const l of onlyC) {
@@ -3788,7 +3790,7 @@
             row(sideName, "通り芯", l, "なし", "あり", null, "NG", "基準図面のこの辺に同じ符号がありません", {
               b: [],
               c: c.axes.filter((a) => a.label === l),
-            })
+            }, null, key)
           );
         }
         if (!onlyB.length && !onlyC.length && bl.length) {
@@ -3804,7 +3806,8 @@
               sameOrder ? "OK" : "NG",
               sameOrder ? "" : "並び順が異なります",
               { b: b.axes, c: c.axes },
-              "all"
+              "all",
+              key
             )
           );
         }
@@ -3824,20 +3827,20 @@
           const k = bs.from + "~" + bs.to;
           seen.add(k);
           const cs = cByKey.get(k) || chainSpan(c, bs.from, bs.to);
-          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(bs, cHas, "比較図面"));
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(bs, cHas, "比較図面"), null, key);
         }
         for (const cs of c.spans) {
           const k = cs.from + "~" + cs.to;
           if (seen.has(k)) continue;
           seen.add(k);
           const bs = bByKey.get(k) || chainSpan(b, cs.from, cs.to);
-          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(cs, bHas, "基準図面"));
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(cs, bHas, "基準図面"), null, key);
         }
       }
 
       if (checks.total !== false && b.total && c.total) {
         const k = b.total.from + "~" + b.total.to;
-        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol, null, "all");
+        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol, null, "all", key);
       }
     }
 
@@ -3850,7 +3853,7 @@
     return { rows, summary };
   }
 
-  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing, scope) {
+  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing, scope, sideKey) {
     const bv = bs ? bs.value : null;
     const cv = cs ? cs.value : null;
     const notes = [];
@@ -3896,12 +3899,13 @@
           bs: bs || null, // 図上でその寸法の数字だけを塗るのに使う
           cs: cs || null,
         },
-        scope
+        scope,
+        sideKey
       )
     );
   }
 
-  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs, scope) {
+  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs, scope, sideKey) {
     const r = {
       side: sideName,
       check,
@@ -3919,6 +3923,9 @@
     // scope "all" は図面全体にかかる行（符号の一覧・全体寸法）。
     // ビュワーの色付けはこれを塗らない（図面が丸ごと埋まってしまうため）
     if (scope) Object.defineProperty(r, "scope", { value: scope, enumerable: false });
+    // どの辺（または方向）の判定か。UI はこの辺の符号だけを塗る。
+    // これが無いと「上辺の符号が合わない」で下辺の符号まで赤くなる
+    if (sideKey) Object.defineProperty(r, "sideKey", { value: sideKey, enumerable: false });
     return r;
   }
 
@@ -4095,6 +4102,7 @@
     SAME_MIN: 0.8, // 「ページ間で同じ範囲」とみなす一致率（Jaccard）
     DIFF_MAX: 0.75, // 「ページ間で違う範囲」とみなす一致率の上限
     VALUE_TOL: 0.5, // ページ間で同じ区間の記載値が食い違ったとみなす差(mm)
+    SIDE_MATCH: 0.6, // 「同じ辺に符号を書いている」とみなす本数の比
   };
 
   // 符号の番号部分（X2.2 → 2.2）。並べ替えに使う
@@ -4338,7 +4346,34 @@
     return out;
   }
 
-  ZC.split = { detect, describe, merge, byDirection, mergeSideObjects, num, PARAMS };
+  // 「辺ごと」と「方向ごと」のどちらで照合すべきかを決める。
+  // 図面の種類が違うと**符号を書く辺が違う**ことがあり（平面図は4辺、構造図は
+  // 下辺と左辺だけ）、辺ごとに照合すると「構造図の上辺に符号が無い」という
+  // 書き方の違いだけで大量に NG が出て、本当の差異が埋もれる。
+  // どこか1辺でも本数が大きく食い違えば、方向ごとにまとめて照合する。
+  function pickUnit(baseSides, cmpSides) {
+    const diffs = [];
+    for (const k of SIDES) {
+      const nb = ((baseSides && baseSides[k] && baseSides[k].axes) || []).length;
+      const nc = ((cmpSides && cmpSides[k] && cmpSides[k].axes) || []).length;
+      const hi = Math.max(nb, nc);
+      const lo = Math.min(nb, nc);
+      if (hi >= 2 && lo < hi * PARAMS.SIDE_MATCH) {
+        diffs.push({ side: k, name: SIDE_NAME[k], base: nb, cmp: nc });
+      }
+    }
+    return {
+      unit: diffs.length ? "dir" : "side",
+      diffs,
+      reason: diffs.length
+        ? "符号を書いている辺が図面どうしで違います（" +
+          diffs.map((d) => d.name + " 基準" + d.base + "本/比較" + d.cmp + "本").join("・") +
+          "）。辺ごとだと書き方の違いが差異として出るため、方向ごとにまとめて照合します。"
+        : "両方の図面が同じ辺に符号を書いているので、辺ごとに照合します。",
+    };
+  }
+
+  ZC.split = { detect, describe, merge, byDirection, mergeSideObjects, pickUnit, num, PARAMS };
 })(globalThis.ZC = globalThis.ZC || {});
 
 /* ===== 30_ui.js ===== */
@@ -4381,6 +4416,8 @@
     NG: { fill: "#e3002c", pad: 3, line: COLORS.diff, dash: [], width: 1.6, extra: 0.4, label: true },
   };
   const MARK_ORDER = ["OK", "WARN", "NG"];
+  // 判定の「辺」から、図上で塗る符号の辺へ。方向ごとの照合は両方の辺を塗る
+  const MARK_SIDES = { x: ["top", "bottom"], y: ["right", "left"] };
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -5818,10 +5855,16 @@
         const style = MARK_STYLE[d.status];
         if (!style) continue;
         const rects = [];
-        // 区間の両端の符号
+        // 区間の両端の符号。**その判定の辺に書かれた符号だけ**を塗る。
+        // 符号は芯の両端に書かれるので、辺を見ないと「上辺の符号が合わない」で
+        // 下辺の符号まで赤くなる（利用者から指摘）。
+        const sides = d.sideKey ? MARK_SIDES[d.sideKey] || [d.sideKey] : null;
         for (const ax of d.axes || []) {
           if (!mine(ax)) continue;
-          for (const b of ax.bubbles || []) rects.push(bubbleRect(b));
+          for (const b of ax.bubbles || []) {
+            if (sides && sides.indexOf(b.side) < 0) continue;
+            rects.push(bubbleRect(b));
+          }
         }
         // その区間の寸法として読んだ数字
         const sp = d.span;
@@ -6295,19 +6338,20 @@
         total: document.getElementById("ck-total").checked,
       };
       const unitSel = document.getElementById("cmp-unit");
-      const byDir = unitSel && unitSel.value === "dir";
-      // 分割されたページはまとめ、「方向ごと」なら上辺+下辺・右辺+左辺もまとめる
-      const sidesOf = (panel) => {
-        const s = panel.compareSides();
-        return byDir && s ? ZC.split.byDirection(s) : s;
-      };
+      const want = unitSel ? unitSel.value : "auto";
+      // 分割されたページはまとめる
+      const bs = ui.base.compareSides();
+      const cs = ui.cmp.compareSides();
+      // 「自動」は、両方の図面が同じ辺に符号を書いているかで決める
+      const pick = want === "auto" ? ZC.split.pickUnit(bs, cs) : { unit: want, diffs: [], reason: "" };
+      const byDir = pick.unit === "dir";
       const result = ZC.compare.compare(
-        { sides: sidesOf(ui.base), name: "基準" },
-        { sides: sidesOf(ui.cmp), name: "比較" },
+        { sides: byDir ? ZC.split.byDirection(bs) : bs, name: "基準" },
+        { sides: byDir ? ZC.split.byDirection(cs) : cs, name: "比較" },
         { tol, checks }
       );
       ui.lastResult = result;
-      ui.renderResult(result, tol);
+      ui.renderResult(result, tol, want === "auto" ? pick : null);
       ui.showDiffMarks(result);
     },
 
@@ -6325,14 +6369,15 @@
         // 図面全体にかかる行（符号の一覧・全体寸法）で塗ると図面が丸ごと埋まる
         if (!r.refs || r.scope === "all") continue;
         const label = r.item;
-        if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, span: r.refs.bs, label, status: r.status });
-        if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, span: r.refs.cs, label, status: r.status });
+        const m = { label, status: r.status, sideKey: r.sideKey };
+        if (r.refs.b && r.refs.b.length) b.push(Object.assign({ axes: r.refs.b, span: r.refs.bs }, m));
+        if (r.refs.c && r.refs.c.length) c.push(Object.assign({ axes: r.refs.c, span: r.refs.cs }, m));
       }
       ui.base.setDiffs(b);
       ui.cmp.setDiffs(c);
     },
 
-    renderResult(result, tol) {
+    renderResult(result, tol, pick) {
       const wrap = document.getElementById("result");
       wrap.innerHTML = "";
       const s = result.summary;
@@ -6347,6 +6392,15 @@
             "（許容差 ±" + tol + "mm）",
         })
       );
+      // 「自動」でどちらを選んだかと、その理由を出す
+      if (pick) {
+        wrap.appendChild(
+          el("p", {
+            class: "result-hint unit-note" + (pick.unit === "dir" ? " picked" : ""),
+            text: "照合の単位: " + (pick.unit === "dir" ? "方向ごと（X/Y）" : "辺ごと") + " … " + pick.reason,
+          })
+        );
+      }
       if (!result.rows.length) {
         wrap.appendChild(el("p", { text: "チェック項目が選択されていないか、対応する通り芯がありません。" }));
         document.getElementById("csv-dl").hidden = true;

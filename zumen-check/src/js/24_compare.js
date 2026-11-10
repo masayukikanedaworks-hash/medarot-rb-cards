@@ -72,7 +72,7 @@
             row(sideName, "通り芯", l, "あり", "なし", null, "NG", "比較図面のこの辺に同じ符号がありません", {
               b: b.axes.filter((a) => a.label === l),
               c: [],
-            })
+            }, null, key)
           );
         }
         for (const l of onlyC) {
@@ -80,7 +80,7 @@
             row(sideName, "通り芯", l, "なし", "あり", null, "NG", "基準図面のこの辺に同じ符号がありません", {
               b: [],
               c: c.axes.filter((a) => a.label === l),
-            })
+            }, null, key)
           );
         }
         if (!onlyB.length && !onlyC.length && bl.length) {
@@ -96,7 +96,8 @@
               sameOrder ? "OK" : "NG",
               sameOrder ? "" : "並び順が異なります",
               { b: b.axes, c: c.axes },
-              "all"
+              "all",
+              key
             )
           );
         }
@@ -116,20 +117,20 @@
           const k = bs.from + "~" + bs.to;
           seen.add(k);
           const cs = cByKey.get(k) || chainSpan(c, bs.from, bs.to);
-          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(bs, cHas, "比較図面"));
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(bs, cHas, "比較図面"), null, key);
         }
         for (const cs of c.spans) {
           const k = cs.from + "~" + cs.to;
           if (seen.has(k)) continue;
           seen.add(k);
           const bs = bByKey.get(k) || chainSpan(b, cs.from, cs.to);
-          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(cs, bHas, "基準図面"));
+          pushSpanRow(rows, sideName, "芯々寸法", k, bs, cs, tol, miss(cs, bHas, "基準図面"), null, key);
         }
       }
 
       if (checks.total !== false && b.total && c.total) {
         const k = b.total.from + "~" + b.total.to;
-        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol, null, "all");
+        pushSpanRow(rows, sideName, "全体寸法", k, b.total, c.total, tol, null, "all", key);
       }
     }
 
@@ -142,7 +143,7 @@
     return { rows, summary };
   }
 
-  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing, scope) {
+  function pushSpanRow(rows, sideName, check, item, bs, cs, tol, missing, scope, sideKey) {
     const bv = bs ? bs.value : null;
     const cv = cs ? cs.value : null;
     const notes = [];
@@ -188,12 +189,13 @@
           bs: bs || null, // 図上でその寸法の数字だけを塗るのに使う
           cs: cs || null,
         },
-        scope
+        scope,
+        sideKey
       )
     );
   }
 
-  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs, scope) {
+  function row(sideName, check, item, baseVal, cmpVal, diff, status, note, refs, scope, sideKey) {
     const r = {
       side: sideName,
       check,
@@ -211,6 +213,9 @@
     // scope "all" は図面全体にかかる行（符号の一覧・全体寸法）。
     // ビュワーの色付けはこれを塗らない（図面が丸ごと埋まってしまうため）
     if (scope) Object.defineProperty(r, "scope", { value: scope, enumerable: false });
+    // どの辺（または方向）の判定か。UI はこの辺の符号だけを塗る。
+    // これが無いと「上辺の符号が合わない」で下辺の符号まで赤くなる
+    if (sideKey) Object.defineProperty(r, "sideKey", { value: sideKey, enumerable: false });
     return r;
   }
 
