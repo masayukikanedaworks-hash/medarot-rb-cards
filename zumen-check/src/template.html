@@ -273,6 +273,15 @@
   .ai-head .ai-run:disabled { background: #b9c4ce; cursor: not-allowed; }
   .ai-note { color: #9a6b00; font-size: 11px; }
   .ai-result { margin-top: 6px; }
+  /* 拾い出し結果の開閉（既定は閉じ） */
+  .pickup-toggle { background: none; border: 0; padding: 2px 4px 2px 0; font: inherit; font-weight: 700;
+                   color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .pickup-toggle:hover { color: var(--accent); }
+  .pickup-toggle .tri { width: 0; height: 0; border-left: 6px solid currentColor;
+                        border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+                        transition: transform .12s ease; }
+  .pickup-toggle.open .tri { transform: rotate(90deg); }
+  .pickup-sum { color: var(--sub); font-size: 12px; font-weight: 400; }
   /* 分割図面（1つの建物を上下/左右に分けて複数ページに描いたもの）の表示 */
   .split-box { margin: 6px 0; padding: 8px 10px; border: 1px solid #cfd8e3; border-left: 4px solid #2f6fd0;
                border-radius: 6px; background: #f4f8ff; font-size: 12px; }
