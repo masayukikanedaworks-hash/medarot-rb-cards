@@ -82,55 +82,107 @@
   // ---- 線で描かれた文字の対応表 --------------------------------------
   // フォントの指紋ごとに localStorage へ保存する。同じCAD・同じフォントの
   // 図面なら、一度教えれば次からは自動で読める。
-  const GLYPH_STORE = "zc.glyphmap.";
+  // 対応表は**図面をまたいで1つ**にためる。字形の照合は完全一致ではなく
+  // 「一番近い鍵」なので、同じCADの別の図面でもそのまま効く。新しい図面で
+  // 未登録の字形が出たら、そのぶんだけ足していく。
+  const GLYPH_STORE = "zc.glyphmap";
+  const GLYPH_STORE_OLD = "zc.glyphmap."; // 図面ごとに保存していた頃の鍵
+  const GLYPH_MAX = 4000; // ためこむ字形の上限
 
-  function glyphKey(extract) {
-    const info = ZC.glyph.extract(extract);
-    return { info, key: GLYPH_STORE + ZC.glyph.fingerprint(info.shapes) };
-  }
-
-  function loadGlyphMap(extract) {
+  function loadGlyphMap() {
+    let map = {};
     try {
-      if (!extract || !extract.segments || extract.segments.length < 200) return null;
-      const { key } = glyphKey(extract);
-      const raw = globalThis.localStorage && localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
+      if (!globalThis.localStorage) return map;
+      const raw = localStorage.getItem(GLYPH_STORE);
+      if (raw) map = JSON.parse(raw) || {};
+      // 図面ごとに保存していた古い対応表を取り込む（一度だけ）
+      const olds = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k !== GLYPH_STORE && k.indexOf(GLYPH_STORE_OLD) === 0) olds.push(k);
+      }
+      if (olds.length) {
+        for (const k of olds) {
+          try {
+            const m = JSON.parse(localStorage.getItem(k)) || {};
+            for (const sh in m) if (m[sh] && !map[sh]) map[sh] = m[sh];
+          } catch (e) {
+            /* 壊れていれば無視 */
+          }
+          localStorage.removeItem(k);
+        }
+        localStorage.setItem(GLYPH_STORE, JSON.stringify(map));
+      }
     } catch (e) {
-      return null;
+      return map;
     }
+    return map;
   }
 
-  function saveGlyphMap(extract, map) {
+  // 入力された分を既存の対応表に**足して**保存する（置き換えない）
+  function saveGlyphMap(add) {
+    const map = loadGlyphMap();
+    let n = Object.keys(map).length;
+    for (const sh in add) {
+      if (!add[sh]) {
+        delete map[sh];
+        continue;
+      }
+      if (!(sh in map) && n >= GLYPH_MAX) continue;
+      if (!(sh in map)) n++;
+      map[sh] = add[sh];
+    }
     try {
-      const { key } = glyphKey(extract);
-      if (globalThis.localStorage) localStorage.setItem(key, JSON.stringify(map));
+      if (globalThis.localStorage) localStorage.setItem(GLYPH_STORE, JSON.stringify(map));
     } catch (e) {
       /* 保存できなくても読み取りは動く */
     }
+    return map;
   }
 
   // 字形を一覧にして、1つずつ文字を教えてもらう画面。
+  // 既に覚えている字形は入力済みで出し、**未登録のものだけ**を足していけばよい。
   // 回転した同じ字形には候補を出すが、自動では決めない
   // （9 が 6 の180度回転のフォントでは取り違えるため、必ず目で確認してもらう）。
   function renderGlyphTeacher(panel, container) {
     const info = panel.ensureGlyphInfo();
     container.innerHTML = "";
+    const stored = loadGlyphMap();
+    const keyBits = {};
+    for (const k in stored) if (stored[k]) keyBits[k] = ZC.glyph.hexToBits(k);
+
+    // 覚えている字形は入力済みにする
+    const rows = info.shapes.map((sh) => {
+      const key = ZC.glyph.matchShape(ZC.glyph.hexToBits(sh.shape), keyBits, ZC.glyph.aspectOfKey(sh.shape));
+      return { sh, known: key ? stored[key] : "" };
+    });
+    const unknown = rows.filter((r) => !r.known).length;
+    rows.sort((a, b) => (a.known ? 1 : 0) - (b.known ? 1 : 0) || b.sh.count - a.sh.count);
+
     const box = el("div", { class: "teach" });
     box.appendChild(el("div", { class: "teach-title", text: "線で描かれた文字を教える" }));
     box.appendChild(
       el("p", {
         text:
-          "この図面は数字が線で描かれているため、形と文字の対応を一度だけ教えてください。" +
           "各マスの下に、その形が表す文字（0〜9 / . / X / Y）を入力します。" +
-          "入力した内容はこのブラウザに保存され、同じCADの図面では次から自動で読み取ります。",
+          "覚えている字形は入力済みで出ます。文字ではない線の破片は空欄のままにしてください。" +
+          "入力した内容はこのブラウザにためられ、次に読む図面でもそのまま使われます。",
       })
     );
-    const current = panel.glyphMap || {};
+    box.appendChild(
+      el("div", {
+        class: "teach-count",
+        text:
+          "この図面の字形 " + info.shapes.length + "種／うち未登録 " + unknown + "種" +
+          "（覚えている字形 " + Object.keys(stored).length + "種）",
+      })
+    );
+
     const grid = el("div", { class: "teach-grid" });
     const inputs = [];
-    const shapes = info.shapes.slice(0, 80);
-    for (const sh of shapes) {
-      const cell = el("div", { class: "teach-cell" });
+    for (const row of rows.slice(0, 400)) {
+      const sh = row.sh;
+      const cell = el("div", { class: "teach-cell" + (row.known ? " done" : "") });
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 28 28");
       svg.setAttribute("width", "28");
@@ -143,17 +195,24 @@
       svg.appendChild(path);
       cell.appendChild(svg);
       const inp = el("input", { class: "teach-in", type: "text", maxlength: "1" });
-      inp.value = current[sh.shape] || "";
+      inp.value = row.known || "";
       inp.title = sh.count + "回";
       cell.appendChild(inp);
       cell.appendChild(el("span", { class: "teach-n", text: String(sh.count) }));
       grid.appendChild(cell);
-      inputs.push({ sh, inp });
+      inputs.push({ sh, inp, cell, known: row.known });
     }
     box.appendChild(grid);
 
+    // 未登録だけ表示（覚えている字形が多いときの既定）
+    const onlyNew = el("input", { type: "checkbox", class: "teach-only" });
+    onlyNew.checked = unknown > 0 && unknown < rows.length;
+    const applyFilter = () => {
+      for (const o of inputs) o.cell.hidden = onlyNew.checked && !!o.known;
+    };
+    onlyNew.addEventListener("change", applyFilter);
+
     // 入力したら、±90度回した同じ形に候補を入れる（グレー表示・手で直せる）
-    const byShape = new Map(inputs.map((o) => [o.sh.shape, o]));
     const suggest = () => {
       for (const o of inputs) {
         if (o.inp.value && !o.inp.classList.contains("guess")) continue;
@@ -176,21 +235,24 @@
         suggest();
       });
     }
-    void byShape;
     suggest();
+    applyFilter();
 
     const bar = el("div", { class: "teach-bar" });
     const apply = el("button", { type: "button", class: "teach-apply", text: "この内容で読み取る" });
     const msg = el("span", { class: "teach-msg" });
     apply.addEventListener("click", () => {
-      const map = {};
-      for (const { sh, inp } of inputs) {
+      const add = {};
+      for (const { sh, inp, known } of inputs) {
         const v = (inp.value || "").trim();
-        if (v) map[sh.shape] = v;
+        if (v) add[sh.shape] = v;
+        else if (known) add[sh.shape] = ""; // 入力を消したら覚えからも外す
       }
-      saveGlyphMap(panel.extract, map);
-      const n = panel.applyGlyphMap(map);
-      msg.textContent = n ? n + "件の文字列を読み取りました" : "読み取れた文字列がありません";
+      const merged = saveGlyphMap(add);
+      const n = panel.applyGlyphMap(merged);
+      msg.textContent = n
+        ? n + "件の文字列を読み取りました（覚えている字形 " + Object.keys(merged).length + "種）"
+        : "読み取れた文字列がありません";
     });
     bar.appendChild(apply);
     const clear = el("button", { type: "button", class: "teach-clear", text: "入力を消す" });
@@ -201,6 +263,10 @@
       }
     });
     bar.appendChild(clear);
+    const lbl = el("label", { class: "teach-filter" });
+    lbl.appendChild(onlyNew);
+    lbl.appendChild(document.createTextNode(" 未登録だけ表示"));
+    bar.appendChild(lbl);
     bar.appendChild(msg);
     box.appendChild(bar);
     container.appendChild(box);
@@ -232,21 +298,48 @@
     box.appendChild(ul);
     // 文字が線で描かれている図面は、形と文字の対応を教えればこのまま読める
     if (diag.outlined && panel) {
-      const bar = el("div", { class: "diag-act" });
-      const btn = el("button", { type: "button", class: "teach-open", text: "線で描かれた文字を教えて読み取る" });
-      const slot = el("div", { class: "teach-slot" });
-      btn.addEventListener("click", () => {
-        if (slot.childNodes.length) {
-          slot.innerHTML = "";
-          return;
-        }
-        renderGlyphTeacher(panel, slot);
-      });
-      bar.appendChild(btn);
-      box.appendChild(bar);
-      box.appendChild(slot);
+      box.appendChild(glyphTeachBar(panel, "線で描かれた文字を教えて読み取る"));
     }
     return box;
+  }
+
+  // 「線で描かれた文字を教える」ボタンと、その下に開く入力画面。
+  // 読み取れている図面でも**未登録の字形をその場で足せる**ように、
+  // 診断が出ていないときの拾い出し欄にも同じものを置く。
+  function glyphTeachBar(panel, label) {
+    const bar = el("div", { class: "glyph-bar" });
+    const btn = el("button", { type: "button", class: "teach-open", text: label });
+    const slot = el("div", { class: "teach-slot" });
+    btn.addEventListener("click", () => {
+      if (slot.childNodes.length) {
+        slot.innerHTML = "";
+        return;
+      }
+      renderGlyphTeacher(panel, slot);
+    });
+    bar.appendChild(btn);
+    const info = panel.glyphInfo;
+    if (info) {
+      const stored = loadGlyphMap();
+      const kb = {};
+      for (const k in stored) if (stored[k]) kb[k] = ZC.glyph.hexToBits(k);
+      let unknown = 0;
+      for (const sh of info.shapes) {
+        if (!ZC.glyph.matchShape(ZC.glyph.hexToBits(sh.shape), kb, ZC.glyph.aspectOfKey(sh.shape))) unknown++;
+      }
+      bar.appendChild(
+        el("span", {
+          class: "glyph-note" + (unknown ? " warn" : ""),
+          text: unknown
+            ? "この図面には未登録の字形が " + unknown + " 種あります"
+            : "この図面の字形はすべて登録済みです",
+        })
+      );
+    }
+    const wrap = el("div");
+    wrap.appendChild(bar);
+    wrap.appendChild(slot);
+    return wrap;
   }
 
   // 通り芯以外の寸法線（室内寸法・開口幅 W＝ など）を段ごとに一覧する。
@@ -320,6 +413,7 @@
       this.others = null; // 通り芯以外の寸法線（段ごと）
       this.diag = null; // 文字データの有無の診断
       this.glyphInfo = null; // 線で描かれた文字の解析結果
+      this.glyphPage = false; // 文字が線で描かれたページか
       this.glyphMap = null; // 形→文字の対応表
       this.glyphTexts = []; // 対応表で起こした文字列
       this.baseTexts = null; // PDFに元から入っていた文字
@@ -500,6 +594,7 @@
       this.dimsInfo = { dots: [], entries: [] };
       this.sides = null;
       this.glyphInfo = null;
+      this.glyphPage = false;
       this.glyphMap = null;
       this.glyphTexts = [];
       this.baseTexts = null;
@@ -515,7 +610,12 @@
         this.baseTexts = this.extract.texts;
         // 線で描かれた文字（CADのストロークフォント）があれば、覚えている対応表で読む
         this.glyphInfo = null;
-        this.applyGlyphMap(loadGlyphMap(this.extract), true);
+        // 文字が線で描かれた図面のときだけ、覚えている対応表を当てる
+        // （通常の図面で重い字形解析を走らせないため）。
+        // 読み取ったあとは outlined が false になりうるので、ページの種別は
+        // 読み込み時に glyphPage として覚えておく。
+        this.glyphPage = ZC.content.diagnose(this.extract).outlined;
+        if (this.glyphPage) this.applyGlyphMap(loadGlyphMap(), true);
         const det = ZC.axis.detect(this.extract);
         this.det = det;
         this.axes = { v: det.v, h: det.h };
@@ -1328,6 +1428,10 @@
       this.$pickup.hidden = !showGrid;
       if (showGrid) renderSideBlocks(this.$pickup, this.sides);
       else this.$pickup.innerHTML = "";
+      // 線で描かれた文字の図面では、読めていても字形を足せるようにしておく
+      if (showGrid && (this.glyphPage || (this.diag && this.diag.outlined))) {
+        this.$pickup.appendChild(glyphTeachBar(this, "線で描かれた文字を教える・追加する"));
+      }
       this.$others.hidden = !showOther;
       if (showOther) renderOtherDims(this.$others, this.others);
       else this.$others.innerHTML = "";
