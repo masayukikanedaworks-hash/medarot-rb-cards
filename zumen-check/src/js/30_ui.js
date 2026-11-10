@@ -6,7 +6,7 @@
   const SIDE_ORDER = ["top", "right", "bottom", "left"];
 
   const COLORS = {
-    seg: "#b9c0c7",
+    seg: "#4a5560", // 図面の線。薄くすると寸法線や数字が白っぽくなって読めない
     v: "#1565d8",
     h: "#0a8f4e",
     off: "#c7c7c7",
@@ -15,6 +15,9 @@
     other: "#7a3fa8",
     measure: "#d81b60",
   };
+
+  const SEG_MIN_WIDTH = 0.7; // 図面の線の最小太さ(CSS px)
+  const SEG_MAX_WIDTH = 3; // 〃 最大（拡大しても潰れないように）
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -1015,9 +1018,15 @@
       const [px1, py0] = this.toPage(cssW, cssH);
       const m = 2 / v.scale;
 
-      ctx.lineWidth = 0.6;
-      ctx.strokeStyle = COLORS.seg;
-      ctx.beginPath();
+      // 図面の線。PDF本来の線の太さを反映して太さごとに描き分ける
+      // （全部同じ細さ・薄い色だと、寸法線や数字が白っぽく潰れて読めない）。
+      // 最低でも1デバイスピクセルの太さを確保する。
+      const minLw = Math.max(SEG_MIN_WIDTH, 1 / dpr);
+      const lwOf = (w) => {
+        const px = (w || 0.3) * v.scale;
+        return Math.min(SEG_MAX_WIDTH, Math.max(minLw, px));
+      };
+      const buckets = new Map(); // 太さ(0.25刻み) → [ax,ay,bx,by,...]
       const segs = this.extract.segments;
       const maxDraw = 200000;
       for (let i = 0; i < segs.length && i < maxDraw; i++) {
@@ -1026,10 +1035,21 @@
         if (Math.max(s.y1, s.y2) < py0 - m || Math.min(s.y1, s.y2) > py1 + m) continue;
         const a = this.toScreen(s.x1, s.y1);
         const b = this.toScreen(s.x2, s.y2);
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
+        const key = Math.round(lwOf(s.w) * 4);
+        let arr = buckets.get(key);
+        if (!arr) buckets.set(key, (arr = []));
+        arr.push(a[0], a[1], b[0], b[1]);
       }
-      ctx.stroke();
+      ctx.strokeStyle = COLORS.seg;
+      for (const [key, arr] of buckets) {
+        ctx.lineWidth = key / 4;
+        ctx.beginPath();
+        for (let i = 0; i < arr.length; i += 4) {
+          ctx.moveTo(arr[i], arr[i + 1]);
+          ctx.lineTo(arr[i + 2], arr[i + 3]);
+        }
+        ctx.stroke();
+      }
 
       this._drawHighlightBand(ctx);
       this._drawAxes(ctx);
