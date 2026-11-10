@@ -37,6 +37,8 @@
     NG: { fill: "#e3002c", pad: 3, line: COLORS.diff, dash: [], width: 1.6, extra: 0.4, label: true },
   };
   const MARK_ORDER = ["OK", "WARN", "NG"];
+  // 判定の「辺」から、図上で塗る符号の辺へ。方向ごとの照合は両方の辺を塗る
+  const MARK_SIDES = { x: ["top", "bottom"], y: ["right", "left"] };
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -1474,10 +1476,16 @@
         const style = MARK_STYLE[d.status];
         if (!style) continue;
         const rects = [];
-        // 区間の両端の符号
+        // 区間の両端の符号。**その判定の辺に書かれた符号だけ**を塗る。
+        // 符号は芯の両端に書かれるので、辺を見ないと「上辺の符号が合わない」で
+        // 下辺の符号まで赤くなる（利用者から指摘）。
+        const sides = d.sideKey ? MARK_SIDES[d.sideKey] || [d.sideKey] : null;
         for (const ax of d.axes || []) {
           if (!mine(ax)) continue;
-          for (const b of ax.bubbles || []) rects.push(bubbleRect(b));
+          for (const b of ax.bubbles || []) {
+            if (sides && sides.indexOf(b.side) < 0) continue;
+            rects.push(bubbleRect(b));
+          }
         }
         // その区間の寸法として読んだ数字
         const sp = d.span;
@@ -1951,19 +1959,20 @@
         total: document.getElementById("ck-total").checked,
       };
       const unitSel = document.getElementById("cmp-unit");
-      const byDir = unitSel && unitSel.value === "dir";
-      // 分割されたページはまとめ、「方向ごと」なら上辺+下辺・右辺+左辺もまとめる
-      const sidesOf = (panel) => {
-        const s = panel.compareSides();
-        return byDir && s ? ZC.split.byDirection(s) : s;
-      };
+      const want = unitSel ? unitSel.value : "auto";
+      // 分割されたページはまとめる
+      const bs = ui.base.compareSides();
+      const cs = ui.cmp.compareSides();
+      // 「自動」は、両方の図面が同じ辺に符号を書いているかで決める
+      const pick = want === "auto" ? ZC.split.pickUnit(bs, cs) : { unit: want, diffs: [], reason: "" };
+      const byDir = pick.unit === "dir";
       const result = ZC.compare.compare(
-        { sides: sidesOf(ui.base), name: "基準" },
-        { sides: sidesOf(ui.cmp), name: "比較" },
+        { sides: byDir ? ZC.split.byDirection(bs) : bs, name: "基準" },
+        { sides: byDir ? ZC.split.byDirection(cs) : cs, name: "比較" },
         { tol, checks }
       );
       ui.lastResult = result;
-      ui.renderResult(result, tol);
+      ui.renderResult(result, tol, want === "auto" ? pick : null);
       ui.showDiffMarks(result);
     },
 
@@ -1981,14 +1990,15 @@
         // 図面全体にかかる行（符号の一覧・全体寸法）で塗ると図面が丸ごと埋まる
         if (!r.refs || r.scope === "all") continue;
         const label = r.item;
-        if (r.refs.b && r.refs.b.length) b.push({ axes: r.refs.b, span: r.refs.bs, label, status: r.status });
-        if (r.refs.c && r.refs.c.length) c.push({ axes: r.refs.c, span: r.refs.cs, label, status: r.status });
+        const m = { label, status: r.status, sideKey: r.sideKey };
+        if (r.refs.b && r.refs.b.length) b.push(Object.assign({ axes: r.refs.b, span: r.refs.bs }, m));
+        if (r.refs.c && r.refs.c.length) c.push(Object.assign({ axes: r.refs.c, span: r.refs.cs }, m));
       }
       ui.base.setDiffs(b);
       ui.cmp.setDiffs(c);
     },
 
-    renderResult(result, tol) {
+    renderResult(result, tol, pick) {
       const wrap = document.getElementById("result");
       wrap.innerHTML = "";
       const s = result.summary;
@@ -2003,6 +2013,15 @@
             "（許容差 ±" + tol + "mm）",
         })
       );
+      // 「自動」でどちらを選んだかと、その理由を出す
+      if (pick) {
+        wrap.appendChild(
+          el("p", {
+            class: "result-hint unit-note" + (pick.unit === "dir" ? " picked" : ""),
+            text: "照合の単位: " + (pick.unit === "dir" ? "方向ごと（X/Y）" : "辺ごと") + " … " + pick.reason,
+          })
+        );
+      }
       if (!result.rows.length) {
         wrap.appendChild(el("p", { text: "チェック項目が選択されていないか、対応する通り芯がありません。" }));
         document.getElementById("csv-dl").hidden = true;

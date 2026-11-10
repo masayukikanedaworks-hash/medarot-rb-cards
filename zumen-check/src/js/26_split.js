@@ -11,6 +11,7 @@
     SAME_MIN: 0.8, // 「ページ間で同じ範囲」とみなす一致率（Jaccard）
     DIFF_MAX: 0.75, // 「ページ間で違う範囲」とみなす一致率の上限
     VALUE_TOL: 0.5, // ページ間で同じ区間の記載値が食い違ったとみなす差(mm)
+    SIDE_MATCH: 0.6, // 「同じ辺に符号を書いている」とみなす本数の比
   };
 
   // 符号の番号部分（X2.2 → 2.2）。並べ替えに使う
@@ -254,5 +255,32 @@
     return out;
   }
 
-  ZC.split = { detect, describe, merge, byDirection, mergeSideObjects, num, PARAMS };
+  // 「辺ごと」と「方向ごと」のどちらで照合すべきかを決める。
+  // 図面の種類が違うと**符号を書く辺が違う**ことがあり（平面図は4辺、構造図は
+  // 下辺と左辺だけ）、辺ごとに照合すると「構造図の上辺に符号が無い」という
+  // 書き方の違いだけで大量に NG が出て、本当の差異が埋もれる。
+  // どこか1辺でも本数が大きく食い違えば、方向ごとにまとめて照合する。
+  function pickUnit(baseSides, cmpSides) {
+    const diffs = [];
+    for (const k of SIDES) {
+      const nb = ((baseSides && baseSides[k] && baseSides[k].axes) || []).length;
+      const nc = ((cmpSides && cmpSides[k] && cmpSides[k].axes) || []).length;
+      const hi = Math.max(nb, nc);
+      const lo = Math.min(nb, nc);
+      if (hi >= 2 && lo < hi * PARAMS.SIDE_MATCH) {
+        diffs.push({ side: k, name: SIDE_NAME[k], base: nb, cmp: nc });
+      }
+    }
+    return {
+      unit: diffs.length ? "dir" : "side",
+      diffs,
+      reason: diffs.length
+        ? "符号を書いている辺が図面どうしで違います（" +
+          diffs.map((d) => d.name + " 基準" + d.base + "本/比較" + d.cmp + "本").join("・") +
+          "）。辺ごとだと書き方の違いが差異として出るため、方向ごとにまとめて照合します。"
+        : "両方の図面が同じ辺に符号を書いているので、辺ごとに照合します。",
+    };
+  }
+
+  ZC.split = { detect, describe, merge, byDirection, mergeSideObjects, pickUnit, num, PARAMS };
 })(globalThis.ZC = globalThis.ZC || {});
