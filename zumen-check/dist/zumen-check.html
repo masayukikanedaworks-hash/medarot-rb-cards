@@ -3780,6 +3780,7 @@
 
   const SEG_MIN_WIDTH = 0.7; // 図面の線の最小太さ(CSS px)
   const SEG_MAX_WIDTH = 3; // 〃 最大（拡大しても潰れないように）
+  const TEXT_MIN_PX = 4; // PDFの文字を描く最小サイズ(px)。これ未満は潰れるだけ
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -4913,6 +4914,7 @@
         ctx.stroke();
       }
 
+      this._drawPdfTexts(ctx, px0, py0, px1, py1);
       this._drawHighlightBand(ctx);
       this._drawAxes(ctx);
       if (this.showDims) {
@@ -4985,6 +4987,45 @@
     }
 
     // 辺ごとの記載寸法を図上に表示
+    // PDFに入っている文字（寸法の数字・室名など）を図面上のその位置に描く。
+    // これが無いと、線だけの図面に見えて「図面に寸法が書かれていない」ように
+    // 見えてしまう（実際には元のPDFに文字として入っている）。
+    // 線で描かれた文字（glyphText）は線として既に描かれているので除く。
+    _drawPdfTexts(ctx, px0, py0, px1, py1) {
+      const texts = (this.extract && this.extract.texts) || [];
+      if (!texts.length) return;
+      const v = this.view;
+      ctx.fillStyle = COLORS.seg;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      for (const t of texts) {
+        if (t.glyphText) continue;
+        const tex = t.ex !== undefined ? t.ex : t.x;
+        const tey = t.ey !== undefined ? t.ey : t.y;
+        const size = t.size || 10;
+        if (Math.max(t.x, tex) < px0 - size || Math.min(t.x, tex) > px1 + size) continue;
+        if (Math.max(t.y, tey) < py0 - size || Math.min(t.y, tey) > py1 + size) continue;
+        const px = size * v.scale;
+        if (px < TEXT_MIN_PX) continue; // 小さすぎると潰れるだけなので描かない
+        const a = this.toScreen(t.x, t.y);
+        const b = this.toScreen(tex, tey);
+        const dx = b[0] - a[0];
+        const dy = b[1] - a[1];
+        const adv = Math.hypot(dx, dy);
+        ctx.save();
+        ctx.font = px.toFixed(2) + "px sans-serif"; // save/restore で戻るので毎回入れる
+        ctx.translate(a[0], a[1]);
+        if (Math.abs(dy) > 0.01 || dx < 0) ctx.rotate(Math.atan2(dy, dx));
+        // 元の文字送りに合わせて横に伸縮する（CADの文字幅に近づける）
+        if (adv > 1) {
+          const w = ctx.measureText(t.str).width;
+          if (w > 1) ctx.scale(adv / w, 1);
+        }
+        ctx.fillText(t.str, 0, 0);
+        ctx.restore();
+      }
+    }
+
     // 通り芯以外の寸法線を、図面上のその位置に描く（拡大時のみ数値を出す）
     _drawOtherDims(ctx) {
       if (!this.others) return;
