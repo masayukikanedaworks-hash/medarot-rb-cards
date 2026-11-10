@@ -39,3 +39,16 @@ exports["W＝の開口幅は数字だけを寸法として読む"] = () => {
   assert.equal(ZC.util.isWidthNote("W= 900"), true);
   assert.equal(ZC.util.isWidthNote("900"), false);
 };
+
+exports.黒ドットが極小の円弧で描かれていても読む = async () => {
+  // 実図面の構造図は 1 つの黒ドットを上下 2 つの半円（幅0.6×高さ0.3）で描く。
+  // 塗りでも太線でも閉じた円でもないため、弧として拾えないと寸法が 0 件になる。
+  const spec = mk.makeSpec();
+  spec.arcDots = true;
+  const { dims, sides } = await analyze(mk.makeBasicPdf(spec));
+  assert.ok(dims.dots.length >= 10, "円弧のドットが拾えている: " + dims.dots.length);
+  assert.ok(dims.entries.length >= 6, "寸法が読めている: " + dims.entries.length);
+  const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
+  assert.equal(sp.value, 6000, "塗りドットの図面と同じ値になる");
+  assert.deepEqual(sp.parts, [2730.5, 3269.5]);
+};

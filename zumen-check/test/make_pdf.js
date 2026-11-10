@@ -58,6 +58,9 @@ function makeSpec() {
     // textAt を使わず STROKE_FONT で描くので、PDFに文字データが残らない。
     strokeFont: false,
     strokeH: 3.6, // 線で描く文字の高さ(pt)
+    // true で寸法線の黒ドットを「上下2つの極小な円弧」で描く（実図面の構造図と
+    // 同じ描き方。塗りでも太線でも閉じた円でもないので、弧として拾う必要がある）
+    arcDots: false,
     // 構造図の部材符号（縦枠 Y1.1 / X2.1 など）。円で囲まない文字として散らす。
     // 通り芯の符号と同じ書式なので、円が無ければ拾わないことの検証に使う。
     // [{ str:"Y1.1", x, y }]
@@ -248,7 +251,29 @@ function drawingOps(spec, textEnc, useTJ) {
   // ---- 寸法（4辺） ----
   if (spec.dots) {
     ops.push("0.4 w [] 0 d");
-    const dot = (x, y) => ops.push(circleOps(x, y, 0.9, true));
+    // 黒ドット。arcDots なら上下2つの半円（細線のストローク）で描く
+    const dot = (x, y) => {
+      if (!spec.arcDots) {
+        ops.push(circleOps(x, y, 0.9, true));
+        return;
+      }
+      const r = 0.3;
+      const k = r * 0.5523;
+      ops.push("0.6 w");
+      // 上半分
+      ops.push(
+        `${fmt(x - r)} ${fmt(y)} m ` +
+          `${fmt(x - r)} ${fmt(y + k)} ${fmt(x - k)} ${fmt(y + r)} ${fmt(x)} ${fmt(y + r)} c ` +
+          `${fmt(x + k)} ${fmt(y + r)} ${fmt(x + r)} ${fmt(y + k)} ${fmt(x + r)} ${fmt(y)} c S`
+      );
+      // 下半分
+      ops.push(
+        `${fmt(x + r)} ${fmt(y)} m ` +
+          `${fmt(x + r)} ${fmt(y - k)} ${fmt(x + k)} ${fmt(y - r)} ${fmt(x)} ${fmt(y - r)} c ` +
+          `${fmt(x - k)} ${fmt(y - r)} ${fmt(x - r)} ${fmt(y - k)} ${fmt(x - r)} ${fmt(y)} c S`
+      );
+      ops.push("0.4 w");
+    };
     // 横向きの寸法線1段（points: x座標列 / values: 各区間の注記）
     const hDimRow = (rowY, points, values, tjFirst) => {
       ops.push(`${fmt(points[0])} ${fmt(rowY)} m ${fmt(points[points.length - 1])} ${fmt(rowY)} l S`);
