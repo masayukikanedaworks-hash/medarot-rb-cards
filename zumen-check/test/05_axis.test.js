@@ -136,3 +136,52 @@ exports.中黒の小数点も符号として読む = async () => {
   assert.equal(U.axisLabelOf("X2-2"), null);
   assert.equal(U.axisLabelOf("X2,2"), null);
 };
+
+// --- 円で囲まれていない符号 ------------------------------------------------
+
+// 構造図は細分の通り芯（X2.5 / Y8.2 など）を円で囲まずに書くことがある。
+// 番号と位置が既にある符号と矛盾しなければ拾う。
+exports.円で囲まれていない符号も拾う = async () => {
+  const spec = mk.makeSpec();
+  spec.vAxes.splice(1, 0, { label: "X1.5", mm: 3000, noBubble: true });
+  spec.hAxes.splice(1, 0, { label: "Y1.5", mm: 3000, noBubble: true });
+  spec.splitsV0 = null;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), ["X1", "X1.5", "X2", "X3"]);
+  assert.deepEqual(labels(det, "h"), ["Y1", "Y1.5", "Y2"]);
+  // どれが円無しで拾ったものかが分かる
+  assert.deepEqual(det.plainLabels.slice().sort(), ["X1.5", "Y1.5"]);
+  const ax = det.v.find((a) => a.label === "X1.5");
+  assert.ok(ax.bubbles.every((b) => b.plain), "円無しの印が付く");
+};
+
+// 番号が既にある符号の「あいだ」に無いものは拾わない。
+// （構造図の部材符号は同じ書式で図の中に散っているため）
+exports.番号の位置が合わない円無しの符号は拾わない = async () => {
+  const spec = mk.makeSpec();
+  // X9.5 は X1〜X3 の外側の番号なので、どこに書かれていても採らない
+  spec.vAxes.splice(1, 0, { label: "X9.5", mm: 3000, noBubble: true });
+  spec.splitsV0 = null;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"]);
+  assert.deepEqual(det.plainLabels, []);
+};
+
+// 円無しの符号は線のすぐ脇に書かれる前提。離れたところの文字で
+// 既存の符号を横取りしない（横ずれは PLAIN_LATERAL まで）
+exports.円無しの符号は離れた芯の符号を横取りしない = async () => {
+  const spec = mk.makeSpec();
+  // X2 の芯(紙上 320pt)から十分離れた位置に X2.5 と書く
+  spec.memberMarks = [{ str: "X2.5", x: 360, y: 200 }];
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"], "X2 が X2.5 に書き換わらない");
+};
+
+// 円で囲まれた符号が2本未満だと、番号と位置の関係が作れないので拾わない
+exports.基準になる符号が少なければ円無しの符号は拾わない = async () => {
+  const spec = mk.makeSpec();
+  spec.noBubbles = true;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), []);
+  assert.deepEqual(labels(det, "h"), []);
+};

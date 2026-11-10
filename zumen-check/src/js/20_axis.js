@@ -24,6 +24,8 @@
     CHAIN_COVER_MAX: 0.96, // 〃 カバー率の上限
     GROUP_R_TOL: 0.18,     // 同じ図の符号バブルとみなす半径の相対差
     LABEL_GAP: 0.6,        // バブル内で符号をつなぐ字送りの上限（フォントサイズ比）
+    PLAIN_LABELS: true,    // 円で囲まれていない符号も、位置が矛盾しなければ拾う
+    PLAIN_LATERAL: 3,      // 〃 芯との横ずれの許容。円囲みより厳しくする
   };
 
   const SIDES = ["top", "bottom", "left", "right"];
@@ -82,11 +84,28 @@
     // 部分的にしか引かれていない通り芯（X2.2 など）も、符号があれば採用するため。
     const allCands = bubbleCandidates(extract.texts, extract.circles || []);
     const grouped = groupBubbles(allCands);
-    const cands = grouped.primary;
-    const vAxes = buildAxes(vPieces, "v", by1 - by0, bx0, bx1, cands.filter((c) => c.dir === "v"));
-    const hAxes = buildAxes(hPieces, "h", bx1 - bx0, by0, by1, cands.filter((c) => c.dir === "h"));
-
+    let cands = grouped.primary;
+    const mkAxes = (list) => [
+      buildAxes(vPieces, "v", by1 - by0, bx0, bx1, list.filter((c) => c.dir === "v")),
+      buildAxes(hPieces, "h", bx1 - bx0, by0, by1, list.filter((c) => c.dir === "h")),
+    ];
+    let [vAxes, hAxes] = mkAxes(cands);
     assignLabels(vAxes.concat(hAxes), cands);
+
+    // 円で囲まれていない符号は、円囲みの符号が決まったあとで判定する
+    // （番号と位置が既存の符号と矛盾しないものだけを採るため）。
+    // 候補が増えると短い芯が救われるので、芯の組み立てからやり直す。
+    let plain = [];
+    if (PARAMS.PLAIN_LABELS) {
+      plain = plainCandidates(extract.texts, extract.circles || [], vAxes, hAxes, cands);
+      if (plain.length) {
+        cands = cands.concat(plain);
+        // 芯を組み直すので、1パス目で立てた「割り当て済み」を戻す
+        for (const c of cands) c.used = false;
+        [vAxes, hAxes] = mkAxes(cands);
+        assignLabels(vAxes.concat(hAxes), cands);
+      }
+    }
 
     for (const list of [vAxes, hAxes]) {
       list.sort((p, q) => p.pos - q.pos);
@@ -103,7 +122,9 @@
       // 対象にした図（符号バブルの広がりが最大の図）と、除外した図の情報
       region: grouped.groups.length > 1 ? grouped.groups[0].bbox : null,
       groups: grouped.groups.map((g) => ({ bbox: g.bbox, r: g.r, count: g.items.length })),
-      droppedBubbles: allCands.length - cands.length,
+      droppedBubbles: allCands.length - grouped.primary.length,
+      // 円で囲まれていないのに採用した符号（画面の説明用）
+      plainLabels: plain.filter((c) => c.used).map((c) => c.norm),
     };
   }
 
@@ -244,6 +265,19 @@
     return null;
   }
 
+  // 符号の番号部分（X2.2 → 2.2）
+  function labelNum(label) {
+    const m = /^[XY](\d+(?:\.\d+)?)$/.exec(String(label));
+    return m ? Number(m[1]) : NaN;
+  }
+
+  // 文字がその円（長円）の中にあるか
+  function insideCircle(c, tx, ty) {
+    const rx = (c.rx !== undefined ? c.rx : c.r) * PARAMS.BUBBLE_TEXT_IN;
+    const ry = (c.ry !== undefined ? c.ry : c.r) * PARAMS.BUBBLE_TEXT_IN;
+    return Math.hypot((tx - c.x) / rx, (ty - c.y) / ry) <= 1;
+  }
+
   // 円で囲まれた X○○/Y○○ の符号だけを候補として集める
   function bubbleCandidates(texts, circles) {
     const cands = [];
@@ -276,6 +310,83 @@
       cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, used: false });
     }
     return cands;
+  }
+
+  // 既に符号が付いた芯から「番号と位置の関係」を作る。
+  // 円で囲まれていない符号を採るかどうかの判定に使う。
+  function labeledRef(axes, cands) {
+    const list = axes
+      .filter((a) => a.label != null)
+      .map((a) => ({ n: labelNum(a.label), pos: a.pos }))
+      .filter((o) => !isNaN(o.n))
+      .sort((a, b) => a.n - b.n);
+    if (list.length < 2) return null;
+    // 番号が増える向き（位置が増える向きと同じなら +1）
+    const up = list[list.length - 1].pos > list[0].pos ? 1 : -1;
+    const rs = (cands || []).map((c) => c.r).filter((r) => r > 0).sort((a, b) => a - b);
+    return {
+      r: rs.length ? rs[rs.length >> 1] : 0,
+      has(label) {
+        const n = labelNum(label);
+        return list.some((o) => o.n === n);
+      },
+      // その番号が、既にある符号の「あいだ」に収まっているか。
+      // 両隣が無いもの（端の外側）は採らない。部材符号を拾わないための要。
+      fits(label, pos) {
+        const n = labelNum(label);
+        if (isNaN(n)) return false;
+        let lo = null;
+        let hi = null;
+        for (const o of list) {
+          if (o.n === n) return false; // 同じ番号の芯が既にある
+          if (o.n < n) lo = o;
+          else if (hi === null) hi = o;
+        }
+        if (!lo || !hi) return false;
+        return (pos - lo.pos) * up > 0 && (hi.pos - pos) * up > 0;
+      },
+    };
+  }
+
+  // 円で囲まれていない符号（X2.2 / Y8.2 など）を候補として集める。
+  // 構造図は細分の通り芯を円で囲まずに書くことがあるが、同じ書式の
+  // **部材符号**（Y1.1 など）が図の中に大量に散っていることもあるので、
+  // 「既にある符号の番号と位置の両方に矛盾しないもの」だけを採る。
+  function plainCandidates(texts, circles, vAxes, hAxes, cands) {
+    const refV = labeledRef(vAxes, cands);
+    const refH = labeledRef(hAxes, cands);
+    if (!refV && !refH) return [];
+    const out = [];
+    const seen = new Set();
+    for (const t of texts || []) {
+      if (!t.str) continue;
+      const lab = U.axisLabelOf(t.str);
+      if (!lab) continue;
+      const ref = lab.dir === "v" ? refV : refH;
+      if (!ref) continue;
+      const ex = t.ex !== undefined ? t.ex : t.x;
+      const ey = t.ey !== undefined ? t.ey : t.y;
+      const size = t.size || 7;
+      // 横書きの文字の y は**ベースライン**なので、見た目の中心へ寄せる。
+      // 円囲みの符号は円の中心を使うので関係ないが、囲み無しは文字の位置で
+      // 芯との横ずれを測るため、ここがずれると線の脇にある符号を取り逃がす。
+      const horiz = Math.abs(ex - t.x) >= Math.abs(ey - t.y);
+      const tx = (t.x + ex) / 2;
+      const ty = (t.y + ey) / 2 + (horiz ? size * 0.35 : 0);
+      if ((circles || []).some((c) => insideCircle(c, tx, ty))) continue; // 円囲みは別で拾う
+      const pos = lab.dir === "v" ? tx : ty;
+      if (!ref.fits(lab.label, pos)) continue;
+      const key = lab.label + "@" + Math.round(pos * 2);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        norm: lab.label, dir: lab.dir, x: tx, y: ty,
+        r: ref.r, // 図の大きさ分けでは円囲みと同じ扱いにする
+        w: Math.max(Math.abs(ex - t.x), size * 0.6), h: size,
+        plain: true, used: false,
+      });
+    }
+    return out;
   }
 
   // 1枚の用紙に複数の図（右下のキープラン等）が載っている場合、符号バブルの
@@ -321,7 +432,10 @@
       for (const t of cands) {
         if (t.dir !== ax.dir) continue;
         const lateral = ax.dir === "v" ? Math.abs(t.x - ax.pos) : Math.abs(t.y - ax.pos);
-        if (lateral > PARAMS.LABEL_LATERAL) continue;
+        // 円囲みの符号は円の中心がずれることがあるので緩い。
+        // 円で囲まれていない符号は線のすぐ脇に書くので厳しくする
+        // （緩いと、隣の芯の符号を横取りして本来の符号を消してしまう）
+        if (lateral > (t.plain ? PARAMS.PLAIN_LATERAL : PARAMS.LABEL_LATERAL)) continue;
         const along = ax.dir === "v" ? t.y : t.x;
         // 芯の延長線上（端点から BUBBLE_REACH 以内）にあること
         const dFrom = ax.from - along; // 正なら from より外側
@@ -344,7 +458,13 @@
       if (p.ax.bubbles.some((b) => b.side === p.side)) continue;
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
-      p.ax.bubbles.push({ label: p.t.norm, x: p.t.x, y: p.t.y, side: p.side });
+      p.ax.bubbles.push({
+        label: p.t.norm, x: p.t.x, y: p.t.y, side: p.side,
+        // 図上で符号だけを塗るための大きさ（円囲みは直径、囲み無しは文字の箱）
+        w: p.t.w != null ? p.t.w : p.t.r * 2,
+        h: p.t.h != null ? p.t.h : p.t.r * 2,
+        plain: !!p.t.plain,
+      });
       usedSide.add(key);
       p.t.used = true;
     }
@@ -356,5 +476,5 @@
     return (ax.dir === "v" ? "縦" : "横") + (ax.index + 1);
   }
 
-  ZC.axis = { detect, displayName, bubbleCandidates, joinInBubble, groupBubbles, PARAMS, SIDES, SIDE_NAME };
+  ZC.axis = { detect, displayName, bubbleCandidates, plainCandidates, joinInBubble, groupBubbles, labelNum, PARAMS, SIDES, SIDE_NAME };
 })(globalThis.ZC = globalThis.ZC || {});

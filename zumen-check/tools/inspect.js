@@ -108,8 +108,11 @@ function reportOne(r, opt) {
   }
   const labeled = r.det.v.concat(r.det.h).filter((a) => a.label != null);
   lines.push(
-    `通り芯   : 円で囲まれた符号 ${labeled.length} 本` +
-      `（縦X ${r.det.v.filter((a) => a.label != null).length} / 横Y ${r.det.h.filter((a) => a.label != null).length}）`
+    `通り芯   : 符号付き ${labeled.length} 本` +
+      `（縦X ${r.det.v.filter((a) => a.label != null).length} / 横Y ${r.det.h.filter((a) => a.label != null).length}）` +
+      (r.det.plainLabels && r.det.plainLabels.length
+        ? `  ※円で囲まれていない符号: ${r.det.plainLabels.join(" ")}`
+        : "")
   );
   lines.push("");
   for (const key of SIDE_ORDER) {

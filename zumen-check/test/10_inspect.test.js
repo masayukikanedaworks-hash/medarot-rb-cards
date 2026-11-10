@@ -35,7 +35,7 @@ exports.辺別の拾い出しレポート = () => {
   assert.ok(out.includes("X1~X2：6000（2730.5+3269.5）"), "分割の内訳付きで表示: \n" + out);
   assert.ok(out.includes("Y1~Y2：6000"), "横方向の寸法");
   assert.ok(out.includes("符号バブル(円) 10 個"));
-  assert.ok(out.includes("円で囲まれた符号 5 本"));
+  assert.ok(out.includes("符号付き 5 本"));
 };
 
 exports.JSON出力 = () => {
