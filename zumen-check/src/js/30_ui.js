@@ -470,12 +470,17 @@
         "</div>" +
         '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
         '<div class="pickup">' +
-        '<div class="pickup-head">拾い出し結果<button type="button" class="copy-btn">コピー</button>' +
+        '<div class="pickup-head">' +
+        '<button type="button" class="pickup-toggle" aria-expanded="false">' +
+        '<span class="tri"></span>拾い出し結果</button>' +
+        '<span class="pickup-sum"></span>' +
+        '<button type="button" class="copy-btn">コピー</button>' +
         '<span class="pickup-show">表示:' +
-        '<label title="円で囲まれた符号(X○○/Y○○)と、その芯々寸法"><input type="checkbox" class="sh-grid" checked> 通り芯</label>' +
+        '<label title="符号(X○○/Y○○)が付いた通り芯と、その芯々寸法"><input type="checkbox" class="sh-grid" checked> 通り芯</label>' +
         '<label title="通り芯間として拾えなかった寸法線（室内寸法・開口幅 W＝ など）"><input type="checkbox" class="sh-other"> その他の寸法</label>' +
         "</span></div>" +
-        '<div class="pickup-grid"></div><div class="other-dims"></div></div>' +
+        '<div class="pickup-body" hidden>' +
+        '<div class="pickup-grid"></div><div class="other-dims"></div></div></div>' +
         '<div class="ai-box">' +
         '<div class="ai-head">' +
         '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
@@ -493,6 +498,10 @@
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
+      this.pickupOpen = false; // 拾い出し結果は既定で閉じておく
+      this.$pickupBody = this.root.querySelector(".pickup-body");
+      this.$pickupToggle = this.root.querySelector(".pickup-toggle");
+      this.$pickupSum = this.root.querySelector(".pickup-sum");
       this.$pickup = this.root.querySelector(".pickup-grid");
       this.$others = this.root.querySelector(".other-dims");
       this.$shGrid = this.root.querySelector(".sh-grid");
@@ -522,6 +531,7 @@
           this.requestRender(); // 図上の寸法オーバーレイも表示対象に合わせる
         });
       }
+      this.$pickupToggle.addEventListener("click", () => this.setPickupOpen(!this.pickupOpen));
       this.$aiRun.addEventListener("click", () => this.runAi());
       this.$copy.addEventListener("click", () => {
         const txt = this.pickupText();
@@ -1800,9 +1810,37 @@
       return out.join("\n").trim();
     }
 
+    // 拾い出し結果の開閉
+    setPickupOpen(on) {
+      this.pickupOpen = !!on;
+      if (!this.$pickupBody) return;
+      this.$pickupBody.hidden = !this.pickupOpen;
+      this.$pickupToggle.setAttribute("aria-expanded", this.pickupOpen ? "true" : "false");
+      this.$pickupToggle.classList.toggle("open", this.pickupOpen);
+    }
+
+    // 閉じていても中身が分かるよう、見出しの横に要約を出す
+    pickupSummary() {
+      if (!this.extract) return "";
+      if (this.diag && !this.diag.readable) return "この図面からは拾い出しできません";
+      if (!this.sides) return "";
+      let spans = 0;
+      let read = 0;
+      for (const k of SIDE_ORDER) {
+        const s = this.sides[k];
+        if (!s) continue;
+        spans += s.spans.length;
+        read += s.spans.filter((x) => x.value != null).length;
+      }
+      if (!spans) return "通り芯 " + this.labeledAxes().length + "本";
+      return "通り芯 " + this.labeledAxes().length + "本 / 区間 " + spans +
+        "（寸法が読めたもの " + read + "）";
+    }
+
     renderPickup() {
       const showGrid = !this.$shGrid || this.$shGrid.checked;
       const showOther = this.$shOther && this.$shOther.checked;
+      if (this.$pickupSum) this.$pickupSum.textContent = this.pickupSummary();
       // 読み取り条件を満たしていない図面は、黙って0件にせず何が足りないかを出す。
       if (this.diag && !this.diag.readable) {
         this.$pickup.hidden = false;
@@ -1810,6 +1848,8 @@
         this.$others.innerHTML = "";
         this.$pickup.innerHTML = "";
         this.$pickup.appendChild(renderDiagnosis(this.diag, this));
+        // 読めない理由は見てもらわないと困るので、このときだけ開く
+        this.setPickupOpen(true);
         return;
       }
       this.$pickup.hidden = !showGrid;
