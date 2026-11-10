@@ -1602,6 +1602,8 @@
   const TJ_SPLIT = 400;
 
   const DOT_MAX = 3.2; // 塗り潰し図形を「寸法線の黒ドット」とみなす最大サイズ(pt)
+  const DOT_CIRCLE_MIN = 0.25; // 細線で描かれた極小の円・円弧を黒ドットとみなす最小サイズ(pt)
+  const DOT_ARC_MAX = 1.2;     // 〃 最大サイズ(pt)
   const DOT_MIN = 0.15;
 
   class ContentExtractor {
@@ -1726,6 +1728,24 @@
       const scanCircles = () => {
         if (this.circles.length >= 5000) return;
         for (const sp of subpaths) {
+          // 寸法線の黒ドットは「極小の円弧」で描かれることがある。実図面では
+          // 1つのドットが上下2つの半円（各17点・幅0.6×高さ0.3）に分かれていて、
+          // 円としては閉じても正方形にもならないため、弧のまま拾う。
+          // 同じ位置に複数出るが clusterDots が統合する。
+          if (sp.length >= 4 && this.dots.length < 20000) {
+            let ax0 = Infinity, ay0 = Infinity, ax1 = -Infinity, ay1 = -Infinity;
+            let curved = false;
+            for (const p of sp) {
+              ax0 = Math.min(ax0, p.x); ax1 = Math.max(ax1, p.x);
+              ay0 = Math.min(ay0, p.y); ay1 = Math.max(ay1, p.y);
+              if (p.curve) curved = true;
+            }
+            const aw = ax1 - ax0;
+            const ah = ay1 - ay0;
+            if (curved && aw <= DOT_ARC_MAX && ah <= DOT_ARC_MAX && Math.max(aw, ah) >= DOT_CIRCLE_MIN) {
+              this.dots.push({ x: (ax0 + ax1) / 2, y: (ay0 + ay1) / 2 });
+            }
+          }
           if (sp.length < 5) continue;
           const first = sp[0];
           const last = sp[sp.length - 1];
@@ -1736,7 +1756,11 @@
           }
           const w = x1 - x0;
           const h = y1 - y0;
-          if (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX) continue;
+          // 符号バブルより小さい円は寸法線の黒ドット（実図面では半径0.3pt前後の
+          // 円を細線で描いている。塗りでも太線でもないので dots の他の条件に
+          // 掛からず、これが無いと寸法線の段が作れない）
+          const isDot = w >= DOT_CIRCLE_MIN && w < CIRCLE_MIN && h >= DOT_CIRCLE_MIN && h < CIRCLE_MIN;
+          if (!isDot && (w < CIRCLE_MIN || w > CIRCLE_MAX || h < CIRCLE_MIN || h > CIRCLE_MAX)) continue;
           if (Math.abs(w - h) > Math.max(w, h) * 0.25) continue; // 正方形に近いこと
           if (Math.hypot(last.x - first.x, last.y - first.y) > Math.max(w, h) * 0.2) continue; // 閉じていること
           const cx = (x0 + x1) / 2;
@@ -1748,7 +1772,12 @@
             const d = Math.hypot(p.x - cx, p.y - cy);
             if (Math.abs(d - r) > r * 0.3) { ok = false; break; }
           }
-          if (ok) this.circles.push({ x: cx, y: cy, r });
+          if (!ok) continue;
+          if (isDot) {
+            if (this.dots.length < 20000) this.dots.push({ x: cx, y: cy });
+          } else {
+            this.circles.push({ x: cx, y: cy, r });
+          }
         }
       };
 
