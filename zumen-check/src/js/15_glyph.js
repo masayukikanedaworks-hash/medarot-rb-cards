@@ -33,6 +33,7 @@
     // 距離8でまとまってしまい X1/X10/X11 が読めなくなっていた。
     ASPECT_TOL: 0.12,
     MIN_SHAPE_COUNT: 1, // 一覧に出す形の最小出現回数
+    DOT_RATIO: 0.35,    // ふつうの字高に対してこれ以下なら「小数点らしい形」
   };
 
   const r2 = (v) => (Math.abs(v) < 1e-9 ? 0 : Math.round(v * 100) / 100);
@@ -390,15 +391,16 @@
     // 1文字の行として大量に残るため、これを外すと一覧が埋まって使えない
     // （実図面で 93種 → 64種）。寸法も符号も2文字以上なので取りこぼさない。
     const inRuns = new Map();
+    const midRun = new Set(); // 行の途中（両隣に字がある位置）に出た形
     for (const r of runs) {
       if (r.glyphs.length < 2) continue;
-      for (const g of r.glyphs) inRuns.set(g.shape, (inRuns.get(g.shape) || 0) + 1);
+      r.glyphs.forEach((g, i) => {
+        inRuns.set(g.shape, (inRuns.get(g.shape) || 0) + 1);
+        if (i > 0 && i < r.glyphs.length - 1) midRun.add(g.shape);
+      });
     }
-    const shapes = reps
-      .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
-      .map((r) => ({ shape: r.shape, count: inRuns.get(r.shape) || 0, glyph: r.glyph, rot: rotations(r.glyph) }))
-      .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
-    // この図面のふつうの字高。教える画面で字形を実寸比で描くのに使う
+    // この図面のふつうの字高。教える画面で字形を実寸比で描くのと、
+    // 小数点らしい形を見分けるのに使う
     // （小数点を枠いっぱいに伸ばすと線の破片と見分けが付かない）
     const hs = [];
     for (const r of runs) {
@@ -407,6 +409,22 @@
     }
     hs.sort((a, b) => a - b);
     const refHeight = hs.length ? hs[hs.length >> 1] : 0;
+    // 小数点らしい形か: 行の途中にあって、ふつうの字よりずっと小さい。
+    // 教える画面で「.」を候補として出すのに使う（自動では当てない）。
+    // 両隣に字がある位置にしか出ない形、という条件が効く。線の破片は
+    // 行の端に付くことはあっても、字と字のあいだには入らない
+    const looksDot = (g) =>
+      refHeight > 0 && midRun.has(g.shape) && Math.max(g.glyph.w, g.glyph.h) <= refHeight * PARAMS.DOT_RATIO;
+    const shapes = reps
+      .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
+      .map((r) => ({
+        shape: r.shape,
+        count: inRuns.get(r.shape) || 0,
+        glyph: r.glyph,
+        rot: rotations(r.glyph),
+        dot: looksDot(r),
+      }))
+      .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
     return { glyphs, runs, shapes, refHeight };
   }
 
