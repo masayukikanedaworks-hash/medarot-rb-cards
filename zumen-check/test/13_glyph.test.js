@@ -201,3 +201,53 @@ exports.回転した符号でも小数点を読む = async () => {
   const { det } = await analyzeStroke(bytes);
   assert.deepEqual(labels(det, "v"), ["X1", "X2", "X2.2", "X3"]);
 };
+
+// 教える画面に「小数点らしい形」の候補を出すための印。
+// 線で描かれた図面の小数点は線の破片と見分けにくく、未登録が数十種あると
+// 利用者が探し当てられないため、ツール側で目星を付ける（確定はしない）。
+exports.小数点らしい字形に印が付く = async () => {
+  for (const rot of [false, true]) {
+    const spec = mk.makeSpec();
+    spec.strokeFont = true;
+    spec.rotLabels = rot;
+    spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+    spec.splitsV0 = null;
+    const { extract } = await loadFirstPage(mk.makeBasicPdf(spec));
+    const g = ZC.glyph.extract(extract);
+    const full = strokeFontMap();
+    const kb = {};
+    for (const k in full) kb[k] = ZC.glyph.hexToBits(k);
+    const charOf = (sh) => {
+      const k = ZC.glyph.matchShape(ZC.glyph.hexToBits(sh), kb, ZC.glyph.aspectOfKey(sh));
+      return k ? full[k] : "?";
+    };
+    const marked = g.shapes.filter((s) => s.dot);
+    const where = (rot ? "回転した符号" : "横書きの符号") + ": ";
+    assert.equal(marked.length, 1, where + "印が付くのは1種だけ: " +
+      JSON.stringify(marked.map((s) => charOf(s.shape))));
+    assert.equal(charOf(marked[0].shape), ".", where + "印が付くのは小数点");
+    // 小数点なのに印が付かない、が無いこと
+    const missed = g.shapes.filter((s) => !s.dot && charOf(s.shape) === ".");
+    assert.deepEqual(missed, [], where + "小数点の取りこぼしなし");
+  }
+};
+
+// 線の破片（行の端にしか出ない形）には印を付けない。
+// 小数点がどこにも書かれていない図面なら、印の付く形は 0 種になる。
+exports.小数点の無い図面では印が付かない = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.splitsV0 = null; // 分割寸法（2730.5 など）を消して小数点を無くす
+  const { extract } = await loadFirstPage(mk.makeBasicPdf(spec));
+  const g = ZC.glyph.extract(extract);
+  const full = strokeFontMap();
+  const kb = {};
+  for (const k in full) kb[k] = ZC.glyph.hexToBits(k);
+  const charOf = (sh) => {
+    const k = ZC.glyph.matchShape(ZC.glyph.hexToBits(sh), kb, ZC.glyph.aspectOfKey(sh));
+    return k ? full[k] : "?";
+  };
+  assert.deepEqual(g.shapes.filter((s) => s.dot).map((s) => charOf(s.shape)), [],
+    "小数点の無い図面では印が付かない");
+  assert.ok(g.shapes.length >= 8, "形自体は出ている: " + g.shapes.length);
+};
