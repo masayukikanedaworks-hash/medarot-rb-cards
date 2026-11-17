@@ -96,8 +96,9 @@
     // （番号と位置が既存の符号と矛盾しないものだけを採るため）。
     // 候補が増えると短い芯が救われるので、芯の組み立てからやり直す。
     let plain = [];
+    const rejected = [];
     if (PARAMS.PLAIN_LABELS) {
-      plain = plainCandidates(extract.texts, extract.circles || [], vAxes, hAxes, cands);
+      plain = plainCandidates(extract.texts, extract.circles || [], vAxes, hAxes, cands, rejected);
       if (plain.length) {
         cands = cands.concat(plain);
         // 芯を組み直すので、1パス目で立てた「割り当て済み」を戻す
@@ -125,6 +126,13 @@
       droppedBubbles: allCands.length - grouped.primary.length,
       // 円で囲まれていないのに採用した符号（画面の説明用）
       plainLabels: plain.filter((c) => c.used).map((c) => c.norm),
+      // 符号らしいのに通り芯にしなかった文字列と、その理由。
+      // 黙って落とすと「なぜ拾えないのか」が分からないので画面に出す
+      rejected: rejected.concat(
+        plain
+          .filter((c) => !c.used)
+          .map((c) => ({ text: c.norm, why: "その位置に通り芯の線が見つかりません" }))
+      ),
     };
   }
 
@@ -352,16 +360,29 @@
   // 構造図は細分の通り芯を円で囲まずに書くことがあるが、同じ書式の
   // **部材符号**（Y1.1 など）が図の中に大量に散っていることもあるので、
   // 「既にある符号の番号と位置の両方に矛盾しないもの」だけを採る。
-  function plainCandidates(texts, circles, vAxes, hAxes, cands) {
+  // 符号らしく見えるが通り芯にしなかった文字列（rejected に理由を足す）
+  const LABELISH = /^[XY][0-9][0-9A-Z.\-_,]{0,5}$/;
+
+  function plainCandidates(texts, circles, vAxes, hAxes, cands, rejected) {
+    const note = (text, why) => {
+      if (!rejected) return;
+      if (rejected.length < 40 && !rejected.some((r) => r.text === text && r.why === why)) {
+        rejected.push({ text, why });
+      }
+    };
     const refV = labeledRef(vAxes, cands);
     const refH = labeledRef(hAxes, cands);
-    if (!refV && !refH) return [];
     const out = [];
     const seen = new Set();
     for (const t of texts || []) {
       if (!t.str) continue;
       const lab = U.axisLabelOf(t.str);
-      if (!lab) continue;
+      if (!lab) {
+        // 「Y8-2」のように符号っぽいが書式が合わない文字列。読み違いの手がかりになる
+        if (LABELISH.test(U.normalizeLabel(t.str))) note(t.str, "符号の書式（X○○ / Y○○）になっていません");
+        continue;
+      }
+      if (!refV && !refH) continue;
       const ref = lab.dir === "v" ? refV : refH;
       if (!ref) continue;
       const ex = t.ex !== undefined ? t.ex : t.x;
@@ -375,7 +396,12 @@
       const ty = (t.y + ey) / 2 + (horiz ? size * 0.35 : 0);
       if ((circles || []).some((c) => insideCircle(c, tx, ty))) continue; // 円囲みは別で拾う
       const pos = lab.dir === "v" ? tx : ty;
-      if (!ref.fits(lab.label, pos)) continue;
+      if (!ref.fits(lab.label, pos)) {
+        note(lab.label, ref.has(lab.label)
+          ? "同じ符号の通り芯がすでにあります"
+          : "すでにある符号の番号と位置が合いません");
+        continue;
+      }
       const key = lab.label + "@" + Math.round(pos * 2);
       if (seen.has(key)) continue;
       seen.add(key);

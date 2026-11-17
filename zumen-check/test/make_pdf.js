@@ -59,6 +59,10 @@ function makeSpec() {
     // textAt を使わず STROKE_FONT で描くので、PDFに文字データが残らない。
     strokeFont: false,
     strokeH: 3.6, // 線で描く文字の高さ(pt)
+    // true で小数点を「幅ゼロの縦棒」で描く（実図面の構造図の横書きがこれ）。
+    // 図面の縦線の破片とビット列も縦横比も同じになるので、形では区別できず
+    // 対応表に教えようがない（教えると線の破片が全部「.」になる）
+    barDot: false,
     // true で通り芯の符号を90度回転して描く（構造図の上辺はこの書き方）。
     // 回転すると小数点がベースライン側＝字の箱の反対の端に付く
     rotLabels: false,
@@ -121,6 +125,9 @@ const STROKE_FONT = (() => {
     "8": [a, b, c, d, e, f, g],
     "9": [a, b, f, g, c, d],
     ".": [[W * 0.35, 0, W * 0.5, 0.12]],
+    // 幅ゼロの縦棒の小数点（barDot）。実図面の構造図の横書きはこれで、
+    // 図面の縦線の破片と同じ鍵になる
+    "\u00b7": [[W * 0.42, 0, W * 0.42, 0.17]],
     X: [[0, 1, W, 0], [0, 0, W, 1]],
     Y: [[0, 1, W / 2, 0.5], [W, 1, W / 2, 0.5], [W / 2, 0.5, W / 2, 0]],
   };
@@ -128,12 +135,14 @@ const STROKE_FONT = (() => {
 
 // 文字列を線分で描く。rot=true で90度回転（縦向きの寸法注記）。
 // 戻り値は描いた範囲 {x0,y0,x1,y1}
+let BAR_DOT = false; // 小数点を幅ゼロの縦棒で描くか（spec.barDot）
+
 function strokeTextOps(ops, x, y, str, h, rot) {
   const adv = h * 0.85; // 字送り（字間は 0.25h 程度になる）
   ops.push("0.3 w [] 0 d");
   let i = 0;
   for (const ch of String(str)) {
-    const glyph = STROKE_FONT[ch];
+    const glyph = STROKE_FONT[BAR_DOT && ch === "." ? "\u00b7" : ch];
     if (glyph) {
       for (const [sx, sy, ex2, ey2] of glyph) {
         // 文字ローカル座標(幅0.6/高さ1) → 紙上
@@ -169,6 +178,7 @@ function circleOps(cx, cy, r, fill, ry) {
 
 // 図の描画オペレータ列を作る。textEnc は文字列→表示オペランドの変換
 function drawingOps(spec, textEnc, useTJ) {
+  BAR_DOT = !!spec.barDot;
   const pos = axisPositions(spec);
   const ops = [];
   const texts = [];

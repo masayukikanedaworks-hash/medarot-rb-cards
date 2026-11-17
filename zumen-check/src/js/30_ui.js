@@ -25,6 +25,7 @@
   const SPLIT_AUTO_PAGES = 4; // このページ数までは読み込み時に自動で分割を判定する
   const MARK_MIN_PX = 7; // 符号・数字の塗りの最小の大きさ(px)。縮小時でも見えるように
   const MARK_ALPHA = 0.2; // 照合結果の塗りの濃さ（レイヤをまとめて重ねるとき）
+  const REJ_MAX = 12; // 「通り芯にしなかった文字列」を理由ごとに並べる上限
   // 照合結果の塗り分け。一致=黄 / 要確認=橙 / 差異=赤。
   // 塗りは**不透明な色で別レイヤに描いてから**まとめて薄く重ねる。
   // X方向の帯とY方向の帯は図面の上で必ず交差するので、そのまま半透明で塗ると
@@ -188,6 +189,7 @@
           "各マスの下に、その形が表す文字（0〜9 / . / X / Y）を入力します。" +
           "覚えている字形は入力済みで出ます。文字ではない線の破片は空欄のままにしてください。" +
           "グレーの文字はツールの推測です（小数点らしい形・入力済みの形を90度回したもの）。" +
+          "「自動」と付いた形は図面の線の破片と見分けが付かない小数点で、ツールが位置から読むので空欄のままにしてください。" +
           "合っていればそのまま、違えば直すか消してください。" +
           "入力した内容はこのブラウザにためられ、次に読む図面でもそのまま使われます。",
       })
@@ -223,6 +225,14 @@
       inp.title = sh.count + "回";
       cell.appendChild(inp);
       cell.appendChild(el("span", { class: "teach-n", text: String(sh.count) }));
+      // 直線の小数点は図面の線の破片と同じ形なので教えてはいけない
+      // （教えると破片が全部「.」になる）。ツールが位置と大きさで読む
+      if (sh.autoDot) {
+        cell.classList.add("auto");
+        inp.placeholder = ".";
+        inp.title = sh.count + "回／小数点として自動で読みます（教える必要はありません）";
+        cell.appendChild(el("span", { class: "teach-auto", text: "自動" }));
+      }
       grid.appendChild(cell);
       inputs.push({ sh, inp, cell, known: row.known });
     }
@@ -253,7 +263,9 @@
           found = src.inp.value;
         }
         if (many) found = ""; // 複数の文字が候補になるときは出さない
-        if (!found && o.sh.dot) found = ".";
+        // 直線の小数点はツールが自動で読むので、候補にも入れない
+        // （教えると図面の線の破片が全部「.」になってしまう）
+        if (!found && o.sh.dot && !o.sh.autoDot) found = ".";
         o.inp.value = found;
         o.inp.classList.toggle("guess", !!found);
       }
@@ -369,6 +381,39 @@
     wrap.appendChild(bar);
     wrap.appendChild(slot);
     return wrap;
+  }
+
+  // 「符号らしいのに通り芯にしなかった文字列」を理由つきで出す（20_axis の det.rejected）。
+  // 黙って落とすと利用者には「拾えない」だけが見え、原因（字形の読み違い・
+  // 番号の位置が合わない・線が無い）のどれなのか分からない。
+  function rejectedBox(det) {
+    const list = (det && det.rejected) || [];
+    if (!list.length) return null;
+    // 同じ理由のものはまとめる（理由は数種類しかないので縦に長くならない）
+    const byWhy = new Map();
+    for (const r of list) {
+      if (!byWhy.has(r.why)) byWhy.set(r.why, []);
+      const texts = byWhy.get(r.why);
+      if (texts.indexOf(r.text) < 0) texts.push(r.text);
+    }
+    const box = el("div", { class: "rej-box" });
+    box.appendChild(
+      el("div", {
+        class: "rej-title",
+        text: "※ 符号らしいのに通り芯にしなかった文字列（" + list.length + "件）",
+      })
+    );
+    const ul = el("ul", { class: "rej-list" });
+    for (const [why, texts] of byWhy) {
+      const li = el("li");
+      li.appendChild(el("span", { class: "rej-text", text: texts.slice(0, REJ_MAX).join("・") }));
+      li.appendChild(
+        el("span", { class: "rej-why", text: (texts.length > REJ_MAX ? " ほか" + (texts.length - REJ_MAX) + "件" : "") + " … " + why })
+      );
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    return box;
   }
 
   // 通り芯以外の寸法線（室内寸法・開口幅 W＝ など）を段ごとに一覧する。
@@ -1863,6 +1908,8 @@
         this.$others.innerHTML = "";
         this.$pickup.innerHTML = "";
         this.$pickup.appendChild(renderDiagnosis(this.diag, this));
+        const rejNg = rejectedBox(this.det);
+        if (rejNg) this.$pickup.appendChild(rejNg);
         // 読めない理由は見てもらわないと困るので、このときだけ開く
         this.setPickupOpen(true);
         return;
@@ -1870,6 +1917,12 @@
       this.$pickup.hidden = !showGrid;
       if (showGrid) renderSideBlocks(this.$pickup, this.sides);
       else this.$pickup.innerHTML = "";
+      // 符号らしいのに通り芯にしなかった文字列を理由つきで出す
+      // （「拾えていない」と言われたときに原因をたどれるようにするため）
+      if (showGrid) {
+        const rej = rejectedBox(this.det);
+        if (rej) this.$pickup.appendChild(rej);
+      }
       // 線で描かれた文字の図面では、読めていても字形を足せるようにしておく
       if (showGrid && (this.glyphPage || (this.diag && this.diag.outlined))) {
         this.$pickup.appendChild(glyphTeachBar(this, "線で描かれた文字を教える・追加する"));
