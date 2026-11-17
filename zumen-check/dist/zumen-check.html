@@ -43,6 +43,10 @@
     padding: 14px 16px 16px;
   }
   .panel h2, #check h2 { font-size: 15px; margin: 0 0 10px; }
+  /* ファイル選択＋ページ番号（左）と、分割図面の案内（右）を横並びにする */
+  .panel-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .head-main { flex: 0 0 auto; }
+  .panel-head .split-box { flex: 1 1 260px; min-width: 0; margin: 0 0 6px; }
   .file-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .file-btn {
     display: inline-block;
@@ -268,28 +272,14 @@
   .teach-apply { background: #0a7a3d; color: #fff; border: none; border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
   .teach-clear { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
   .teach-msg { font-size: 12px; color: #0a7a3d; }
-  .ai-box { margin-top: 10px; }
-  .ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .ai-head .ai-run {
-    background: #0a7a3d;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 5px 14px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .ai-head .ai-run:disabled { background: #b9c4ce; cursor: not-allowed; }
-  .ai-note { color: #9a6b00; font-size: 11px; }
-  .ai-result { margin-top: 6px; }
   /* 拾い出し結果の開閉（既定は閉じ） */
-  .pickup-toggle { background: none; border: 0; padding: 2px 4px 2px 0; font: inherit; font-weight: 700;
+  .pickup-toggle, .list-toggle { background: none; border: 0; padding: 2px 4px 2px 0; font: inherit; font-weight: 700;
                    color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-  .pickup-toggle:hover { color: var(--accent); }
-  .pickup-toggle .tri { width: 0; height: 0; border-left: 6px solid currentColor;
+  .pickup-toggle:hover, .list-toggle:hover { color: var(--accent); }
+  .pickup-toggle .tri, .list-toggle .tri { width: 0; height: 0; border-left: 6px solid currentColor;
                         border-top: 4px solid transparent; border-bottom: 4px solid transparent;
                         transition: transform .12s ease; }
-  .pickup-toggle.open .tri { transform: rotate(90deg); }
+  .pickup-toggle.open .tri, .list-toggle.open .tri { transform: rotate(90deg); }
   .pickup-sum { color: var(--sub); font-size: 12px; font-weight: 400; }
   /* 分割図面（1つの建物を上下/左右に分けて複数ページに描いたもの）の表示 */
   .split-box { margin: 6px 0; padding: 8px 10px; border: 1px solid #cfd8e3; border-left: 4px solid #2f6fd0;
@@ -303,19 +293,11 @@
   .split-merge { display: block; margin-top: 6px; font-weight: 700; }
   .split-warn { margin-top: 6px; color: #9a6b00; }
   .split-scan { margin-right: 8px; }
-  .ai-summary { font-size: 12px; font-weight: 600; color: #0a7a3d; margin-bottom: 4px; }
-  .ai-summary.warn { color: #9a6b00; }
-  .ai-msg { font-size: 12px; color: var(--sub); margin: 4px 0; }
-  .ai-msg.error { color: #b30021; }
-  table.ai-table { font-size: 12px; }
-  table.ai-table td.st { font-weight: 700; text-align: center; }
-  table.ai-table tr.differ { background: #fdebee; }
-  table.ai-table tr.differ td.st { color: #b30021; }
-  table.ai-table tr.only { background: #fdf6e3; }
-  table.ai-table tr.only td.st { color: #9a6b00; }
-  .ai-detail { margin-top: 6px; font-size: 12px; }
-  .ai-detail summary { cursor: pointer; color: var(--sub); }
+  .list-box { margin-top: 10px; }
+  .list-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .list-sum { color: var(--sub); font-size: 12px; }
   .axis-list { max-height: 240px; overflow: auto; margin-top: 8px; }
+  .axis-list[hidden] { display: none; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; background: #fff; }
   th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; }
   th { background: #eef2f5; font-weight: 600; position: sticky; top: 0; }
@@ -377,7 +359,7 @@
 <header>
   <h1>通り芯照合ツール</h1>
   <span class="ver"></span>
-  <span class="privacy">図面の解析はブラウザ内で完結します（「AIで総ざらい」を押したときだけPDFが外部APIに送信されます）</span>
+  <span class="privacy">図面の解析はすべてブラウザ内で完結します（PDFは外部へ送信されません）</span>
 </header>
 <main>
   <div class="panels">
@@ -406,7 +388,6 @@
   </section>
   <footer>
     <p>ベクターPDF専用（スキャンPDFは読み取れません）。通り芯は円で囲まれた X○○・Y○○ のみ、寸法は図面に記載された数字（黒ドット間の直線の上）のみを拾います。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
-    <p>「AIで総ざらい」を使うと、その図面PDFがAnthropicのAPIに送信されAIが読み取ります。押さない限り外部送信は行われません。AIの読み取りも誤りうるため、自動読み取りとの相違は図面でご確認ください。</p>
   </footer>
 </main>
 <script>
@@ -2291,7 +2272,7 @@
           ? `数字が線で描かれています（中身が線だけの符号バブル ${outlinedBubbles} 個）`
           : `テキスト ${texts.length} 件 / うち数値 ${numericTexts} 件`,
       "CADのシングルストローク（SHX）フォントのまま出力された図面です。" +
-        "TrueTypeフォント（MSゴシック等）で書き出し直すか、「AIで総ざらい」をお使いください。"
+        "「線で描かれた文字を教える」で字形を教えるか、TrueTypeフォント（MSゴシック等）で書き出し直してください。"
     );
     add(
       "circle",
@@ -4160,162 +4141,6 @@
   ZC.compare = { compare, chainSpan, spanIndex };
 })(globalThis.ZC = globalThis.ZC || {});
 
-/* ===== 25_ai.js ===== */
-// AI解析（任意機能）: PDFをサーバ関数 /api/analyze に送り、Claude に通り芯と寸法を
-// 総ざらいさせて、自動読み取り（このツールのパーサ）の結果と突き合わせる。
-//
-// 注意: この機能を使うときだけ図面PDFが外部（Anthropic API）に送信される。
-// 使わなければ従来どおりブラウザ内で完結する。
-(function (ZC) {
-  "use strict";
-
-  const ENDPOINT = "/api/analyze";
-  const SIDE_ORDER = ["top", "right", "bottom", "left"];
-  const SIDE_NAME = { top: "上辺", right: "右辺", bottom: "下辺", left: "左辺" };
-
-  // Uint8Array → base64（大きなPDFでもスタックを溢れさせないよう分割する）
-  function toBase64(bytes) {
-    const CHUNK = 0x8000;
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-    }
-    return btoa(bin);
-  }
-
-  async function analyze(pdfBytes, page) {
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pdfBase64: toBase64(pdfBytes), page: page || 1 }),
-    });
-    let data = null;
-    try {
-      data = await res.json();
-    } catch (e) {
-      data = null;
-    }
-    if (!res.ok) {
-      const msg = data && data.error ? data.error : "AI解析に失敗しました（" + res.status + "）";
-      throw new Error(msg);
-    }
-    return data;
-  }
-
-  function num(v) {
-    return typeof v === "number" && isFinite(v) ? v : null;
-  }
-
-  // AIの応答を辺→{axes, spans} の形に正規化する（欠けている辺は空で埋める）
-  function normalize(result) {
-    const src = (result && result.sides) || {};
-    const out = {};
-    for (const key of SIDE_ORDER) {
-      const s = src[key] || {};
-      out[key] = {
-        axes: Array.isArray(s.axes) ? s.axes.map((a) => ZC.util.normalizeLabel(String(a))) : [],
-        spans: Array.isArray(s.spans)
-          ? s.spans
-              .filter((sp) => sp && sp.from != null && sp.to != null)
-              .map((sp) => ({
-                from: ZC.util.normalizeLabel(String(sp.from)),
-                to: ZC.util.normalizeLabel(String(sp.to)),
-                value: num(sp.value),
-                parts: Array.isArray(sp.parts) ? sp.parts.map(num).filter((v) => v != null) : [],
-              }))
-          : [],
-      };
-    }
-    return out;
-  }
-
-  // 自動読み取り（ZC.sides.build の結果）とAIの結果を突き合わせる
-  // tol: 値の一致とみなす差(mm)
-  function diff(localSides, aiSides, tol) {
-    const t = tol > 0 ? tol : 1;
-    const rows = [];
-    const summary = { same: 0, differ: 0, localOnly: 0, aiOnly: 0 };
-    const add = (side, kind, item, local, ai, status) => {
-      rows.push({ side: SIDE_NAME[side], sideKey: side, kind, item, local, ai, status });
-      if (status === "一致") summary.same++;
-      else if (status === "相違") summary.differ++;
-      else if (status === "自動のみ") summary.localOnly++;
-      else summary.aiOnly++;
-    };
-
-    for (const key of SIDE_ORDER) {
-      const L = (localSides && localSides[key]) || { axes: [], spans: [] };
-      const A = (aiSides && aiSides[key]) || { axes: [], spans: [] };
-      const lAxes = (L.axes || []).map((a) => (typeof a === "string" ? a : a.label));
-      const aAxes = A.axes || [];
-
-      // 通り芯の突き合わせ
-      const lSet = new Set(lAxes);
-      const aSet = new Set(aAxes);
-      for (const label of lAxes) {
-        if (!aSet.has(label)) add(key, "通り芯", label, "あり", "なし", "自動のみ");
-      }
-      for (const label of aAxes) {
-        if (!lSet.has(label)) add(key, "通り芯", label, "なし", "あり", "AIのみ");
-      }
-      if (lAxes.length && aAxes.length && lAxes.join(",") === aAxes.join(",")) {
-        add(key, "通り芯", "全" + lAxes.length + "本", lAxes.join(" "), "同じ並び", "一致");
-      }
-
-      // 寸法の突き合わせ（区間 from~to をキーにする）
-      const aByKey = new Map(A.spans.map((s) => [s.from + "~" + s.to, s]));
-      const seen = new Set();
-      for (const ls of L.spans || []) {
-        const k = ls.from + "~" + ls.to;
-        seen.add(k);
-        const as = aByKey.get(k);
-        const lv = num(ls.value);
-        const av = as ? num(as.value) : null;
-        if (!as) {
-          add(key, "寸法", k, fmt(lv), "—", "自動のみ");
-        } else if (lv == null && av == null) {
-          add(key, "寸法", k, "記載なし", "記載なし", "一致");
-        } else if (lv == null || av == null) {
-          add(key, "寸法", k, fmt(lv), fmt(av), "相違");
-        } else {
-          add(key, "寸法", k, fmt(lv), fmt(av), Math.abs(lv - av) <= t ? "一致" : "相違");
-        }
-      }
-      for (const as of A.spans || []) {
-        const k = as.from + "~" + as.to;
-        if (seen.has(k)) continue;
-        add(key, "寸法", k, "—", fmt(num(as.value)), "AIのみ");
-      }
-    }
-    return { rows, summary };
-  }
-
-  function fmt(v) {
-    return v == null ? "記載なし" : ZC.sides.fmtVal(v);
-  }
-
-  // AIの結果を拾い出し表記のテキストにする
-  function formatText(aiSides) {
-    const lines = [];
-    for (const key of SIDE_ORDER) {
-      const s = aiSides[key] || { axes: [], spans: [] };
-      lines.push(SIDE_NAME[key]);
-      if (!s.spans.length) {
-        lines.push(s.axes.length ? "  " + s.axes.join(" ") + "（区間なし）" : "  （通り芯なし）");
-      } else {
-        for (const sp of s.spans) {
-          const parts = sp.parts && sp.parts.length > 1 ? "（" + sp.parts.map(ZC.sides.fmtVal).join("+") + "）" : "";
-          lines.push(sp.from + "~" + sp.to + "：" + (sp.value == null ? "記載なし" : ZC.sides.fmtVal(sp.value)) + parts);
-        }
-      }
-      lines.push("");
-    }
-    return lines.join("\n").trim();
-  }
-
-  ZC.ai = { analyze, normalize, diff, formatText, toBase64, SIDE_ORDER, SIDE_NAME, ENDPOINT };
-})(globalThis.ZC = globalThis.ZC || {});
-
 /* ===== 26_split.js ===== */
 // 分割図面の認識と統合。
 // 1 つの建物を上下（または左右）に分けて複数ページに描いた図面（平面詳細図など）を、
@@ -4665,7 +4490,7 @@
   // 拾い出し結果を「X方向（上辺・下辺）」「Y方向（右辺・左辺）」の2ブロックに分け、
   // 各方向の中で2辺を横並びにする。各辺は「区間 ： 値 （内訳）」の表で、
   // 値は右揃えにして桁を揃える。
-  // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}（拾い出し結果・AI結果の両方に使う）
+  // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}
   const DIR_GROUPS = [
     { title: "X方向（縦方向の通り芯）", sides: ["top", "bottom"] },
     { title: "Y方向（横方向の通り芯）", sides: ["right", "left"] },
@@ -4940,9 +4765,6 @@
     box.appendChild(table);
     const ul = el("ul", { class: "diag-hints" });
     for (const c of diag.failed) ul.appendChild(el("li", { text: c.hint }));
-    ul.appendChild(
-      el("li", { text: "図面のまま読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" })
-    );
     box.appendChild(ul);
     // 文字が線で描かれている図面は、形と文字の対応を教えればこのまま読める
     if (diag.outlined && panel) {
@@ -5089,8 +4911,6 @@
       this.sides = null;
       this.enabled = new Set();
       this.fileName = "";
-      this.pdfBytes = null; // AI解析に送るPDFの実体
-      this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.others = null; // 通り芯以外の寸法線（段ごと）
@@ -5117,13 +4937,19 @@
 
     _build() {
       this.root.innerHTML =
+        // 分割図面の案内は、ファイル選択とページ番号の**右側**に並べる
+        // （図のすぐ上に横長の箱が入るとビュワーが下へ押し下げられるため）
+        '<div class="panel-head">' +
+        '<div class="head-main">' +
         '<div class="file-row">' +
         '<label class="file-btn">PDFを選択<input type="file" accept=".pdf,application/pdf" hidden></label>' +
         '<span class="fname">未選択</span>' +
         "</div>" +
         '<div class="ctrl-row"><label>ページ <select class="page-sel" disabled></select></label></div>' +
-        '<div class="status"></div>' +
+        "</div>" +
         '<div class="split-box" hidden></div>' +
+        "</div>" +
+        '<div class="status"></div>' +
         '<div class="viewer-bar">' +
         '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
@@ -5144,14 +4970,14 @@
         "</span></div>" +
         '<div class="pickup-body" hidden>' +
         '<div class="pickup-grid"></div><div class="other-dims"></div></div></div>' +
-        '<div class="ai-box">' +
-        '<div class="ai-head">' +
-        '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
-        '<span class="ai-note">図面PDFが外部（Anthropic API）に送信されます</span>' +
+        // 通り芯の一覧も既定では閉じておく（1枚ぶんで縦に長く、照合欄が遠くなる）
+        '<div class="list-box">' +
+        '<div class="list-head">' +
+        '<button type="button" class="list-toggle" aria-expanded="false">' +
+        '<span class="tri"></span>通り芯の一覧</button>' +
+        '<span class="list-sum"></span>' +
         "</div>" +
-        '<div class="ai-result"></div>' +
-        "</div>" +
-        '<div class="axis-list"></div>';
+        '<div class="axis-list" hidden></div></div>';
       this.$file = this.root.querySelector('input[type="file"]');
       this.$fname = this.root.querySelector(".fname");
       this.$page = this.root.querySelector(".page-sel");
@@ -5161,6 +4987,9 @@
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
+      this.listOpen = false; // 通り芯の一覧も既定で閉じておく
+      this.$listToggle = this.root.querySelector(".list-toggle");
+      this.$listSum = this.root.querySelector(".list-sum");
       this.pickupOpen = false; // 拾い出し結果は既定で閉じておく
       this.$pickupBody = this.root.querySelector(".pickup-body");
       this.$pickupToggle = this.root.querySelector(".pickup-toggle");
@@ -5170,8 +4999,6 @@
       this.$shGrid = this.root.querySelector(".sh-grid");
       this.$shOther = this.root.querySelector(".sh-other");
       this.$copy = this.root.querySelector(".copy-btn");
-      this.$aiRun = this.root.querySelector(".ai-run");
-      this.$aiResult = this.root.querySelector(".ai-result");
       this.$zoom = this.root.querySelector(".zoom-label");
       this.$fit = this.root.querySelector(".vb-fit");
       this.$measureBtn = this.root.querySelector(".vb-measure");
@@ -5195,7 +5022,7 @@
         });
       }
       this.$pickupToggle.addEventListener("click", () => this.setPickupOpen(!this.pickupOpen));
-      this.$aiRun.addEventListener("click", () => this.runAi());
+      this.$listToggle.addEventListener("click", () => this.setListOpen(!this.listOpen));
       this.$copy.addEventListener("click", () => {
         const txt = this.pickupText();
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
@@ -5258,7 +5085,6 @@
       this._reset();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
-        this.pdfBytes = buf;
         this.doc = await ZC.pdf.PDFDocument.load(buf);
         this.pages = await this.doc.getPages();
         this.$page.innerHTML = "";
@@ -5286,9 +5112,6 @@
     _reset() {
       this.doc = null;
       this.pages = [];
-      this.pdfBytes = null;
-      this.aiSides = null;
-      if (this.$aiResult) this.$aiResult.innerHTML = "";
       this.extract = null;
       this.axes = { v: [], h: [] };
       this.det = { v: [], h: [] };
@@ -5379,9 +5202,6 @@
       this.requestRender();
       this.renderList();
       this.renderPickup();
-      if (this.$aiRun) this.$aiRun.disabled = !this.pdfBytes;
-      if (this.$aiResult) this.$aiResult.innerHTML = "";
-      this.aiSides = null;
       ZC.ui.updateRunButton();
     }
 
@@ -5525,108 +5345,6 @@
     setDiffs(refs) {
       this.diffRefs = refs && refs.length ? refs : null;
       this.requestRender();
-    }
-
-    // AIに図面を読ませ、自動読み取りの結果と突き合わせる
-    async runAi() {
-      if (!this.pdfBytes) return;
-      const page = Number(this.$page.value || 0) + 1;
-      this.$aiRun.disabled = true;
-      this.$aiRun.textContent = "AI解析中…";
-      this.$aiResult.innerHTML = "";
-      this.$aiResult.appendChild(el("p", { class: "ai-msg", text: "AIが図面を読んでいます（1〜2分かかることがあります）…" }));
-      try {
-        const data = await ZC.ai.analyze(this.pdfBytes, page);
-        this.aiSides = ZC.ai.normalize(data.result);
-        if (this.localEmpty()) {
-          this.renderAiOnly(data);
-        } else {
-          const tol = Number(document.getElementById("tol").value) || 1;
-          this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
-        }
-      } catch (e) {
-        this.$aiResult.innerHTML = "";
-        this.$aiResult.appendChild(
-          el("p", { class: "ai-msg error", text: "AI解析に失敗しました: " + (e && e.message ? e.message : e) })
-        );
-      } finally {
-        this.$aiRun.disabled = false;
-        this.$aiRun.textContent = "AIで総ざらい";
-      }
-    }
-
-    // 自動読み取りが1本も拾えていない図面（文字データ無しなど）では、
-    // 「AIのみ」だらけの差分表ではなく、AIの結果そのものを拾い出し結果として出す。
-    localEmpty() {
-      if (!this.sides) return true;
-      return !SIDE_ORDER.some((k) => this.sides[k] && this.sides[k].axes.length);
-    }
-
-    renderAiOnly(data) {
-      const wrap = this.$aiResult;
-      wrap.innerHTML = "";
-      wrap.appendChild(
-        el("div", {
-          class: "ai-summary warn",
-          text:
-            "自動読み取りは0本のため、AIの読み取り結果を表示しています" +
-            (data && data.model ? "（" + data.model + "）" : ""),
-        })
-      );
-      const notes = data && data.result && data.result.notes;
-      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
-      wrap.appendChild(
-        el("p", { class: "ai-msg", text: "AIの読み取りにも誤りがあります。数値は必ず図面でご確認ください。" })
-      );
-      const grid = el("div", { class: "pickup-grid" });
-      renderSideBlocks(grid, this.aiSides);
-      wrap.appendChild(grid);
-    }
-
-    renderAi(diff, data) {
-      const wrap = this.$aiResult;
-      wrap.innerHTML = "";
-      const s = diff.summary;
-      wrap.appendChild(
-        el("div", {
-          class: "ai-summary" + (s.differ || s.aiOnly ? " warn" : ""),
-          text:
-            "一致 " + s.same + " / 相違 " + s.differ +
-            " / 自動のみ " + s.localOnly + " / AIのみ " + s.aiOnly +
-            (data && data.model ? "（" + data.model + "）" : ""),
-        })
-      );
-      const notes = data && data.result && data.result.notes;
-      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
-
-      const rows = diff.rows.filter((r) => r.status !== "一致");
-      if (!rows.length) {
-        wrap.appendChild(el("p", { class: "ai-msg", text: "自動読み取りとAIの結果は一致しました。" }));
-      } else {
-        const table = el("table", { class: "ai-table" });
-        const thead = el("thead");
-        thead.innerHTML = "<tr><th>判定</th><th>辺</th><th>種別</th><th>対象</th><th>自動読み取り</th><th>AI</th></tr>";
-        table.appendChild(thead);
-        const tbody = el("tbody");
-        for (const r of rows) {
-          const tr = el("tr", { class: r.status === "相違" ? "differ" : "only" });
-          tr.appendChild(el("td", { text: r.status, class: "st" }));
-          tr.appendChild(el("td", { text: r.side }));
-          tr.appendChild(el("td", { text: r.kind }));
-          tr.appendChild(el("td", { text: r.item }));
-          tr.appendChild(el("td", { text: String(r.local) }));
-          tr.appendChild(el("td", { text: String(r.ai) }));
-          tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-      }
-      const det = el("details", { class: "ai-detail" });
-      det.appendChild(el("summary", { text: "AIの拾い出し結果（全文）" }));
-      const grid = el("div", { class: "pickup-grid" });
-      renderSideBlocks(grid, this.aiSides);
-      det.appendChild(grid);
-      wrap.appendChild(det);
     }
 
     // 線で描かれた文字の情報を用意する（必要になったときだけ解析する）
@@ -6480,6 +6198,15 @@
     }
 
     // 拾い出し結果の開閉
+    // 通り芯の一覧の開閉
+    setListOpen(on) {
+      this.listOpen = !!on;
+      if (!this.$list) return;
+      this.$list.hidden = !this.listOpen;
+      this.$listToggle.setAttribute("aria-expanded", this.listOpen ? "true" : "false");
+      this.$listToggle.classList.toggle("open", this.listOpen);
+    }
+
     setPickupOpen(on) {
       this.pickupOpen = !!on;
       if (!this.$pickupBody) return;
@@ -6543,6 +6270,11 @@
 
     renderList() {
       this.$list.innerHTML = "";
+      // 閉じていても中身が分かるよう、見出しの横に本数を出す
+      if (this.$listSum) {
+        const n = this.labeledAxes().length;
+        this.$listSum.textContent = n ? "符号の付いた通り芯 " + n + "本" : "";
+      }
       this._rowMap = new Map();
       const axes = this.labeledAxes();
       if (!axes.length) return;
