@@ -185,3 +185,38 @@ exports.基準になる符号が少なければ円無しの符号は拾わない
   assert.deepEqual(labels(det, "v"), []);
   assert.deepEqual(labels(det, "h"), []);
 };
+
+// --- 拾わなかった符号の理由（黙って落とさない） ---------------------------
+
+// 「符号らしいのに通り芯にしなかった」ものは理由つきで返す。
+// 利用者から「拾えていない」と言われたときに、字形の読み違いなのか
+// 番号の位置が合わないのか、芯の線が無いのかを切り分けられるようにするため。
+exports.拾わなかった符号らしい文字列を理由つきで返す = async () => {
+  const spec = mk.makeSpec();
+  // X9.5 は X1〜X3 の外側の番号なので採らない（理由が付く）
+  spec.vAxes.splice(1, 0, { label: "X9.5", mm: 3000, noBubble: true });
+  spec.splitsV0 = null;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"]);
+  const r = det.rejected.find((x) => x.text === "X9.5");
+  assert.ok(r, "拾わなかった理由が返る: " + JSON.stringify(det.rejected));
+  assert.match(r.why, /番号と位置/);
+};
+
+// 小数点が読めずに "X22" と読まれたような文字列も「符号らしい」として挙げる
+// （線で描かれた文字の図面で小数点の字形を教え忘れたときの手がかり）
+exports.書式が合わない符号らしい文字列も理由つきで挙げる = async () => {
+  const spec = mk.makeSpec();
+  spec.memberMarks = [{ str: "X2-2", x: 320, y: 200 }];
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"]);
+  const r = det.rejected.find((x) => x.text === "X2-2");
+  assert.ok(r, "書式違いも挙げる: " + JSON.stringify(det.rejected));
+  assert.match(r.why, /書式/);
+};
+
+// 条件を満たす図面では余計なものを並べない（毎回出ると見てもらえなくなる）
+exports.ふつうの図面では拾わなかった理由を出さない = async () => {
+  const { det } = await analyze(mk.makeBasicPdf());
+  assert.deepEqual(det.rejected, [], JSON.stringify(det.rejected));
+};

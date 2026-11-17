@@ -214,6 +214,12 @@
   .diag-hints { margin: 0; padding-left: 18px; }
   .diag-hints li { margin-bottom: 2px; }
   .diag-act { margin-top: 8px; }
+  .rej-box { margin-top: 8px; font-size: 12px; color: var(--sub); }
+  .rej-title { font-weight: 600; color: #8a6d00; }
+  .rej-list { margin: 2px 0 0; padding-left: 18px; }
+  .rej-list li { margin-bottom: 1px; }
+  .rej-text { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rej-why { color: var(--sub); }
   .glyph-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
   .glyph-note { font-size: 12px; color: var(--sub); }
   .glyph-note.warn { color: #9a6b00; font-weight: 600; }
@@ -255,6 +261,9 @@
   }
   .teach-in.guess { color: #9aa4ad; background: #f4f6f8; }
   .teach-n { display: block; font-size: 10px; color: #9aa4ad; }
+  /* 図面の線の破片と同じ形の小数点。教えてはいけない（ツールが位置から読む） */
+  .teach-cell.auto { background: #f3f0ff; border-color: #c3b8ea; }
+  .teach-auto { display: block; font-size: 10px; color: #6b4fbb; font-weight: 600; }
   .teach-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
   .teach-apply { background: #0a7a3d; color: #fff; border: none; border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
   .teach-clear { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; }

@@ -34,6 +34,11 @@
     ASPECT_TOL: 0.12,
     MIN_SHAPE_COUNT: 1, // 一覧に出す形の最小出現回数
     DOT_RATIO: 0.35,    // ふつうの字高に対してこれ以下なら「小数点らしい形」
+    // 「教えようがない小数点」を位置で決めるときの縦横比の上限。
+    // 直線（縦棒・横棒）の小数点は図面の線の破片と同じ鍵になり、形では
+    // 区別できない。これより太い小数点（塗り潰しの点など）は教えられるので
+    // ここでは推測しない（toTexts）
+    DOT_LINE_ASPECT: 0.08,
   };
 
   const r2 = (v) => (Math.abs(v) < 1e-9 ? 0 : Math.round(v * 100) / 100);
@@ -399,6 +404,18 @@
         if (i > 0 && i < r.glyphs.length - 1) midRun.add(g.shape);
       });
     }
+    // 各字形の実際の大きさ（代表の字形ではなく、行に出たときの大きさ）。
+    // 直線の小数点は図面の線の破片と**同じ鍵**になり、代表として長い破片が
+    // 選ばれることがあるので、代表の大きさで小数点を判定してはいけない
+    const midSmall = new Map();
+    for (const r of runs) {
+      if (r.glyphs.length < 2) continue;
+      r.glyphs.forEach((g, i) => {
+        if (i === 0 || i === r.glyphs.length - 1) return;
+        const sz = Math.max(g.w, g.h);
+        if (!midSmall.has(g.shape) || sz < midSmall.get(g.shape)) midSmall.set(g.shape, sz);
+      });
+    }
     // この図面のふつうの字高。教える画面で字形を実寸比で描くのと、
     // 小数点らしい形を見分けるのに使う
     // （小数点を枠いっぱいに伸ばすと線の破片と見分けが付かない）
@@ -414,7 +431,18 @@
     // 両隣に字がある位置にしか出ない形、という条件が効く。線の破片は
     // 行の端に付くことはあっても、字と字のあいだには入らない
     const looksDot = (g) =>
-      refHeight > 0 && midRun.has(g.shape) && Math.max(g.glyph.w, g.glyph.h) <= refHeight * PARAMS.DOT_RATIO;
+      refHeight > 0 &&
+      midRun.has(g.shape) &&
+      (midSmall.get(g.shape) || Infinity) <= refHeight * PARAMS.DOT_RATIO;
+    // 直線（縦棒・横棒）の小数点は図面の線の破片と同じ鍵になるので、
+    // **教えてはいけない**（教えると線の破片が全部「.」になる）。
+    // toTexts が位置と大きさで読むので、教える画面では「教えなくてよい」と出す。
+    // 縦横比は鍵に入っているので、代表の字形ではなく鍵から取る
+    const autoDot = (g) => {
+      if (!looksDot(g)) return false;
+      const a = aspectOfKey(g.shape);
+      return a >= 0 && a <= PARAMS.DOT_LINE_ASPECT;
+    };
     const shapes = reps
       .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
       .map((r) => ({
@@ -423,6 +451,7 @@
         glyph: r.glyph,
         rot: rotations(r.glyph),
         dot: looksDot(r),
+        autoDot: autoDot(r),
       }))
       .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
     return { glyphs, runs, shapes, refHeight };
@@ -447,11 +476,35 @@
       return ch;
     };
     for (const run of runs) {
+      // 行のふつうの字高（小数点かどうかの判定に使う）
+      const sizes = run.glyphs.map((g) => Math.max(g.w, g.h)).sort((a, b) => a - b);
+      const ordH = sizes[sizes.length >> 1];
       let str = "";
       let ok = true;
-      for (const g of run.glyphs) {
+      let dots = 0;
+      for (let i = 0; i < run.glyphs.length; i++) {
+        const g = run.glyphs[i];
         const ch = lookup(g);
         if (ch == null || ch === "") {
+          // 対応表に無くても、**行の途中にある極小の直線**は小数点として読む。
+          // 横書きの小数点は 0.6pt の縦棒で、ビット列も縦横比も図面の縦線の
+          // 破片とまったく同じになる（実図面では縦線の破片が 1430 個）。
+          // つまり**形では区別できず、教えようもない**（教えると線の破片まで
+          // 全部「.」になる）。両隣に字があり、ふつうの字高の DOT_RATIO 以下で、
+          // 直線（縦横比ほぼ 0）のものだけ、位置と大きさで小数点と決める。
+          // 1 行に 2 つ以上あれば小数点ではないので、行ごと捨てる。
+          if (
+            dots === 0 &&
+            i > 0 &&
+            i < run.glyphs.length - 1 &&
+            ordH > 0 &&
+            Math.max(g.w, g.h) <= ordH * PARAMS.DOT_RATIO &&
+            aspectOfGlyph(g) <= PARAMS.DOT_LINE_ASPECT
+          ) {
+            dots++;
+            str += ".";
+            continue;
+          }
           ok = false;
           break;
         }

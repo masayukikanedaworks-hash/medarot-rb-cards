@@ -214,6 +214,12 @@
   .diag-hints { margin: 0; padding-left: 18px; }
   .diag-hints li { margin-bottom: 2px; }
   .diag-act { margin-top: 8px; }
+  .rej-box { margin-top: 8px; font-size: 12px; color: var(--sub); }
+  .rej-title { font-weight: 600; color: #8a6d00; }
+  .rej-list { margin: 2px 0 0; padding-left: 18px; }
+  .rej-list li { margin-bottom: 1px; }
+  .rej-text { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rej-why { color: var(--sub); }
   .glyph-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
   .glyph-note { font-size: 12px; color: var(--sub); }
   .glyph-note.warn { color: #9a6b00; font-weight: 600; }
@@ -255,6 +261,9 @@
   }
   .teach-in.guess { color: #9aa4ad; background: #f4f6f8; }
   .teach-n { display: block; font-size: 10px; color: #9aa4ad; }
+  /* 図面の線の破片と同じ形の小数点。教えてはいけない（ツールが位置から読む） */
+  .teach-cell.auto { background: #f3f0ff; border-color: #c3b8ea; }
+  .teach-auto { display: block; font-size: 10px; color: #6b4fbb; font-weight: 600; }
   .teach-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
   .teach-apply { background: #0a7a3d; color: #fff; border: none; border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
   .teach-clear { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
@@ -2369,6 +2378,11 @@
     ASPECT_TOL: 0.12,
     MIN_SHAPE_COUNT: 1, // 一覧に出す形の最小出現回数
     DOT_RATIO: 0.35,    // ふつうの字高に対してこれ以下なら「小数点らしい形」
+    // 「教えようがない小数点」を位置で決めるときの縦横比の上限。
+    // 直線（縦棒・横棒）の小数点は図面の線の破片と同じ鍵になり、形では
+    // 区別できない。これより太い小数点（塗り潰しの点など）は教えられるので
+    // ここでは推測しない（toTexts）
+    DOT_LINE_ASPECT: 0.08,
   };
 
   const r2 = (v) => (Math.abs(v) < 1e-9 ? 0 : Math.round(v * 100) / 100);
@@ -2734,6 +2748,18 @@
         if (i > 0 && i < r.glyphs.length - 1) midRun.add(g.shape);
       });
     }
+    // 各字形の実際の大きさ（代表の字形ではなく、行に出たときの大きさ）。
+    // 直線の小数点は図面の線の破片と**同じ鍵**になり、代表として長い破片が
+    // 選ばれることがあるので、代表の大きさで小数点を判定してはいけない
+    const midSmall = new Map();
+    for (const r of runs) {
+      if (r.glyphs.length < 2) continue;
+      r.glyphs.forEach((g, i) => {
+        if (i === 0 || i === r.glyphs.length - 1) return;
+        const sz = Math.max(g.w, g.h);
+        if (!midSmall.has(g.shape) || sz < midSmall.get(g.shape)) midSmall.set(g.shape, sz);
+      });
+    }
     // この図面のふつうの字高。教える画面で字形を実寸比で描くのと、
     // 小数点らしい形を見分けるのに使う
     // （小数点を枠いっぱいに伸ばすと線の破片と見分けが付かない）
@@ -2749,7 +2775,18 @@
     // 両隣に字がある位置にしか出ない形、という条件が効く。線の破片は
     // 行の端に付くことはあっても、字と字のあいだには入らない
     const looksDot = (g) =>
-      refHeight > 0 && midRun.has(g.shape) && Math.max(g.glyph.w, g.glyph.h) <= refHeight * PARAMS.DOT_RATIO;
+      refHeight > 0 &&
+      midRun.has(g.shape) &&
+      (midSmall.get(g.shape) || Infinity) <= refHeight * PARAMS.DOT_RATIO;
+    // 直線（縦棒・横棒）の小数点は図面の線の破片と同じ鍵になるので、
+    // **教えてはいけない**（教えると線の破片が全部「.」になる）。
+    // toTexts が位置と大きさで読むので、教える画面では「教えなくてよい」と出す。
+    // 縦横比は鍵に入っているので、代表の字形ではなく鍵から取る
+    const autoDot = (g) => {
+      if (!looksDot(g)) return false;
+      const a = aspectOfKey(g.shape);
+      return a >= 0 && a <= PARAMS.DOT_LINE_ASPECT;
+    };
     const shapes = reps
       .filter((r) => (inRuns.get(r.shape) || 0) >= PARAMS.MIN_SHAPE_COUNT)
       .map((r) => ({
@@ -2758,6 +2795,7 @@
         glyph: r.glyph,
         rot: rotations(r.glyph),
         dot: looksDot(r),
+        autoDot: autoDot(r),
       }))
       .sort((a, b) => b.count - a.count || (a.shape < b.shape ? -1 : 1));
     return { glyphs, runs, shapes, refHeight };
@@ -2782,11 +2820,35 @@
       return ch;
     };
     for (const run of runs) {
+      // 行のふつうの字高（小数点かどうかの判定に使う）
+      const sizes = run.glyphs.map((g) => Math.max(g.w, g.h)).sort((a, b) => a - b);
+      const ordH = sizes[sizes.length >> 1];
       let str = "";
       let ok = true;
-      for (const g of run.glyphs) {
+      let dots = 0;
+      for (let i = 0; i < run.glyphs.length; i++) {
+        const g = run.glyphs[i];
         const ch = lookup(g);
         if (ch == null || ch === "") {
+          // 対応表に無くても、**行の途中にある極小の直線**は小数点として読む。
+          // 横書きの小数点は 0.6pt の縦棒で、ビット列も縦横比も図面の縦線の
+          // 破片とまったく同じになる（実図面では縦線の破片が 1430 個）。
+          // つまり**形では区別できず、教えようもない**（教えると線の破片まで
+          // 全部「.」になる）。両隣に字があり、ふつうの字高の DOT_RATIO 以下で、
+          // 直線（縦横比ほぼ 0）のものだけ、位置と大きさで小数点と決める。
+          // 1 行に 2 つ以上あれば小数点ではないので、行ごと捨てる。
+          if (
+            dots === 0 &&
+            i > 0 &&
+            i < run.glyphs.length - 1 &&
+            ordH > 0 &&
+            Math.max(g.w, g.h) <= ordH * PARAMS.DOT_RATIO &&
+            aspectOfGlyph(g) <= PARAMS.DOT_LINE_ASPECT
+          ) {
+            dots++;
+            str += ".";
+            continue;
+          }
           ok = false;
           break;
         }
@@ -2956,8 +3018,9 @@
     // （番号と位置が既存の符号と矛盾しないものだけを採るため）。
     // 候補が増えると短い芯が救われるので、芯の組み立てからやり直す。
     let plain = [];
+    const rejected = [];
     if (PARAMS.PLAIN_LABELS) {
-      plain = plainCandidates(extract.texts, extract.circles || [], vAxes, hAxes, cands);
+      plain = plainCandidates(extract.texts, extract.circles || [], vAxes, hAxes, cands, rejected);
       if (plain.length) {
         cands = cands.concat(plain);
         // 芯を組み直すので、1パス目で立てた「割り当て済み」を戻す
@@ -2985,6 +3048,13 @@
       droppedBubbles: allCands.length - grouped.primary.length,
       // 円で囲まれていないのに採用した符号（画面の説明用）
       plainLabels: plain.filter((c) => c.used).map((c) => c.norm),
+      // 符号らしいのに通り芯にしなかった文字列と、その理由。
+      // 黙って落とすと「なぜ拾えないのか」が分からないので画面に出す
+      rejected: rejected.concat(
+        plain
+          .filter((c) => !c.used)
+          .map((c) => ({ text: c.norm, why: "その位置に通り芯の線が見つかりません" }))
+      ),
     };
   }
 
@@ -3212,16 +3282,29 @@
   // 構造図は細分の通り芯を円で囲まずに書くことがあるが、同じ書式の
   // **部材符号**（Y1.1 など）が図の中に大量に散っていることもあるので、
   // 「既にある符号の番号と位置の両方に矛盾しないもの」だけを採る。
-  function plainCandidates(texts, circles, vAxes, hAxes, cands) {
+  // 符号らしく見えるが通り芯にしなかった文字列（rejected に理由を足す）
+  const LABELISH = /^[XY][0-9][0-9A-Z.\-_,]{0,5}$/;
+
+  function plainCandidates(texts, circles, vAxes, hAxes, cands, rejected) {
+    const note = (text, why) => {
+      if (!rejected) return;
+      if (rejected.length < 40 && !rejected.some((r) => r.text === text && r.why === why)) {
+        rejected.push({ text, why });
+      }
+    };
     const refV = labeledRef(vAxes, cands);
     const refH = labeledRef(hAxes, cands);
-    if (!refV && !refH) return [];
     const out = [];
     const seen = new Set();
     for (const t of texts || []) {
       if (!t.str) continue;
       const lab = U.axisLabelOf(t.str);
-      if (!lab) continue;
+      if (!lab) {
+        // 「Y8-2」のように符号っぽいが書式が合わない文字列。読み違いの手がかりになる
+        if (LABELISH.test(U.normalizeLabel(t.str))) note(t.str, "符号の書式（X○○ / Y○○）になっていません");
+        continue;
+      }
+      if (!refV && !refH) continue;
       const ref = lab.dir === "v" ? refV : refH;
       if (!ref) continue;
       const ex = t.ex !== undefined ? t.ex : t.x;
@@ -3235,7 +3318,12 @@
       const ty = (t.y + ey) / 2 + (horiz ? size * 0.35 : 0);
       if ((circles || []).some((c) => insideCircle(c, tx, ty))) continue; // 円囲みは別で拾う
       const pos = lab.dir === "v" ? tx : ty;
-      if (!ref.fits(lab.label, pos)) continue;
+      if (!ref.fits(lab.label, pos)) {
+        note(lab.label, ref.has(lab.label)
+          ? "同じ符号の通り芯がすでにあります"
+          : "すでにある符号の番号と位置が合いません");
+        continue;
+      }
       const key = lab.label + "@" + Math.round(pos * 2);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -4447,6 +4535,7 @@
   const SPLIT_AUTO_PAGES = 4; // このページ数までは読み込み時に自動で分割を判定する
   const MARK_MIN_PX = 7; // 符号・数字の塗りの最小の大きさ(px)。縮小時でも見えるように
   const MARK_ALPHA = 0.2; // 照合結果の塗りの濃さ（レイヤをまとめて重ねるとき）
+  const REJ_MAX = 12; // 「通り芯にしなかった文字列」を理由ごとに並べる上限
   // 照合結果の塗り分け。一致=黄 / 要確認=橙 / 差異=赤。
   // 塗りは**不透明な色で別レイヤに描いてから**まとめて薄く重ねる。
   // X方向の帯とY方向の帯は図面の上で必ず交差するので、そのまま半透明で塗ると
@@ -4610,6 +4699,7 @@
           "各マスの下に、その形が表す文字（0〜9 / . / X / Y）を入力します。" +
           "覚えている字形は入力済みで出ます。文字ではない線の破片は空欄のままにしてください。" +
           "グレーの文字はツールの推測です（小数点らしい形・入力済みの形を90度回したもの）。" +
+          "「自動」と付いた形は図面の線の破片と見分けが付かない小数点で、ツールが位置から読むので空欄のままにしてください。" +
           "合っていればそのまま、違えば直すか消してください。" +
           "入力した内容はこのブラウザにためられ、次に読む図面でもそのまま使われます。",
       })
@@ -4645,6 +4735,14 @@
       inp.title = sh.count + "回";
       cell.appendChild(inp);
       cell.appendChild(el("span", { class: "teach-n", text: String(sh.count) }));
+      // 直線の小数点は図面の線の破片と同じ形なので教えてはいけない
+      // （教えると破片が全部「.」になる）。ツールが位置と大きさで読む
+      if (sh.autoDot) {
+        cell.classList.add("auto");
+        inp.placeholder = ".";
+        inp.title = sh.count + "回／小数点として自動で読みます（教える必要はありません）";
+        cell.appendChild(el("span", { class: "teach-auto", text: "自動" }));
+      }
       grid.appendChild(cell);
       inputs.push({ sh, inp, cell, known: row.known });
     }
@@ -4675,7 +4773,9 @@
           found = src.inp.value;
         }
         if (many) found = ""; // 複数の文字が候補になるときは出さない
-        if (!found && o.sh.dot) found = ".";
+        // 直線の小数点はツールが自動で読むので、候補にも入れない
+        // （教えると図面の線の破片が全部「.」になってしまう）
+        if (!found && o.sh.dot && !o.sh.autoDot) found = ".";
         o.inp.value = found;
         o.inp.classList.toggle("guess", !!found);
       }
@@ -4791,6 +4891,39 @@
     wrap.appendChild(bar);
     wrap.appendChild(slot);
     return wrap;
+  }
+
+  // 「符号らしいのに通り芯にしなかった文字列」を理由つきで出す（20_axis の det.rejected）。
+  // 黙って落とすと利用者には「拾えない」だけが見え、原因（字形の読み違い・
+  // 番号の位置が合わない・線が無い）のどれなのか分からない。
+  function rejectedBox(det) {
+    const list = (det && det.rejected) || [];
+    if (!list.length) return null;
+    // 同じ理由のものはまとめる（理由は数種類しかないので縦に長くならない）
+    const byWhy = new Map();
+    for (const r of list) {
+      if (!byWhy.has(r.why)) byWhy.set(r.why, []);
+      const texts = byWhy.get(r.why);
+      if (texts.indexOf(r.text) < 0) texts.push(r.text);
+    }
+    const box = el("div", { class: "rej-box" });
+    box.appendChild(
+      el("div", {
+        class: "rej-title",
+        text: "※ 符号らしいのに通り芯にしなかった文字列（" + list.length + "件）",
+      })
+    );
+    const ul = el("ul", { class: "rej-list" });
+    for (const [why, texts] of byWhy) {
+      const li = el("li");
+      li.appendChild(el("span", { class: "rej-text", text: texts.slice(0, REJ_MAX).join("・") }));
+      li.appendChild(
+        el("span", { class: "rej-why", text: (texts.length > REJ_MAX ? " ほか" + (texts.length - REJ_MAX) + "件" : "") + " … " + why })
+      );
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    return box;
   }
 
   // 通り芯以外の寸法線（室内寸法・開口幅 W＝ など）を段ごとに一覧する。
@@ -6285,6 +6418,8 @@
         this.$others.innerHTML = "";
         this.$pickup.innerHTML = "";
         this.$pickup.appendChild(renderDiagnosis(this.diag, this));
+        const rejNg = rejectedBox(this.det);
+        if (rejNg) this.$pickup.appendChild(rejNg);
         // 読めない理由は見てもらわないと困るので、このときだけ開く
         this.setPickupOpen(true);
         return;
@@ -6292,6 +6427,12 @@
       this.$pickup.hidden = !showGrid;
       if (showGrid) renderSideBlocks(this.$pickup, this.sides);
       else this.$pickup.innerHTML = "";
+      // 符号らしいのに通り芯にしなかった文字列を理由つきで出す
+      // （「拾えていない」と言われたときに原因をたどれるようにするため）
+      if (showGrid) {
+        const rej = rejectedBox(this.det);
+        if (rej) this.$pickup.appendChild(rej);
+      }
       // 線で描かれた文字の図面では、読めていても字形を足せるようにしておく
       if (showGrid && (this.glyphPage || (this.diag && this.diag.outlined))) {
         this.$pickup.appendChild(glyphTeachBar(this, "線で描かれた文字を教える・追加する"));

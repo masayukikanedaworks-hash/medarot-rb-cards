@@ -251,3 +251,79 @@ exports.小数点の無い図面では印が付かない = async () => {
     "小数点の無い図面では印が付かない");
   assert.ok(g.shapes.length >= 8, "形自体は出ている: " + g.shapes.length);
 };
+
+// 横書きの小数点が「幅ゼロの縦棒」で描かれている図面（実図面の構造図がこれ）。
+// この字形は図面の縦線の破片とビット列も縦横比もまったく同じになるので、
+// **対応表に教えようがない**（教えると線の破片が全部「.」になる）。
+// 形では区別できないので、位置と大きさ（両隣に字があり極小の直線）で決める。
+exports.縦棒の小数点は教えなくても読む = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.barDot = true;
+  spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+  spec.splitsV0 = null;
+  const bytes = mk.makeBasicPdf(spec);
+  // 縦棒の字形は「線の破片」として教えないでおく（実図面と同じ状況）
+  const full = strokeFontMap();
+  const map = {};
+  for (const k in full) if (full[k] !== "·") map[k] = full[k];
+  assert.ok(Object.keys(map).length < Object.keys(full).length, "縦棒の字形を外せている");
+
+  const { det, sides } = await analyzeStroke(bytes, map);
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X2.2", "X3"]);
+  assert.deepEqual(
+    sides.top.spans.map((s) => s.from + "~" + s.to + ":" + s.value),
+    ["X1~X2:6000", "X2~X2.2:2000", "X2.2~X3:3000"]
+  );
+};
+
+// 寸法の数字の小数点（2730.5）も同じように読む
+exports.縦棒の小数点は寸法の数字でも読む = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.barDot = true;
+  const { extract } = await loadFirstPage(mk.makeBasicPdf(spec));
+  const g = ZC.glyph.extract(extract);
+  const full = strokeFontMap();
+  const map = {};
+  for (const k in full) if (full[k] !== "·") map[k] = full[k];
+  const strs = ZC.glyph.toTexts(g.runs, map).map((t) => t.str);
+  for (const want of ["2730.5", "3269.5"]) {
+    assert.ok(strs.includes(want), `"${want}" が読めている: ` + JSON.stringify(strs.slice(0, 40)));
+  }
+  // 推測するのは行の途中の 1 つだけ。"." だけの行や ".." は作らない
+  assert.deepEqual(strs.filter((s) => /^\.|\.\./.test(s)), [], JSON.stringify(strs));
+};
+
+// 教えられる小数点（塗り潰しの点・斜めの短いストローク）は推測しない。
+// 推測を広げると、未登録の小さな字をなんでも小数点として読んでしまう
+exports.教えられる小数点は推測で読まない = async () => {
+  const spec = mk.makeSpec();
+  spec.strokeFont = true;
+  spec.vAxes.splice(2, 0, { label: "X2.2", mm: 8000 });
+  spec.splitsV0 = null;
+  const full = strokeFontMap();
+  const map = {};
+  for (const k in full) if (full[k] !== ".") map[k] = full[k];
+  const { det } = await analyzeStroke(mk.makeBasicPdf(spec), map);
+  assert.deepEqual(labels(det, "v"), ["X1", "X2", "X3"], "教えるべき字形は推測しない");
+};
+
+// 直線の小数点は「教えない形」として印を付ける。教えると図面の線の破片が
+// 全部「.」になってしまうので、教える画面でも候補に入れない
+exports.教えてはいけない小数点に印が付く = async () => {
+  const bar = mk.makeSpec();
+  bar.strokeFont = true;
+  bar.barDot = true;
+  const g1 = ZC.glyph.extract((await loadFirstPage(mk.makeBasicPdf(bar))).extract);
+  const auto = g1.shapes.filter((s) => s.autoDot);
+  assert.equal(auto.length, 1, "印が付くのは1種だけ: " + auto.length);
+  assert.ok(auto[0].dot, "小数点らしい形でもある");
+
+  // 教えられる（斜めのストロークの）小数点には印を付けない
+  const slant = mk.makeSpec();
+  slant.strokeFont = true;
+  const g2 = ZC.glyph.extract((await loadFirstPage(mk.makeBasicPdf(slant))).extract);
+  assert.deepEqual(g2.shapes.filter((s) => s.autoDot), [], "教えられる小数点には印を付けない");
+  assert.ok(g2.shapes.some((s) => s.dot), "小数点らしい形自体は出ている");
+};

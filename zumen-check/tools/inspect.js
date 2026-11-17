@@ -114,6 +114,20 @@ function reportOne(r, opt) {
         ? `  ※円で囲まれていない符号: ${r.det.plainLabels.join(" ")}`
         : "")
   );
+  // 符号らしいのに通り芯にしなかった文字列（理由ごとにまとめる）。
+  // 「拾えていない」と言われたときの手がかり
+  if (r.det.rejected && r.det.rejected.length) {
+    const byWhy = new Map();
+    for (const x of r.det.rejected) {
+      if (!byWhy.has(x.why)) byWhy.set(x.why, []);
+      const t = byWhy.get(x.why);
+      if (!t.includes(x.text)) t.push(x.text);
+    }
+    lines.push(`         ※通り芯にしなかった符号らしい文字列 ${r.det.rejected.length} 件`);
+    for (const [why, texts] of byWhy) {
+      lines.push(`            ${texts.slice(0, 12).join(" ")}${texts.length > 12 ? ` ほか${texts.length - 12}件` : ""} … ${why}`);
+    }
+  }
   lines.push("");
   for (const key of SIDE_ORDER) {
     const s = r.sides[key];
