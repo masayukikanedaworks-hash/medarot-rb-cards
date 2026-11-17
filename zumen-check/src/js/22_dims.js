@@ -73,7 +73,9 @@
   }
 
   // dir="v": 横向きの寸法線（縦芯の間隔を測る） / dir="h": 縦向きの寸法線
-  function buildEntries(dir, dots, texts, segments, entries) {
+  // ドットの段から「数字を探す区間」を切り出すところまで。
+  // 数字の割り当ては assignTexts（縦横をまたいで 1 つの数字は 1 回だけ使う）
+  function collectSpans(dir, dots, segments, out) {
     const along = dir === "v" ? (p) => p.x : (p) => p.y; // 測る方向の座標
     const cross = dir === "v" ? (p) => p.y : (p) => p.x; // 寸法線の位置
 
@@ -103,7 +105,6 @@
       }
     }
 
-    const usedTexts = new Set();
     for (const r of rows) {
       if (r.items.length < 2) continue;
       const pts = r.items.map(along).sort((a, b) => a - b);
@@ -118,44 +119,52 @@
           (l) => l.a <= p1 + PARAMS.LINE_COVER_TOL && l.b >= p2 - PARAMS.LINE_COVER_TOL
         );
         if (!covered) continue;
-        // 線の上（横段なら上側 / 縦段なら左側優先）にある数字を探す。
-        // 狭い区間では数字が90度回転で書かれることがあるため、両方の向きを受け付ける
-        let best = null;
-        let bestScore = Infinity;
-        const mid = (p1 + p2) / 2;
-        for (let ti = 0; ti < texts.length; ti++) {
-          if (usedTexts.has(ti)) continue;
-          const t = texts[ti];
-          const value = U.parseDimNumber(t.str);
-          if (value == null) continue;
-          const width = U.isWidthNote(t.str); // 「W＝1650」= 開口幅
-          let tm; // 測る方向の中心
-          let off; // 線からの浮き（上側/左側が正）。回転文字は線に近い側の端で測る
-          if (dir === "v") {
-            tm = (t.x + t.ex) / 2;
-            off = t.horizontal ? (t.y + t.ey) / 2 - r.c : Math.min(t.y, t.ey) - r.c;
-          } else {
-            tm = (t.y + t.ey) / 2;
-            off = !t.horizontal ? r.c - (t.x + t.ex) / 2 : r.c - Math.max(t.x, t.ex);
-          }
-          const lift = Math.abs(off);
-          if (lift < PARAMS.TEXT_NEAR_MIN || lift > t.size * PARAMS.TEXT_NEAR_MAX) continue;
-          if (Math.abs(tm - mid) > (p2 - p1) * PARAMS.TEXT_CENTER) continue;
-          const rotated = dir === "v" ? !t.horizontal : t.horizontal;
-          const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0) + (rotated ? 1 : 0);
-          if (score < bestScore) {
-            bestScore = score;
-            best = { ti, value, width };
-          }
+        out.push({ dir, row: r.c, p1, p2, best: null });
+      }
+    }
+  }
+
+  // 区間に数字を割り当てる。線の上（横段なら上側 / 縦段なら左側優先）にある
+  // 数字のうち、区間の中央に近く・線に近いものを採る。
+  // `parallelOnly` なら**寸法線と平行に書かれた数字だけ**を見る。
+  // `used` は縦横で共有すること。共有しないと 1 つの数字が横段と縦列の
+  // **両方に使われ、同じ寸法が縦横ふたつ出る**（実図面で発生。利用者から指摘）。
+  function assignTexts(spans, texts, used, parallelOnly) {
+    for (const sp of spans) {
+      if (sp.best) continue;
+      let best = null;
+      let bestScore = Infinity;
+      const mid = (sp.p1 + sp.p2) / 2;
+      for (let ti = 0; ti < texts.length; ti++) {
+        if (used.has(ti)) continue;
+        const t = texts[ti];
+        // 寸法線と平行に書かれているか（横段=横書き / 縦列=90度回転）
+        const parallel = sp.dir === "v" ? t.horizontal : !t.horizontal;
+        if (parallelOnly && !parallel) continue;
+        const value = U.parseDimNumber(t.str);
+        if (value == null) continue;
+        const width = U.isWidthNote(t.str); // 「W＝1650」= 開口幅
+        let tm; // 測る方向の中心
+        let off; // 線からの浮き（上側/左側が正）。回転文字は線に近い側の端で測る
+        if (sp.dir === "v") {
+          tm = (t.x + t.ex) / 2;
+          off = t.horizontal ? (t.y + t.ey) / 2 - sp.row : Math.min(t.y, t.ey) - sp.row;
+        } else {
+          tm = (t.y + t.ey) / 2;
+          off = !t.horizontal ? sp.row - (t.x + t.ex) / 2 : sp.row - Math.max(t.x, t.ex);
         }
-        if (best) {
-          usedTexts.add(best.ti);
-          const e = { dir, row: r.c, p1, p2, value: best.value, width: best.width };
-          // どの数字を読んだか（図上でその数字だけを強調するのに使う）。
-          // 列挙不可にして JSON/CSV には出さない
-          Object.defineProperty(e, "text", { value: texts[best.ti], enumerable: false });
-          entries.push(e);
+        const lift = Math.abs(off);
+        if (lift < PARAMS.TEXT_NEAR_MIN || lift > t.size * PARAMS.TEXT_NEAR_MAX) continue;
+        if (Math.abs(tm - mid) > (sp.p2 - sp.p1) * PARAMS.TEXT_CENTER) continue;
+        const score = Math.abs(tm - mid) + lift * 0.5 + (off < 0 ? 8 : 0) + (parallel ? 0 : 1);
+        if (score < bestScore) {
+          bestScore = score;
+          best = { ti, value, width };
         }
+      }
+      if (best) {
+        used.add(best.ti);
+        sp.best = best;
       }
     }
   }
@@ -166,8 +175,24 @@
     const entries = [];
     if (dots.length >= 2) {
       const texts = mergeTexts(ex.texts || []);
-      buildEntries("v", dots, texts, ex.segments || [], entries);
-      buildEntries("h", dots, texts, ex.segments || [], entries);
+      const segments = ex.segments || [];
+      const spans = [];
+      collectSpans("v", dots, segments, spans);
+      collectSpans("h", dots, segments, spans);
+      // **まず寸法線と平行に書かれた数字だけ**で割り当て、余った区間にだけ
+      // 90度違う向きの数字を許す（狭い区間は回転して書かれることがあるため）。
+      // 数字は縦横をまたいで 1 回しか使わない
+      const used = new Set();
+      assignTexts(spans, texts, used, true);
+      assignTexts(spans, texts, used, false);
+      for (const sp of spans) {
+        if (!sp.best) continue;
+        const e = { dir: sp.dir, row: sp.row, p1: sp.p1, p2: sp.p2, value: sp.best.value, width: sp.best.width };
+        // どの数字を読んだか（図上でその数字だけを強調する / 同じ向きで描くのに使う）。
+        // 列挙不可にして JSON/CSV には出さない
+        Object.defineProperty(e, "text", { value: texts[sp.best.ti], enumerable: false });
+        entries.push(e);
+      }
     }
     return { dots, entries };
   }

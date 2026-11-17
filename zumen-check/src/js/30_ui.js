@@ -466,6 +466,28 @@
     ctx.fillText(str, x, y);
   }
 
+  // 寸法の数値を、**図面に書かれている数字と同じ向き**で描く。
+  // 寸法線の向きで決めると、横書きの数字から読んだ寸法が縦向きに出て、
+  // 同じ寸法が縦横ふたつ書かれているように見える（利用者から指摘）。
+  function dimLabel(ctx, str, x, y, rotated, align) {
+    ctx.textAlign = align || "center";
+    if (!rotated) {
+      haloText(ctx, str, x, y);
+      return;
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = align || "center";
+    haloText(ctx, str, 0, 0);
+    ctx.restore();
+  }
+
+  // その寸法を読み取った数字の向き（読み取れていなければ寸法線の向きに従う）
+  function dimRotated(e, fallback) {
+    return e && e.text ? !e.text.horizontal : fallback;
+  }
+
   class Panel {
     constructor(key, title, container) {
       this.key = key;
@@ -1609,12 +1631,11 @@
             ctx.moveTo(x2, y - 3);
             ctx.lineTo(x2, y + 3);
             ctx.stroke();
-            ctx.textAlign = "center";
             for (const e of r.items) {
               const [a] = this.toScreen(e.p1, 0);
               const [b] = this.toScreen(e.p2, 0);
               if (b - a < 26) continue;
-              haloText(ctx, ZC.sides.fmtVal(e.value), (a + b) / 2, y - 3);
+              dimLabel(ctx, ZC.sides.fmtVal(e.value), (a + b) / 2, y - 3, dimRotated(e, false));
             }
           } else {
             const [x] = this.toScreen(r.row, 0);
@@ -1637,12 +1658,9 @@
               const [, a] = this.toScreen(0, e.p1);
               const [, b] = this.toScreen(0, e.p2);
               if (a - b < 26) continue;
-              ctx.save();
-              ctx.translate(x - 3, (a + b) / 2);
-              ctx.rotate(-Math.PI / 2);
-              ctx.textAlign = "center";
-              haloText(ctx, ZC.sides.fmtVal(e.value), 0, 0);
-              ctx.restore();
+              const rot = dimRotated(e, true);
+              // 横書きの数字から読んだものは、線の左に横書きのまま置く
+              dimLabel(ctx, ZC.sides.fmtVal(e.value), x - 3, (a + b) / 2 + (rot ? 0 : 3), rot, rot ? "center" : "right");
             }
           }
         }

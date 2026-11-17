@@ -52,3 +52,67 @@ exports.黒ドットが極小の円弧で描かれていても読む = async () 
   assert.equal(sp.value, 6000, "塗りドットの図面と同じ値になる");
   assert.deepEqual(sp.parts, [2730.5, 3269.5]);
 };
+
+// --- 1つの数字を縦横ふたつの寸法に使わない -------------------------------
+
+// 線分1本ぶんのヘルパ（ZC.dims.extract は dots / texts / segments しか見ない）
+function seg(x1, y1, x2, y2) {
+  return { x1, y1, x2, y2, w: 0.3 };
+}
+
+// 実図面で発生: 横段の数字（2222.5）が、すぐ右にある**縦列**の数字としても
+// 使われ、同じ寸法が横書きと90度回転の2つに出ていた。
+// 数字は縦横をまたいで1回しか使わない。
+exports.同じ数字を縦横ふたつの寸法に使わない = () => {
+  const ex = {
+    // 横段: y=100 に 2 点（x=0 と x=40）。数字は線の上・中央に横書き
+    // 縦列: x=28 に 2 点（y=90 と y=110）。数字は書かれていないが、
+    //       横段の数字が「線のすぐ左・列の中央」に来てしまう配置
+    dots: [{ x: 0, y: 100 }, { x: 40, y: 100 }, { x: 28, y: 90 }, { x: 28, y: 110 }],
+    segments: [seg(0, 100, 40, 100), seg(28, 90, 28, 110)],
+    texts: [{ str: "2222.5", x: 16, y: 101.5, ex: 24, ey: 101.5, size: 3 }],
+  };
+  const r = ZC.dims.extract(ex);
+  const got = r.entries.map((e) => e.dir + ":" + e.value);
+  assert.deepEqual(got, ["v:2222.5"], "数字を使うのは横段だけ: " + JSON.stringify(got));
+};
+
+// 縦列に90度回転で書かれた数字は、ちゃんと縦列のものとして読む
+exports.縦列の数字は回転して書かれていても読む = () => {
+  const ex = {
+    dots: [{ x: 0, y: 100 }, { x: 40, y: 100 }, { x: 28, y: 90 }, { x: 28, y: 110 }],
+    segments: [seg(0, 100, 40, 100), seg(28, 90, 28, 110)],
+    texts: [
+      { str: "2222.5", x: 16, y: 101.5, ex: 24, ey: 101.5, size: 3 }, // 横段の数字
+      { str: "1234", x: 26.5, y: 96, ex: 26.5, ey: 104, size: 3 },    // 縦列の数字（回転）
+    ],
+  };
+  const r = ZC.dims.extract(ex);
+  const got = r.entries.map((e) => e.dir + ":" + e.value).sort();
+  assert.deepEqual(got, ["h:1234", "v:2222.5"], JSON.stringify(got));
+};
+
+// どの数字から読んだかを持ち回る（図上で同じ向きに描くのに使う）
+exports.寸法は読み取り元の数字を持つ = () => {
+  const ex = {
+    dots: [{ x: 0, y: 100 }, { x: 40, y: 100 }],
+    segments: [seg(0, 100, 40, 100)],
+    texts: [{ str: "2222.5", x: 16, y: 101.5, ex: 24, ey: 101.5, size: 3 }],
+  };
+  const e = ZC.dims.extract(ex).entries[0];
+  assert.equal(e.text.str, "2222.5");
+  assert.equal(e.text.horizontal, true, "横書きの数字から読んだ");
+  assert.equal(JSON.stringify(e).includes("text"), false, "JSONには出さない");
+};
+
+// 狭い区間の数字は90度回転して書かれる。平行な数字が無ければ回転も受け付ける
+exports.狭い区間の回転した数字も読む = () => {
+  const ex = {
+    dots: [{ x: 0, y: 100 }, { x: 8, y: 100 }],
+    segments: [seg(0, 100, 8, 100)],
+    texts: [{ str: "910", x: 4, y: 101, ex: 4, ey: 107, size: 3 }], // 90度回転
+  };
+  const r = ZC.dims.extract(ex);
+  assert.deepEqual(r.entries.map((e) => e.dir + ":" + e.value), ["v:910"]);
+  assert.equal(r.entries[0].text.horizontal, false, "回転した数字から読んだ");
+};
