@@ -394,7 +394,9 @@
     for (const r of list) {
       if (!byWhy.has(r.why)) byWhy.set(r.why, []);
       const texts = byWhy.get(r.why);
-      if (texts.indexOf(r.text) < 0) texts.push(r.text);
+      // 符号は芯の両端に書かれるので、どちらの辺のものかまで言う
+      const name = (r.side ? ZC.axis.SIDE_NAME[r.side] + "の" : "") + r.text;
+      if (texts.indexOf(name) < 0) texts.push(name);
     }
     const box = el("div", { class: "rej-box" });
     box.appendChild(

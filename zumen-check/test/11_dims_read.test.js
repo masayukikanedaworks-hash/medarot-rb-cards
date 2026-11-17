@@ -100,6 +100,15 @@ exports.右下の小さなキープランは拾わない = async () => {
   assert.deepEqual(sides.bottom.axes.map((a) => a.label), ["X1", "X2", "X3"], "本図の符号だけが残る");
   assert.equal(det.groups.length, 2, "図は2つに分かれて認識される");
   assert.equal(det.droppedBubbles > 0, true, "小さい図の符号は除外される");
+  // 除外したことは理由つきで伝える。ただし**本図にも同じ符号がある分は出さない**
+  // （キープランは本図と同じ符号が並ぶので、全部出すと毎回長い一覧になる）
+  const why = new Map(det.rejected.map((r) => [r.text, r.why]));
+  for (const l of ["X7", "X8", "Y7"]) {
+    assert.match(why.get(l) || "", /別の図の符号/, l + " を除外した理由: " + JSON.stringify(det.rejected));
+  }
+  for (const l of ["X1", "X2", "Y1"]) {
+    assert.equal(why.has(l), false, l + " は本図にあるので出さない");
+  }
   // 本図の寸法読み取りは影響を受けない
   const sp = sides.bottom.spans.find((s) => s.from === "X1" && s.to === "X2");
   assert.equal(sp.value, 6000);

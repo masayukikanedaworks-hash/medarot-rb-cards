@@ -220,3 +220,32 @@ exports.ふつうの図面では拾わなかった理由を出さない = async 
   const { det } = await analyze(mk.makeBasicPdf());
   assert.deepEqual(det.rejected, [], JSON.stringify(det.rejected));
 };
+
+// 符号は芯の両端に書かれるので「左辺は読めたのに右辺だけ読めない」が起きる。
+// そのとき、円が見つかっていないのか・中の文字が読めていないのか・芯に
+// 割り当てられなかったのかで直しかたが違うので、区別して理由を出す。
+exports.片側のバブルだけ読めないときは円があることを伝える = async () => {
+  const spec = mk.makeSpec();
+  spec.hAxes[1].unread = ["right"]; // Y2 の右辺だけ、円はあるが中が読めない
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  // 左辺で読めるので通り芯そのものは検出される
+  assert.deepEqual(labels(det, "h"), ["Y1", "Y2"]);
+  const ax = det.h.find((a) => a.label === "Y2");
+  assert.deepEqual(ax.bubbles.map((b) => b.side), ["left"], "右辺のバブルは付いていない");
+  const r = det.rejected.find((x) => x.text === "Y2" && x.side === "right");
+  assert.ok(r, "右辺の読めないバブルを知らせる: " + JSON.stringify(det.rejected));
+  assert.match(r.why, /中の文字が読めません/);
+  // 読めている側は挙げない
+  assert.equal(det.rejected.some((x) => x.side === "left"), false, JSON.stringify(det.rejected));
+};
+
+// 芯の端から離れすぎたバブルは、理由に距離を出す（線が途中で切れている図面）
+exports.芯の端から離れたバブルは距離を理由に出す = async () => {
+  const spec = mk.makeSpec();
+  // Y2 の線を左半分だけにする（右辺のバブルは芯の端から遠くなる）
+  spec.hAxes[1].to = 300;
+  const { det } = await analyze(mk.makeBasicPdf(spec));
+  const r = det.rejected.find((x) => x.text === "Y2" && /離れています/.test(x.why));
+  assert.ok(r, "離れすぎを知らせる: " + JSON.stringify(det.rejected));
+  assert.equal(r.side, "right");
+};
