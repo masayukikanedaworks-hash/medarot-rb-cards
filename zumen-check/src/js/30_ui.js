@@ -58,7 +58,7 @@
   // 拾い出し結果を「X方向（上辺・下辺）」「Y方向（右辺・左辺）」の2ブロックに分け、
   // 各方向の中で2辺を横並びにする。各辺は「区間 ： 値 （内訳）」の表で、
   // 値は右揃えにして桁を揃える。
-  // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}（拾い出し結果・AI結果の両方に使う）
+  // sidesLike: {top:{axes,spans}, right:…, bottom:…, left:…}
   const DIR_GROUPS = [
     { title: "X方向（縦方向の通り芯）", sides: ["top", "bottom"] },
     { title: "Y方向（横方向の通り芯）", sides: ["right", "left"] },
@@ -333,9 +333,6 @@
     box.appendChild(table);
     const ul = el("ul", { class: "diag-hints" });
     for (const c of diag.failed) ul.appendChild(el("li", { text: c.hint }));
-    ul.appendChild(
-      el("li", { text: "図面のまま読みたい場合は「AIで総ざらい」をお使いください（AIは図として読みます）" })
-    );
     box.appendChild(ul);
     // 文字が線で描かれている図面は、形と文字の対応を教えればこのまま読める
     if (diag.outlined && panel) {
@@ -482,8 +479,6 @@
       this.sides = null;
       this.enabled = new Set();
       this.fileName = "";
-      this.pdfBytes = null; // AI解析に送るPDFの実体
-      this.aiSides = null;
       // ビュワー状態
       this.view = null; // {scale, ox, oy, fitScale}
       this.others = null; // 通り芯以外の寸法線（段ごと）
@@ -510,13 +505,19 @@
 
     _build() {
       this.root.innerHTML =
+        // 分割図面の案内は、ファイル選択とページ番号の**右側**に並べる
+        // （図のすぐ上に横長の箱が入るとビュワーが下へ押し下げられるため）
+        '<div class="panel-head">' +
+        '<div class="head-main">' +
         '<div class="file-row">' +
         '<label class="file-btn">PDFを選択<input type="file" accept=".pdf,application/pdf" hidden></label>' +
         '<span class="fname">未選択</span>' +
         "</div>" +
         '<div class="ctrl-row"><label>ページ <select class="page-sel" disabled></select></label></div>' +
-        '<div class="status"></div>' +
+        "</div>" +
         '<div class="split-box" hidden></div>' +
+        "</div>" +
+        '<div class="status"></div>' +
         '<div class="viewer-bar">' +
         '<button type="button" class="vb-fit" title="全体表示（ダブルクリックでも可）">フィット</button>' +
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
@@ -537,14 +538,14 @@
         "</span></div>" +
         '<div class="pickup-body" hidden>' +
         '<div class="pickup-grid"></div><div class="other-dims"></div></div></div>' +
-        '<div class="ai-box">' +
-        '<div class="ai-head">' +
-        '<button type="button" class="ai-run" disabled title="この図面PDFをAIに送り、通り芯と寸法を総ざらいさせます">AIで総ざらい</button>' +
-        '<span class="ai-note">図面PDFが外部（Anthropic API）に送信されます</span>' +
+        // 通り芯の一覧も既定では閉じておく（1枚ぶんで縦に長く、照合欄が遠くなる）
+        '<div class="list-box">' +
+        '<div class="list-head">' +
+        '<button type="button" class="list-toggle" aria-expanded="false">' +
+        '<span class="tri"></span>通り芯の一覧</button>' +
+        '<span class="list-sum"></span>' +
         "</div>" +
-        '<div class="ai-result"></div>' +
-        "</div>" +
-        '<div class="axis-list"></div>';
+        '<div class="axis-list" hidden></div></div>';
       this.$file = this.root.querySelector('input[type="file"]');
       this.$fname = this.root.querySelector(".fname");
       this.$page = this.root.querySelector(".page-sel");
@@ -554,6 +555,9 @@
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
       this.$list = this.root.querySelector(".axis-list");
+      this.listOpen = false; // 通り芯の一覧も既定で閉じておく
+      this.$listToggle = this.root.querySelector(".list-toggle");
+      this.$listSum = this.root.querySelector(".list-sum");
       this.pickupOpen = false; // 拾い出し結果は既定で閉じておく
       this.$pickupBody = this.root.querySelector(".pickup-body");
       this.$pickupToggle = this.root.querySelector(".pickup-toggle");
@@ -563,8 +567,6 @@
       this.$shGrid = this.root.querySelector(".sh-grid");
       this.$shOther = this.root.querySelector(".sh-other");
       this.$copy = this.root.querySelector(".copy-btn");
-      this.$aiRun = this.root.querySelector(".ai-run");
-      this.$aiResult = this.root.querySelector(".ai-result");
       this.$zoom = this.root.querySelector(".zoom-label");
       this.$fit = this.root.querySelector(".vb-fit");
       this.$measureBtn = this.root.querySelector(".vb-measure");
@@ -588,7 +590,7 @@
         });
       }
       this.$pickupToggle.addEventListener("click", () => this.setPickupOpen(!this.pickupOpen));
-      this.$aiRun.addEventListener("click", () => this.runAi());
+      this.$listToggle.addEventListener("click", () => this.setListOpen(!this.listOpen));
       this.$copy.addEventListener("click", () => {
         const txt = this.pickupText();
         if (navigator.clipboard) navigator.clipboard.writeText(txt);
@@ -651,7 +653,6 @@
       this._reset();
       try {
         const buf = new Uint8Array(await f.arrayBuffer());
-        this.pdfBytes = buf;
         this.doc = await ZC.pdf.PDFDocument.load(buf);
         this.pages = await this.doc.getPages();
         this.$page.innerHTML = "";
@@ -679,9 +680,6 @@
     _reset() {
       this.doc = null;
       this.pages = [];
-      this.pdfBytes = null;
-      this.aiSides = null;
-      if (this.$aiResult) this.$aiResult.innerHTML = "";
       this.extract = null;
       this.axes = { v: [], h: [] };
       this.det = { v: [], h: [] };
@@ -772,9 +770,6 @@
       this.requestRender();
       this.renderList();
       this.renderPickup();
-      if (this.$aiRun) this.$aiRun.disabled = !this.pdfBytes;
-      if (this.$aiResult) this.$aiResult.innerHTML = "";
-      this.aiSides = null;
       ZC.ui.updateRunButton();
     }
 
@@ -918,108 +913,6 @@
     setDiffs(refs) {
       this.diffRefs = refs && refs.length ? refs : null;
       this.requestRender();
-    }
-
-    // AIに図面を読ませ、自動読み取りの結果と突き合わせる
-    async runAi() {
-      if (!this.pdfBytes) return;
-      const page = Number(this.$page.value || 0) + 1;
-      this.$aiRun.disabled = true;
-      this.$aiRun.textContent = "AI解析中…";
-      this.$aiResult.innerHTML = "";
-      this.$aiResult.appendChild(el("p", { class: "ai-msg", text: "AIが図面を読んでいます（1〜2分かかることがあります）…" }));
-      try {
-        const data = await ZC.ai.analyze(this.pdfBytes, page);
-        this.aiSides = ZC.ai.normalize(data.result);
-        if (this.localEmpty()) {
-          this.renderAiOnly(data);
-        } else {
-          const tol = Number(document.getElementById("tol").value) || 1;
-          this.renderAi(ZC.ai.diff(this.sides, this.aiSides, tol), data);
-        }
-      } catch (e) {
-        this.$aiResult.innerHTML = "";
-        this.$aiResult.appendChild(
-          el("p", { class: "ai-msg error", text: "AI解析に失敗しました: " + (e && e.message ? e.message : e) })
-        );
-      } finally {
-        this.$aiRun.disabled = false;
-        this.$aiRun.textContent = "AIで総ざらい";
-      }
-    }
-
-    // 自動読み取りが1本も拾えていない図面（文字データ無しなど）では、
-    // 「AIのみ」だらけの差分表ではなく、AIの結果そのものを拾い出し結果として出す。
-    localEmpty() {
-      if (!this.sides) return true;
-      return !SIDE_ORDER.some((k) => this.sides[k] && this.sides[k].axes.length);
-    }
-
-    renderAiOnly(data) {
-      const wrap = this.$aiResult;
-      wrap.innerHTML = "";
-      wrap.appendChild(
-        el("div", {
-          class: "ai-summary warn",
-          text:
-            "自動読み取りは0本のため、AIの読み取り結果を表示しています" +
-            (data && data.model ? "（" + data.model + "）" : ""),
-        })
-      );
-      const notes = data && data.result && data.result.notes;
-      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
-      wrap.appendChild(
-        el("p", { class: "ai-msg", text: "AIの読み取りにも誤りがあります。数値は必ず図面でご確認ください。" })
-      );
-      const grid = el("div", { class: "pickup-grid" });
-      renderSideBlocks(grid, this.aiSides);
-      wrap.appendChild(grid);
-    }
-
-    renderAi(diff, data) {
-      const wrap = this.$aiResult;
-      wrap.innerHTML = "";
-      const s = diff.summary;
-      wrap.appendChild(
-        el("div", {
-          class: "ai-summary" + (s.differ || s.aiOnly ? " warn" : ""),
-          text:
-            "一致 " + s.same + " / 相違 " + s.differ +
-            " / 自動のみ " + s.localOnly + " / AIのみ " + s.aiOnly +
-            (data && data.model ? "（" + data.model + "）" : ""),
-        })
-      );
-      const notes = data && data.result && data.result.notes;
-      if (notes) wrap.appendChild(el("p", { class: "ai-msg", text: "AIの注記: " + notes }));
-
-      const rows = diff.rows.filter((r) => r.status !== "一致");
-      if (!rows.length) {
-        wrap.appendChild(el("p", { class: "ai-msg", text: "自動読み取りとAIの結果は一致しました。" }));
-      } else {
-        const table = el("table", { class: "ai-table" });
-        const thead = el("thead");
-        thead.innerHTML = "<tr><th>判定</th><th>辺</th><th>種別</th><th>対象</th><th>自動読み取り</th><th>AI</th></tr>";
-        table.appendChild(thead);
-        const tbody = el("tbody");
-        for (const r of rows) {
-          const tr = el("tr", { class: r.status === "相違" ? "differ" : "only" });
-          tr.appendChild(el("td", { text: r.status, class: "st" }));
-          tr.appendChild(el("td", { text: r.side }));
-          tr.appendChild(el("td", { text: r.kind }));
-          tr.appendChild(el("td", { text: r.item }));
-          tr.appendChild(el("td", { text: String(r.local) }));
-          tr.appendChild(el("td", { text: String(r.ai) }));
-          tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-      }
-      const det = el("details", { class: "ai-detail" });
-      det.appendChild(el("summary", { text: "AIの拾い出し結果（全文）" }));
-      const grid = el("div", { class: "pickup-grid" });
-      renderSideBlocks(grid, this.aiSides);
-      det.appendChild(grid);
-      wrap.appendChild(det);
     }
 
     // 線で描かれた文字の情報を用意する（必要になったときだけ解析する）
@@ -1873,6 +1766,15 @@
     }
 
     // 拾い出し結果の開閉
+    // 通り芯の一覧の開閉
+    setListOpen(on) {
+      this.listOpen = !!on;
+      if (!this.$list) return;
+      this.$list.hidden = !this.listOpen;
+      this.$listToggle.setAttribute("aria-expanded", this.listOpen ? "true" : "false");
+      this.$listToggle.classList.toggle("open", this.listOpen);
+    }
+
     setPickupOpen(on) {
       this.pickupOpen = !!on;
       if (!this.$pickupBody) return;
@@ -1936,6 +1838,11 @@
 
     renderList() {
       this.$list.innerHTML = "";
+      // 閉じていても中身が分かるよう、見出しの横に本数を出す
+      if (this.$listSum) {
+        const n = this.labeledAxes().length;
+        this.$listSum.textContent = n ? "符号の付いた通り芯 " + n + "本" : "";
+      }
       this._rowMap = new Map();
       const axes = this.labeledAxes();
       if (!axes.length) return;
