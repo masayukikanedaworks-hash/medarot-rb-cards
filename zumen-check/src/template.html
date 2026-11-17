@@ -33,14 +33,17 @@
   header .ver { color: var(--sub); font-size: 12px; }
   header .privacy { color: var(--sub); font-size: 12px; margin-left: auto; }
   main { max-width: 2200px; margin: 0 auto; padding: 16px 24px 60px; }
-  .panels { display: flex; gap: 16px; flex-wrap: wrap; }
+  /* 画面を左右に分け、左に図面2枚（縦並び）・右に照合結果。
+     3つを同時に見られるようにするための配置（利用者の要望）。
+     右の照合結果は position:sticky で、左をスクロールしても見えたままにする */
+  .layout { display: flex; gap: 16px; align-items: flex-start; }
+  .col-draw { flex: 1 1 56%; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
   .panel {
-    flex: 1 1 480px;
-    min-width: 420px;
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px 16px;
+    min-width: 0;
   }
   .panel h2, #check h2 { font-size: 15px; margin: 0 0 10px; }
   /* ファイル選択＋ページ番号（左）と、分割図面の案内（右）を横並びにする */
@@ -79,8 +82,10 @@
   .viewer-hint { color: #9aa4ad; margin-left: auto; }
   .viewer-wrap {
     position: relative;
-    height: 62vh;
-    min-height: 320px;
+    /* 図面を縦に2枚並べるので、1枚あたりは画面の約1/3。
+       足りなければ右下をドラッグして広げられる（resize: vertical） */
+    height: 34vh;
+    min-height: 220px;
     max-height: 1200px;
     resize: vertical;
     overflow: hidden;
@@ -314,13 +319,21 @@
   .legend-sw.ng { background: #f8ccd6; border: 2px solid #d4002a; }
   .legend-sw.warn { background: #fae3c2; border: 1.5px dashed #c77700; }
   #check {
-    margin-top: 16px;
+    flex: 1 1 44%;
+    min-width: 0;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px 16px;
   }
   .check-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  /* #check は縦のフレックスなので、ボタンは行にまとめないと横幅いっぱいに伸びる */
+  .run-row { display: flex; align-items: center; flex: 0 0 auto; }
   .check-row label { user-select: none; }
   #tol { width: 60px; padding: 2px 4px; }
   #run-check {
@@ -351,7 +364,17 @@
   table.result tr.warn { background: #fdf6e3; }
   table.result tr.warn td.st { color: #9a6b00; }
   table.result tr.ok td.st { color: #0a7a3d; }
-  #result { overflow: auto; }
+  /* 照合結果だけが縦に伸びるので、表だけをスクロールさせる。
+     チェック項目・「照合する」・件数・凡例は上に固定されたまま残る */
+  #result { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .result-table { overflow: auto; flex: 1 1 auto; min-height: 0; }
+  /* 画面が狭いときは左右に並べず、上から順に積む */
+  @media (max-width: 1200px) {
+    .layout { flex-direction: column; }
+    .col-draw { width: 100%; }
+    #check { position: static; max-height: none; width: 100%; }
+    .viewer-wrap { height: 52vh; }
+  }
   footer { color: var(--sub); font-size: 12px; margin-top: 24px; }
 </style>
 </head>
@@ -362,7 +385,8 @@
   <span class="privacy">図面の解析はすべてブラウザ内で完結します（PDFは外部へ送信されません）</span>
 </header>
 <main>
-  <div class="panels">
+  <div class="layout">
+  <div class="col-draw">
     <section class="panel">
       <h2>1. 基準図面</h2>
       <div id="panel-base-body"></div>
@@ -382,10 +406,13 @@
       <label title="自動: 両方の図面が同じ辺に符号を書いていれば辺ごと、違えば方向ごとに切り替えます。辺ごと: 上辺/右辺/下辺/左辺で別々に照合します。方向ごと: 上辺と下辺（右辺と左辺）をまとめてX方向/Y方向として照合します。">照合の単位 <select id="cmp-unit"><option value="auto">自動</option><option value="side">辺ごと</option><option value="dir">方向ごと（X/Y）</option></select></label>
       <label title="照合結果を両方のビュワーに色で表示します。左右で同じ通り芯・同じ記載寸法の区間は黄色、差異がある区間は赤、片方で寸法が読めなかった区間は橙の破線です"><input type="checkbox" id="ck-marks" checked> 照合結果を図面に色で表示（一致=黄 / 差異=赤）</label>
     </div>
-    <button id="run-check" disabled>照合する</button>
-    <button id="csv-dl" hidden>CSVダウンロード</button>
+    <div class="run-row">
+      <button id="run-check" disabled>照合する</button>
+      <button id="csv-dl" hidden>CSVダウンロード</button>
+    </div>
     <div id="result"></div>
   </section>
+  </div>
   <footer>
     <p>ベクターPDF専用（スキャンPDFは読み取れません）。通り芯は円で囲まれた X○○・Y○○ のみ、寸法は図面に記載された数字（黒ドット間の直線の上）のみを拾います。検出されなかった箇所に差異が無いことを保証するものではありません。最終確認は必ず図面で行ってください。</p>
   </footer>

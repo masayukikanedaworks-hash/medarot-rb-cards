@@ -26,6 +26,7 @@
   const MARK_MIN_PX = 7; // 符号・数字の塗りの最小の大きさ(px)。縮小時でも見えるように
   const MARK_ALPHA = 0.2; // 照合結果の塗りの濃さ（レイヤをまとめて重ねるとき）
   const REJ_MAX = 12; // 「通り芯にしなかった文字列」を理由ごとに並べる上限
+  const VIEW_MAX_VH = 0.4; // ビュワー1枚の高さの上限（画面の高さに対する比）
   // 照合結果の塗り分け。一致=黄 / 要確認=橙 / 差異=赤。
   // 塗りは**不透明な色で別レイヤに描いてから**まとめて薄く重ねる。
   // X方向の帯とY方向の帯は図面の上で必ず交差するので、そのまま半透明で塗ると
@@ -1015,7 +1016,12 @@
       const w = this.$wrap.clientWidth;
       if (!w) return;
       const h = (w * this.extract.height) / Math.max(this.extract.width, 1);
-      this.autoHeightPx = Math.round(Math.min(1100, Math.max(320, h)));
+      // **画面の高さで頭打ちにする。** 図面は左の列に縦2枚並ぶので、縦横比だけで
+      // 決めると横長のA1図面で1枚が700px超になり、2枚目と照合結果が遠くなる
+      // （利用者から「3つを同時に見たい」と指摘）。足りなければ下端をドラッグする
+      const vh = (typeof window !== "undefined" && window.innerHeight) || 900;
+      const cap = Math.max(260, Math.min(1100, Math.round(vh * VIEW_MAX_VH)));
+      this.autoHeightPx = Math.round(Math.min(cap, Math.max(240, h)));
       this.$wrap.style.height = this.autoHeightPx + "px";
     }
 
@@ -2042,7 +2048,10 @@
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
-      wrap.appendChild(table);
+      // 表だけをスクロールさせる（件数・凡例・単位の説明は上に残す）
+      const scroller = el("div", { class: "result-table" });
+      scroller.appendChild(table);
+      wrap.appendChild(scroller);
       document.getElementById("csv-dl").hidden = false;
     },
 
