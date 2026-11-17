@@ -90,7 +90,7 @@
       buildAxes(hPieces, "h", bx1 - bx0, by0, by1, list.filter((c) => c.dir === "h")),
     ];
     let [vAxes, hAxes] = mkAxes(cands);
-    assignLabels(vAxes.concat(hAxes), cands);
+    let unassigned = assignLabels(vAxes.concat(hAxes), cands, bbox);
 
     // 円で囲まれていない符号は、円囲みの符号が決まったあとで判定する
     // （番号と位置が既存の符号と矛盾しないものだけを採るため）。
@@ -104,7 +104,7 @@
         // 芯を組み直すので、1パス目で立てた「割り当て済み」を戻す
         for (const c of cands) c.used = false;
         [vAxes, hAxes] = mkAxes(cands);
-        assignLabels(vAxes.concat(hAxes), cands);
+        unassigned = assignLabels(vAxes.concat(hAxes), cands, bbox);
       }
     }
 
@@ -128,11 +128,21 @@
       plainLabels: plain.filter((c) => c.used).map((c) => c.norm),
       // 符号らしいのに通り芯にしなかった文字列と、その理由。
       // 黙って落とすと「なぜ拾えないのか」が分からないので画面に出す
-      rejected: rejected.concat(
-        plain
-          .filter((c) => !c.used)
-          .map((c) => ({ text: c.norm, why: "その位置に通り芯の線が見つかりません" }))
-      ),
+      rejected: rejected
+        .concat(unassigned)
+        .concat(unreadBubbles(vAxes.concat(hAxes), extract.circles || [], cands))
+        // 別の図（キープランなど）の符号として除外したもの。本図に同じ符号が
+        // あるなら当たり前なので出さない（キープランは本図と同じ符号が並ぶ）
+        .concat(
+          allCands
+            .filter((c) => grouped.primary.indexOf(c) < 0)
+            .filter((c) => !vAxes.concat(hAxes).some((a) => a.label === c.norm))
+            .map((c) => ({
+              text: c.norm,
+              side: guessSide(c, bbox),
+              why: "符号の大きさが本図と違うので別の図の符号として除外しました",
+            }))
+        ),
     };
   }
 
@@ -315,7 +325,8 @@
     for (const [host, list] of inside) {
       const lab = labelInBubble(list);
       if (!lab) continue;
-      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, used: false });
+      // circle は「どの円から読んだか」。読めなかった円を探すのに使う（unreadBubbles）
+      cands.push({ norm: lab.label, dir: lab.dir, x: host.x, y: host.y, r: host.r, circle: host, used: false });
     }
     return cands;
   }
@@ -451,9 +462,20 @@
   }
 
   // 芯の上下（左右）両端に同じ符号が書かれるため、各芯は辺ごとにバブルを持つ。
-  function assignLabels(axes, cands) {
-    if (!cands.length) return;
+  // 符号の候補を芯に割り当てる。
+  // 戻り値は**割り当てられなかった候補の理由**（`{text, side, why}` の配列）。
+  // 符号は芯の両端に書かれるので「左辺は読めたのに右辺だけ読めない」が起こる。
+  // 黙って片方だけ落とすと利用者には理由が分からないため、落ちた枝を記録する。
+  function assignLabels(axes, cands, bbox) {
+    if (!cands.length) return [];
     const pairs = [];
+    // 候補ごとに「どこで落ちたか」。惜しい順に dup > other > reach
+    const flag = new Map();
+    const mark = (t, k, v) => {
+      if (!flag.has(t)) flag.set(t, {});
+      if (v !== undefined) flag.get(t)[k] = v;
+      else flag.get(t)[k] = true;
+    };
     for (const ax of axes) {
       for (const t of cands) {
         if (t.dir !== ax.dir) continue;
@@ -467,7 +489,10 @@
         const dFrom = ax.from - along; // 正なら from より外側
         const dTo = along - ax.to; // 正なら to より外側
         const outside = Math.max(dFrom, dTo);
-        if (outside > PARAMS.BUBBLE_REACH) continue;
+        if (outside > PARAMS.BUBBLE_REACH) {
+          mark(t, "reach", Math.round(outside));
+          continue;
+        }
         const side =
           ax.dir === "v"
             ? along >= (ax.from + ax.to) / 2 ? "top" : "bottom"
@@ -479,9 +504,19 @@
     const usedSide = new Set(); // 「符号+辺」は1つの芯にのみ
     for (const p of pairs) {
       const key = p.t.norm + ":" + p.side;
-      if (usedSide.has(key) || p.t.used) continue;
-      if (p.ax.label != null && p.ax.label !== p.t.norm) continue; // 別符号は割り当てない
-      if (p.ax.bubbles.some((b) => b.side === p.side)) continue;
+      if (p.t.used) continue;
+      if (usedSide.has(key)) {
+        mark(p.t, "dup", p.side);
+        continue;
+      }
+      if (p.ax.label != null && p.ax.label !== p.t.norm) {
+        mark(p.t, "other", p.ax.label); // 別符号は割り当てない
+        continue;
+      }
+      if (p.ax.bubbles.some((b) => b.side === p.side)) {
+        mark(p.t, "dup", p.side);
+        continue;
+      }
       p.ax.label = p.t.norm;
       p.ax.labelXY = { x: p.t.x, y: p.t.y };
       p.ax.bubbles.push({
@@ -494,6 +529,68 @@
       usedSide.add(key);
       p.t.used = true;
     }
+    return cands.filter((t) => !t.used).map((t) => {
+      const f = flag.get(t) || {};
+      const side = guessSide(t, bbox);
+      let why = "その位置に通り芯の線が見つかりません";
+      if (f.dup) why = "同じ符号が" + (SIDE_NAME[f.dup] || "同じ辺") + "の別の通り芯に割り当てられています";
+      else if (f.other) why = "その位置の通り芯には別の符号（" + f.other + "）が付いています";
+      else if (f.reach) why = "通り芯の線の端から " + f.reach + "pt 離れています（線が途中で切れている可能性）";
+      return { text: t.norm, side, why };
+    });
+  }
+
+  // 符号が図のどの辺に書かれているか（割り当てに失敗しても言えるよう、
+  // 芯ではなく図の内容範囲との位置関係で決める）
+  function guessSide(t, bbox) {
+    if (!bbox) return null;
+    return t.dir === "v"
+      ? t.y >= (bbox.y0 + bbox.y1) / 2 ? "top" : "bottom"
+      : t.x >= (bbox.x0 + bbox.x1) / 2 ? "right" : "left";
+  }
+
+  // 符号が読めなかったバブルを探す。
+  // 符号は芯の両端に書かれるので「左辺は読めたのに右辺だけ読めない」が起きる。
+  // そのとき原因は **円が見つかっていない / 中の文字が読めていない / 芯に
+  // 割り当てられなかった** のどれかで、直しかたが違う。ここは 2 つめを拾う:
+  // 符号付きの芯の延長線上に、ほかの符号バブルと**同じ大きさの円**があるのに
+  // そこから符号が読めていない場所を挙げる（線で描かれた文字の図面で、
+  // その円の中の字形だけ未登録だと起きる）。
+  function unreadBubbles(axes, circles, cands) {
+    const out = [];
+    if (!circles || !circles.length) return out;
+    const rs = (cands || []).filter((c) => c.r > 0).map((c) => c.r).sort((a, b) => a - b);
+    if (!rs.length) return out;
+    const med = rs[rs.length >> 1];
+    const read = new Set();
+    for (const c of cands) if (c.circle) read.add(c.circle);
+    const seen = new Set();
+    for (const ax of axes) {
+      if (ax.label == null) continue;
+      for (const c of circles) {
+        if (read.has(c) || seen.has(c)) continue;
+        // 符号バブルと同じ大きさの円だけ（ボルト記号などを拾わないため）
+        if (Math.abs(c.r - med) > med * PARAMS.GROUP_R_TOL) continue;
+        const lateral = ax.dir === "v" ? Math.abs(c.x - ax.pos) : Math.abs(c.y - ax.pos);
+        if (lateral > PARAMS.LABEL_LATERAL) continue;
+        const along = ax.dir === "v" ? c.y : c.x;
+        // **芯の外側**にあるものだけ（図の中の円は符号ではない）
+        const outside = Math.max(ax.from - along, along - ax.to);
+        if (outside <= 0 || outside > PARAMS.BUBBLE_REACH) continue;
+        const side =
+          ax.dir === "v"
+            ? along >= (ax.from + ax.to) / 2 ? "top" : "bottom"
+            : along >= (ax.from + ax.to) / 2 ? "right" : "left";
+        if (ax.bubbles.some((b) => b.side === side)) continue;
+        seen.add(c);
+        out.push({
+          text: ax.label,
+          side,
+          why: "符号の円はありますが、中の文字が読めませんでした",
+        });
+      }
+    }
+    return out;
   }
 
   // 表示名（符号のみ。符号なしの芯は方向+連番）

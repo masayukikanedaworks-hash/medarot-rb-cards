@@ -121,7 +121,8 @@ function reportOne(r, opt) {
     for (const x of r.det.rejected) {
       if (!byWhy.has(x.why)) byWhy.set(x.why, []);
       const t = byWhy.get(x.why);
-      if (!t.includes(x.text)) t.push(x.text);
+      const name = (x.side ? ZC.axis.SIDE_NAME[x.side] + "の" : "") + x.text;
+      if (!t.includes(name)) t.push(name);
     }
     lines.push(`         ※通り芯にしなかった符号らしい文字列 ${r.det.rejected.length} 件`);
     for (const [why, texts] of byWhy) {

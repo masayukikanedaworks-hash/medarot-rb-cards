@@ -241,11 +241,23 @@ function drawingOps(spec, textEnc, useTJ) {
 
   // 符号（円囲み・上下/左右の両端）
   ops.push("0.5 w");
-  const label = (cx, cy, str, noBubble) => {
+  const label = (cx, cy, str, noBubble, unread) => {
     // 字数の多い符号（X2.2）は横長の長円で囲む CAD がある
     const wide = spec.ovalBubbles && str.length > 2;
     if (!spec.noBubbles && !noBubble) {
       ops.push(wide ? circleOps(cx, cy, BUBBLE_R * 1.7, false, BUBBLE_R) : circleOps(cx, cy, BUBBLE_R, false));
+    }
+    // この辺だけ「円はあるが中の文字が読めない」状態にする（unread）。
+    // 実図面では片側のバブルの字形だけ未登録で起きる
+    if (unread) {
+      ops.push("0.3 w");
+      for (let i = 0; i < 4; i++) {
+        const x = cx - 3 + i * 1.6;
+        ops.push(`${fmt(x)} ${fmt(cy - 2.5)} m ${fmt(x + 1.1)} ${fmt(cy + 2.5)} l S`);
+        ops.push(`${fmt(x)} ${fmt(cy + 2.5)} m ${fmt(x + 1.1)} ${fmt(cy - 2.5)} l S`);
+      }
+      ops.push("0.5 w");
+      return;
     }
     if (spec.strokeFont) {
       const h = spec.strokeH;
@@ -282,14 +294,16 @@ function drawingOps(spec, textEnc, useTJ) {
   for (const a of pos.v) {
     const sa = spec.vAxes[pos.v.indexOf(a)];
     const sides = sa.sides || ["bottom", "top"];
-    if (sides.includes("bottom")) label(a.pos, 40, a.label, sa.noBubble);
-    if (sides.includes("top")) label(a.pos, 516, a.label, sa.noBubble);
+    const un = sa.unread || [];
+    if (sides.includes("bottom")) label(a.pos, 40, a.label, sa.noBubble, un.includes("bottom"));
+    if (sides.includes("top")) label(a.pos, 516, a.label, sa.noBubble, un.includes("top"));
   }
   for (const a of pos.h) {
     const sa = spec.hAxes[pos.h.indexOf(a)];
     const sides = sa.sides || ["left", "right"];
-    if (sides.includes("left")) label(72, a.pos, a.label, sa.noBubble);
-    if (sides.includes("right")) label(780, a.pos, a.label, sa.noBubble);
+    const un = sa.unread || [];
+    if (sides.includes("left")) label(72, a.pos, a.label, sa.noBubble, un.includes("left"));
+    if (sides.includes("right")) label(780, a.pos, a.label, sa.noBubble, un.includes("right"));
   }
 
   // ---- 寸法（4辺） ----
