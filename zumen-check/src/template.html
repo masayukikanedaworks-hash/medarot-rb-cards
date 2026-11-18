@@ -106,6 +106,49 @@
     display: none;
     z-index: 5;
   }
+  /* 図上の差異（赤・橙）をクリックしたときに出す、照合結果1行ぶんのコメント */
+  .mark-note {
+    position: absolute;
+    z-index: 6;
+    max-width: 280px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid #b30021;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(20, 30, 40, 0.18);
+    padding: 6px 8px 7px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .mark-note[hidden] { display: none; }
+  .mark-note.warn { border-left-color: #c77700; }
+  .mark-note.ok { border-left-color: #0a7a3d; }
+  .note-head { display: flex; align-items: center; gap: 6px; }
+  .note-st {
+    font-weight: 700;
+    color: #fff;
+    background: #b30021;
+    border-radius: 3px;
+    padding: 0 5px;
+    font-size: 11px;
+    flex: 0 0 auto;
+  }
+  .mark-note.warn .note-st { background: #c77700; }
+  .mark-note.ok .note-st { background: #0a7a3d; }
+  .note-ttl { font-weight: 700; color: var(--ink); }
+  .note-x {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--sub);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  .note-x:hover { color: var(--ink); }
+  .note-val { color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .note-body { color: var(--sub); margin-top: 3px; word-break: break-word; }
   .pickup { margin-top: 10px; }
   .pickup-head {
     display: flex;

@@ -101,3 +101,24 @@ exports.小数点付きの通り芯も照合できる = async () => {
   const same = r.rows.find((x) => x.side === "上辺" && x.check === "芯々寸法" && x.item === "X2~X2.2");
   assert.equal(same.status, "OK");
 };
+
+// 図上の差異（赤・橙）をクリックすると照合結果の中身をコメントで出すので、
+// 差異の行は「コメントに出す項目」をひととおり持っている必要がある
+exports.差異の行は図上のコメントに出す項目をそろえて持つ = async () => {
+  const spec = mk.makeSpec();
+  spec.vAxes[1].mm = 6500; // X2 をずらして差異を作る
+  const base = await sideOf(mk.makeBasicPdf(), "基準");
+  const cmp = await sideOf(mk.makeBasicPdf(spec), "比較");
+  const r = cmpOf(base, cmp);
+  const marked = r.rows.filter((x) => x.status !== "OK" && x.scope !== "all");
+  assert.ok(marked.length >= 1, "差異の行がある");
+  for (const row of marked) {
+    for (const k of ["status", "side", "check", "item", "base", "cmp", "note"]) {
+      assert.ok(k in row, k + " を持つ: " + JSON.stringify(Object.keys(row)));
+    }
+    assert.equal(typeof row.note, "string", "備考は文字列（未記入でも空文字）");
+  }
+  // 分割記載の内訳は備考に入る（コメントの本文になる）
+  const withNote = r.rows.find((x) => x.note);
+  assert.ok(withNote, "備考のある行がある: " + JSON.stringify(r.rows.map((x) => x.note)));
+};
