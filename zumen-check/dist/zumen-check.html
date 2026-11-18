@@ -106,6 +106,49 @@
     display: none;
     z-index: 5;
   }
+  /* 図上の差異（赤・橙）をクリックしたときに出す、照合結果1行ぶんのコメント */
+  .mark-note {
+    position: absolute;
+    z-index: 6;
+    max-width: 280px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid #b30021;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(20, 30, 40, 0.18);
+    padding: 6px 8px 7px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .mark-note[hidden] { display: none; }
+  .mark-note.warn { border-left-color: #c77700; }
+  .mark-note.ok { border-left-color: #0a7a3d; }
+  .note-head { display: flex; align-items: center; gap: 6px; }
+  .note-st {
+    font-weight: 700;
+    color: #fff;
+    background: #b30021;
+    border-radius: 3px;
+    padding: 0 5px;
+    font-size: 11px;
+    flex: 0 0 auto;
+  }
+  .mark-note.warn .note-st { background: #c77700; }
+  .mark-note.ok .note-st { background: #0a7a3d; }
+  .note-ttl { font-weight: 700; color: var(--ink); }
+  .note-x {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--sub);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  .note-x:hover { color: var(--ink); }
+  .note-val { color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .note-body { color: var(--sub); margin-top: 3px; word-break: break-word; }
   .pickup { margin-top: 10px; }
   .pickup-head {
     display: flex;
@@ -5030,9 +5073,10 @@
         '<button type="button" class="vb-measure" title="2点間の距離を測る（芯・端点にスナップ / Escで解除）">測定</button>' +
         '<label title="記載寸法を図上に表示（表示する種類は下のチェックに従う）"><input type="checkbox" class="vb-dims" checked> 寸法表示</label>' +
         '<span class="zoom-label">—</span>' +
-        '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:拾い出しON/OFF</span>' +
+        '<span class="viewer-hint">ホイール:拡大縮小 / ドラッグ:移動 / 芯クリック:拾い出しON/OFF / 色の付いた差異をクリック:内容表示</span>' +
         "</div>" +
-        '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div></div>' +
+        '<div class="viewer-wrap"><canvas class="preview"></canvas><div class="axtip"></div>' +
+        '<div class="mark-note" hidden></div></div>' +
         '<div class="pickup">' +
         '<div class="pickup-head">' +
         '<button type="button" class="pickup-toggle" aria-expanded="false">' +
@@ -5061,6 +5105,9 @@
       this.$wrap = this.root.querySelector(".viewer-wrap");
       this.$canvas = this.root.querySelector("canvas");
       this.$tip = this.root.querySelector(".axtip");
+      this.$note = this.root.querySelector(".mark-note");
+      this.noteAnchor = null; // 開いているコメントの位置（ページ座標）と中身
+      this._markHits = [];
       this.$list = this.root.querySelector(".axis-list");
       this.listOpen = false; // 通り芯の一覧も既定で閉じておく
       this.$listToggle = this.root.querySelector(".list-toggle");
@@ -5185,6 +5232,7 @@
     }
 
     _reset() {
+      this.hideNote();
       this.doc = null;
       this.pages = [];
       this.extract = null;
@@ -5210,6 +5258,7 @@
 
     async loadPage(index) {
       if (!this.doc || !this.pages[index]) return;
+      this.hideNote(); // 別のページの座標に貼り付いたままにしない
       this.setStatus("解析中…");
       try {
         const ex = new ZC.content.ContentExtractor(this.doc);
@@ -5419,6 +5468,7 @@
     // 照合結果（図上に色で描く）
     setDiffs(refs) {
       this.diffRefs = refs && refs.length ? refs : null;
+      this.hideNote(); // 照合し直したら前のコメントは閉じる
       this.requestRender();
     }
 
@@ -5598,7 +5648,8 @@
         this._syncRowHl();
         this.requestRender();
       }
-      this.$canvas.style.cursor = hit ? "pointer" : "grab";
+      const onMark = !hit && this._hitMark(mx, my);
+      this.$canvas.style.cursor = hit || onMark ? "pointer" : "grab";
       this._tip(hit, mx, my);
     }
 
@@ -5623,11 +5674,93 @@
         this.requestRender();
         return;
       }
+      // 差異マークを芯より先に見る。符号の上に重なっていることが多く、
+      // 先に芯を判定すると拾い出しが切り替わってしまう
+      const mark = this._hitMark(mx, my);
+      if (mark) {
+        const [px, py] = this.toPage(mx, my);
+        this.showNote(mark.row, px, py);
+        return;
+      }
+      this.hideNote();
       const hit = this._hitAxis(mx, my);
       if (hit) {
         this.toggleAxis(hit);
         this._tip(hit, mx, my);
       }
+    }
+
+    // 画面座標での差異マークのヒットテスト。
+    // 赤（差異）を橙（要確認）より優先し、同じ重さなら**小さいほうを優先**する
+    // （符号の箱の中に寸法の数字の箱が重なることがあるため）
+    _hitMark(mx, my) {
+      let best = null;
+      let bestKey = Infinity;
+      for (const b of this._markHits || []) {
+        if (mx < b.x || mx > b.x + b.w || my < b.y || my > b.y + b.h) continue;
+        const key = (b.status === "NG" ? 0 : 1e9) + b.w * b.h;
+        if (key < bestKey) {
+          bestKey = key;
+          best = b;
+        }
+      }
+      return best;
+    }
+
+    // 差異マークの内容をコメントで出す。位置は**ページ座標で覚える**ので、
+    // 拡大・移動しても同じ場所に貼り付いたまま動く
+    showNote(row, px, py) {
+      if (!this.$note || !row) return;
+      this.noteAnchor = { px, py, row };
+      const n = this.$note;
+      n.innerHTML = "";
+      const st = row.status === "WARN" ? "warn" : row.status === "NG" ? "ng" : "ok";
+      n.className = "mark-note " + st;
+      const head = el("div", { class: "note-head" });
+      head.appendChild(el("span", { class: "note-st", text: row.status === "WARN" ? "要確認" : row.status }));
+      head.appendChild(el("span", { class: "note-ttl", text: [row.side, row.check, row.item].filter(Boolean).join(" ") }));
+      const close = el("button", { type: "button", class: "note-x", text: "×", title: "閉じる" });
+      close.addEventListener("click", () => this.hideNote());
+      head.appendChild(close);
+      n.appendChild(head);
+      n.appendChild(
+        el("div", {
+          class: "note-val",
+          text:
+            "基準 " + row.base + " / 比較 " + row.cmp +
+            (row.diff == null ? "" : "（差 " + (row.diff > 0 ? "+" : "") + ZC.sides.fmtVal(row.diff) + "mm）"),
+        })
+      );
+      n.appendChild(el("div", { class: "note-body", text: row.note || "（備考はありません）" }));
+      n.hidden = false;
+      this._placeNote();
+    }
+
+    hideNote() {
+      this.noteAnchor = null;
+      if (this.$note) this.$note.hidden = true;
+    }
+
+    // コメントを現在の表示位置に合わせて置き直す（描画のたびに呼ぶ）
+    _placeNote() {
+      const a = this.noteAnchor;
+      if (!a || !this.$note || !this.view) return;
+      const [sx, sy] = this.toScreen(a.px, a.py);
+      const W = this.$canvas.clientWidth;
+      const H = this.$canvas.clientHeight;
+      if (sx < -40 || sy < -40 || sx > W + 40 || sy > H + 40) {
+        this.$note.hidden = true; // 画面の外へ出たら隠す（消しはしない）
+        return;
+      }
+      this.$note.hidden = false;
+      const nw = this.$note.offsetWidth;
+      const nh = this.$note.offsetHeight;
+      let x = sx + 12;
+      let y = sy - nh - 10;
+      if (x + nw > W - 4) x = Math.max(4, sx - nw - 12);
+      if (y < 4) y = Math.min(H - nh - 4, sy + 14);
+      this.$note.style.left = Math.max(4, x) + "px";
+      this.$note.style.top = Math.max(4, y) + "px";
     }
 
     // 画面座標での芯のヒットテスト（符号付きの芯のみ・6px以内）
@@ -5814,6 +5947,7 @@
       }
       this._drawDiffBoxes(ctx); // 差異の赤枠は一番上に描く
       this._drawMeasure(ctx);
+      this._placeNote(); // 開いているコメントを今の表示位置へ
     }
 
     _axisScreenSeg(ax) {
@@ -5887,6 +6021,9 @@
     //   片方で寸法が読めなかった箇所                       … 橙
     // 一致 → 要確認 → 差異 の順に塗るので、重なっても差異が隠れない。
     _drawDiffBoxes(ctx) {
+      // クリックで内容を出すための当たり判定。毎回の描画で作り直すので、
+      // 画面に見えている差異＝クリックできる差異、が常に一致する
+      this._markHits = [];
       const refs = this.diffRefs;
       if (!refs || !refs.length) return;
       const page = Number(this.$page.value || 0) + 1;
@@ -5960,11 +6097,16 @@
           const key = d.status + ":" + Math.round(x) + "," + Math.round(y) + "," + Math.round(w);
           if (seen.has(key)) continue;
           seen.add(key);
-          byStatus[d.status].push({ x, y, w, h, label: d.label, status: d.status });
+          byStatus[d.status].push({ x, y, w, h, label: d.label, status: d.status, row: d.row });
         }
       }
       const all = MARK_ORDER.reduce((n, k) => n + byStatus[k].length, 0);
       if (!all) return;
+      // クリックできるのは差異（赤）と要確認（橙）だけ。一致（黄）は
+      // 従来どおり芯のクリック（拾い出しON/OFF）に通す
+      for (const st of ["NG", "WARN"]) {
+        for (const bx of byStatus[st]) if (bx.row) this._markHits.push(bx);
+      }
       ctx.save();
       // 塗り: 別レイヤに不透明で描いてから、まとめて薄く重ねる。
       // 符号と数字が隣り合って重なっても、色が二重に濃くならないようにするため。
@@ -6412,6 +6554,8 @@
         if (e.key === "Escape") {
           ui.base.cancelMeasure();
           ui.cmp.cancelMeasure();
+          ui.base.hideNote();
+          ui.cmp.hideNote();
         }
       });
       globalThis.addEventListener("resize", () => {
@@ -6467,7 +6611,17 @@
         // 図面全体にかかる行（符号の一覧・全体寸法）で塗ると図面が丸ごと埋まる
         if (!r.refs || r.scope === "all") continue;
         const label = r.item;
-        const m = { label, status: r.status, sideKey: r.sideKey };
+        // 図上のマークをクリックしたときに出す中身（照合結果の1行ぶん）。
+        // refs は持ち回らない（芯の実体を UI の表示用データに混ぜない）
+        const m = {
+          label,
+          status: r.status,
+          sideKey: r.sideKey,
+          row: {
+            status: r.status, side: r.side, check: r.check, item: r.item,
+            base: r.base, cmp: r.cmp, diff: r.diff, note: r.note,
+          },
+        };
         if (r.refs.b && r.refs.b.length) b.push(Object.assign({ axes: r.refs.b, span: r.refs.bs }, m));
         if (r.refs.c && r.refs.c.length) c.push(Object.assign({ axes: r.refs.c, span: r.refs.cs }, m));
       }
